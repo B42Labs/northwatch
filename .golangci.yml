@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - staticcheck
+    - gosec
+    - revive
+    - bodyclose
+    - noctx
+    - govet
+    - ineffassign
+    - unused
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+  exclusions:
+    paths:
+      - internal/ovsdb/nb
+      - internal/ovsdb/sb
+    generated: strict
