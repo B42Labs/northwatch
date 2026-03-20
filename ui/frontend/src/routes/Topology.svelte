@@ -19,6 +19,7 @@
   let focusChassis = $state('');
   let searchQuery = $state('');
   let relayoutKey = $state(0);
+  let liveUpdates = $state(false);
   let refetchTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Dropdown options derived from data
@@ -88,6 +89,10 @@
 
   $effect(() => {
     load();
+  });
+
+  $effect(() => {
+    if (!liveUpdates) return;
     const unsubscribe = subscribeToTables(
       '*',
       [
@@ -207,6 +212,14 @@
       </p>
     </div>
     <div class="flex items-center gap-3">
+      <label class="flex cursor-pointer select-none items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          bind:checked={liveUpdates}
+          class="checkbox checkbox-sm"
+        />
+        Live updates
+      </label>
       <label class="flex cursor-pointer select-none items-center gap-2 text-sm">
         <input
           type="checkbox"

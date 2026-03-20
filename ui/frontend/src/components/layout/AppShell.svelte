@@ -2,11 +2,12 @@
   import Sidebar from './Sidebar.svelte';
   import Navbar from './Navbar.svelte';
   import type { Snippet } from 'svelte';
+  import { sidebarOpen } from '../../lib/sidebarStore';
 
   let { children }: { children: Snippet } = $props();
 </script>
 
-<div class="drawer lg:drawer-open">
+<div class="drawer" class:lg:drawer-open={$sidebarOpen}>
   <input id="sidebar-toggle" type="checkbox" class="drawer-toggle" />
 
   <div class="drawer-content flex flex-col">
