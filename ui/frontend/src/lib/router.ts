@@ -68,6 +68,14 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { component: 'topology', ...m };
   if ((m = matchRoute('/flows', path)))
     return { component: 'flow-pipeline', ...m };
+  if ((m = matchRoute('/security', path)))
+    return { component: 'security-policy', ...m };
+  if ((m = matchRoute('/nat', path)))
+    return { component: 'nat-overview', ...m };
+  if ((m = matchRoute('/ha', path)))
+    return { component: 'ha-failover', ...m };
+  if ((m = matchRoute('/mac-table', path)))
+    return { component: 'mac-table', ...m };
 
   // Search
   if ((m = matchRoute('/search', path))) return { component: 'search', ...m };

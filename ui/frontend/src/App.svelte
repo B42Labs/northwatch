@@ -17,6 +17,10 @@
   import PortBindingProfile from './routes/correlated/PortBindingProfile.svelte';
   import Topology from './routes/Topology.svelte';
   import FlowPipeline from './routes/FlowPipeline.svelte';
+  import SecurityPolicy from './routes/SecurityPolicy.svelte';
+  import NatOverview from './routes/NatOverview.svelte';
+  import HaFailover from './routes/HaFailover.svelte';
+  import MacTable from './routes/MacTable.svelte';
 
   let route = $derived(resolveRoute($location));
 </script>
@@ -28,6 +32,14 @@
     <Topology />
   {:else if route.component === 'flow-pipeline'}
     <FlowPipeline />
+  {:else if route.component === 'security-policy'}
+    <SecurityPolicy />
+  {:else if route.component === 'nat-overview'}
+    <NatOverview />
+  {:else if route.component === 'ha-failover'}
+    <HaFailover />
+  {:else if route.component === 'mac-table'}
+    <MacTable />
   {:else if route.component === 'table-browser'}
     <TableBrowser db={route.db!} table={route.params.table} />
   {:else if route.component === 'raw-detail'}

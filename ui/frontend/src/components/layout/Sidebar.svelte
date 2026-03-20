@@ -76,6 +76,38 @@
               Flow Pipeline
             </a>
           </li>
+          <li>
+            <a
+              href={link('/security')}
+              class:active={isActive($location, '/security')}
+            >
+              Security Policy
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/nat')}
+              class:active={isActive($location, '/nat')}
+            >
+              NAT Overview
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/ha')}
+              class:active={isActive($location, '/ha')}
+            >
+              HA Failover
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/mac-table')}
+              class:active={isActive($location, '/mac-table')}
+            >
+              MAC Table
+            </a>
+          </li>
         </ul>
       {/if}
     </li>

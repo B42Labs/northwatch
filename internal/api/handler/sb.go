@@ -35,6 +35,7 @@ func RegisterSB(mux *http.ServeMux, sbClient client.Client) {
 	registerTable[sb.Connection](mux, "/api/v1/sb/connections", sbClient)
 	registerTable[sb.GatewayChassis](mux, "/api/v1/sb/gateway-chassis", sbClient)
 	registerTable[sb.HAChassisGroup](mux, "/api/v1/sb/ha-chassis-groups", sbClient)
+	registerTable[sb.HAChassis](mux, "/api/v1/sb/ha-chassis", sbClient)
 	registerTable[sb.IPMulticast](mux, "/api/v1/sb/ip-multicast", sbClient)
 	registerTable[sb.IGMPGroup](mux, "/api/v1/sb/igmp-groups", sbClient)
 	registerTable[sb.ServiceMonitor](mux, "/api/v1/sb/service-monitors", sbClient)

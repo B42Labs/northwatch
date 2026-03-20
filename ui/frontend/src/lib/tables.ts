@@ -272,6 +272,11 @@ export const databases: DbDef[] = [
         primaryColumns: ['_uuid', 'name', 'ha_chassis'],
       },
       {
+        slug: 'ha-chassis',
+        label: 'HA Chassis',
+        primaryColumns: ['_uuid', 'chassis', 'priority', 'external_ids'],
+      },
+      {
         slug: 'ip-multicast',
         label: 'IP Multicast',
         primaryColumns: ['_uuid', 'datapath', 'enabled', 'querier'],
@@ -415,6 +420,7 @@ ovsdbNameToSlug.set('DHCP_Options', 'dhcp-options');
 ovsdbNameToSlug.set('NB_Global', 'nb-global');
 ovsdbNameToSlug.set('SB_Global', 'sb-global');
 ovsdbNameToSlug.set('Gateway_Chassis', 'gateway-chassis');
+ovsdbNameToSlug.set('HA_Chassis', 'ha-chassis');
 ovsdbNameToSlug.set('HA_Chassis_Group', 'ha-chassis-groups');
 ovsdbNameToSlug.set('Chassis_Private', 'chassis-private');
 ovsdbNameToSlug.set('Controller_Event', 'controller-events');
