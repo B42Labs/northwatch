@@ -118,3 +118,62 @@ func TestParse_NoOpenStack(t *testing.T) {
 	assert.Empty(t, cfg.OpenStackAuthURL)
 	assert.Empty(t, cfg.OpenStackUsername)
 }
+
+func TestParse_HistoryDefaults(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "northwatch-history.db", cfg.HistoryDBPath)
+	assert.Equal(t, 5*time.Minute, cfg.SnapshotInterval)
+	assert.Equal(t, 24*time.Hour, cfg.EventRetention)
+}
+
+func TestParse_HistoryFlags(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--history-db-path", "/tmp/test.db",
+		"--snapshot-interval", "10m",
+		"--event-retention", "48h",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/test.db", cfg.HistoryDBPath)
+	assert.Equal(t, 10*time.Minute, cfg.SnapshotInterval)
+	assert.Equal(t, 48*time.Hour, cfg.EventRetention)
+}
+
+func TestParse_HistoryEnvVars(t *testing.T) {
+	t.Setenv("NORTHWATCH_OVN_NB_ADDR", "tcp:127.0.0.1:6641")
+	t.Setenv("NORTHWATCH_OVN_SB_ADDR", "tcp:127.0.0.1:6642")
+	t.Setenv("NORTHWATCH_HISTORY_DB_PATH", "/data/history.db")
+	t.Setenv("NORTHWATCH_SNAPSHOT_INTERVAL", "15m")
+	t.Setenv("NORTHWATCH_EVENT_RETENTION", "72h")
+
+	cfg, err := Parse([]string{})
+	require.NoError(t, err)
+	assert.Equal(t, "/data/history.db", cfg.HistoryDBPath)
+	assert.Equal(t, 15*time.Minute, cfg.SnapshotInterval)
+	assert.Equal(t, 72*time.Hour, cfg.EventRetention)
+}
+
+func TestParse_InvalidSnapshotInterval(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--snapshot-interval", "invalid",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "snapshot-interval")
+}
+
+func TestParse_InvalidEventRetention(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--event-retention", "invalid",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event-retention")
+}

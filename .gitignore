@@ -26,6 +26,11 @@ Thumbs.db
 coverage.out
 coverage.html
 
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
 # Frontend
 ui/frontend/node_modules/
 ui/frontend/dist/

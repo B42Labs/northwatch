@@ -153,6 +153,29 @@
       {/if}
     </li>
 
+    <!-- History -->
+    <li>
+      <button
+        class="menu-title flex justify-between"
+        onclick={() => toggleSection('history')}
+      >
+        History
+        <span class="text-xs">{collapsedSections['history'] ? '+' : '-'}</span>
+      </button>
+      {#if !collapsedSections['history']}
+        <ul>
+          <li>
+            <a
+              href={link('/history')}
+              class:active={isActive($location, '/history')}
+            >
+              Timeline & Snapshots
+            </a>
+          </li>
+        </ul>
+      {/if}
+    </li>
+
     <div class="divider my-1"></div>
 
     <!-- Database tables -->

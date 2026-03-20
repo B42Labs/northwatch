@@ -86,6 +86,9 @@ export function resolveRoute(path: string): ResolvedRoute {
   if ((m = matchRoute('/debug/port-diagnostics', path)))
     return { component: 'port-diagnostics', ...m };
 
+  // History
+  if ((m = matchRoute('/history', path))) return { component: 'history', ...m };
+
   // Search
   if ((m = matchRoute('/search', path))) return { component: 'search', ...m };
 

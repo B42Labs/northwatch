@@ -9,7 +9,7 @@ import (
 // RegisterCapabilities registers the capabilities endpoint.
 // enrichEnabled indicates whether an enrichment provider is configured.
 func RegisterCapabilities(mux *http.ServeMux, enrichEnabled bool) {
-	caps := []string{"read", "debug", "correlate", "realtime", "topology", "flows", "telemetry", "alerts"}
+	caps := []string{"read", "debug", "correlate", "realtime", "topology", "flows", "telemetry", "alerts", "history"}
 	if enrichEnabled {
 		caps = append(caps, "enrich")
 	}

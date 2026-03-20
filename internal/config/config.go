@@ -20,6 +20,11 @@ type Config struct {
 	OpenStackDomainName  string
 	OpenStackRegionName  string
 	EnrichmentCacheTTL   time.Duration
+
+	// History & snapshots
+	HistoryDBPath    string
+	SnapshotInterval time.Duration
+	EventRetention   time.Duration
 }
 
 func Parse(args []string) (*Config, error) {
@@ -41,6 +46,13 @@ func Parse(args []string) (*Config, error) {
 	var cacheTTLStr string
 	fs.StringVar(&cacheTTLStr, "enrichment-cache-ttl", envOrDefault("NORTHWATCH_ENRICHMENT_CACHE_TTL", "5m"), "Enrichment cache TTL (e.g. 5m, 1h)")
 
+	// History flags
+	fs.StringVar(&cfg.HistoryDBPath, "history-db-path", envOrDefault("NORTHWATCH_HISTORY_DB_PATH", "northwatch-history.db"), "Path to SQLite history database")
+	var snapshotIntervalStr string
+	fs.StringVar(&snapshotIntervalStr, "snapshot-interval", envOrDefault("NORTHWATCH_SNAPSHOT_INTERVAL", "5m"), "Automatic snapshot interval (e.g. 5m, 1h)")
+	var eventRetentionStr string
+	fs.StringVar(&eventRetentionStr, "event-retention", envOrDefault("NORTHWATCH_EVENT_RETENTION", "24h"), "Event log retention duration (e.g. 24h, 7d)")
+
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -57,6 +69,18 @@ func Parse(args []string) (*Config, error) {
 		return nil, fmt.Errorf("invalid enrichment-cache-ttl: %w", err)
 	}
 	cfg.EnrichmentCacheTTL = ttl
+
+	si, err := time.ParseDuration(snapshotIntervalStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid snapshot-interval: %w", err)
+	}
+	cfg.SnapshotInterval = si
+
+	er, err := time.ParseDuration(eventRetentionStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid event-retention: %w", err)
+	}
+	cfg.EventRetention = er
 
 	return cfg, nil
 }

@@ -335,3 +335,136 @@ export function listPortBindings(): Promise<Record<string, unknown>[]> {
 export function listLogicalSwitchPorts(): Promise<Record<string, unknown>[]> {
   return get('/api/v1/nb/logical-switch-ports');
 }
+
+// --- History & Snapshots ---
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.error || res.statusText);
+  }
+  return res.json();
+}
+
+async function del(path: string): Promise<void> {
+  const res = await fetch(path, { method: 'DELETE' });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.error || res.statusText);
+  }
+}
+
+export interface SnapshotMeta {
+  id: number;
+  timestamp: string;
+  trigger: string;
+  label: string;
+  row_counts: Record<string, number>;
+  size_bytes: number;
+}
+
+export interface SnapshotRow {
+  database: string;
+  table: string;
+  uuid: string;
+  data: Record<string, unknown>;
+}
+
+export interface FieldChange {
+  field: string;
+  old_value: unknown;
+  new_value: unknown;
+}
+
+export interface RowDiff {
+  uuid: string;
+  fields: FieldChange[];
+}
+
+export interface TableDiff {
+  database: string;
+  table: string;
+  added: Record<string, unknown>[];
+  removed: Record<string, unknown>[];
+  modified: RowDiff[];
+}
+
+export interface DiffResult {
+  from_id: number;
+  to_id: number;
+  tables: TableDiff[];
+}
+
+export interface EventRecord {
+  id: number;
+  timestamp: string;
+  type: string;
+  database: string;
+  table: string;
+  uuid: string;
+  row?: Record<string, unknown>;
+  old_row?: Record<string, unknown>;
+}
+
+export function listSnapshots(): Promise<SnapshotMeta[]> {
+  return get('/api/v1/snapshots');
+}
+
+export function createSnapshot(label?: string): Promise<SnapshotMeta> {
+  return post('/api/v1/snapshots', label ? { label } : {});
+}
+
+export function getSnapshotDetail(id: number): Promise<SnapshotMeta> {
+  return get(`/api/v1/snapshots/${id}`);
+}
+
+export function getSnapshotRows(
+  id: number,
+  opts?: { database?: string; table?: string },
+): Promise<SnapshotRow[]> {
+  const params = new URLSearchParams();
+  if (opts?.database) params.set('database', opts.database);
+  if (opts?.table) params.set('table', opts.table);
+  const qs = params.toString();
+  return get(`/api/v1/snapshots/${id}/rows${qs ? '?' + qs : ''}`);
+}
+
+export function deleteSnapshot(id: number): Promise<void> {
+  return del(`/api/v1/snapshots/${id}`);
+}
+
+export function diffSnapshots(
+  from: number,
+  to: number,
+  table?: string,
+): Promise<DiffResult> {
+  const params = new URLSearchParams();
+  params.set('from', String(from));
+  params.set('to', String(to));
+  if (table) params.set('table', table);
+  return get(`/api/v1/snapshots/diff?${params.toString()}`);
+}
+
+export function queryEvents(opts?: {
+  since?: string;
+  until?: string;
+  database?: string;
+  table?: string;
+  type?: string;
+  limit?: number;
+}): Promise<EventRecord[]> {
+  const params = new URLSearchParams();
+  if (opts?.since) params.set('since', opts.since);
+  if (opts?.until) params.set('until', opts.until);
+  if (opts?.database) params.set('database', opts.database);
+  if (opts?.table) params.set('table', opts.table);
+  if (opts?.type) params.set('type', opts.type);
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return get(`/api/v1/events${qs ? '?' + qs : ''}`);
+}

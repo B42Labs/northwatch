@@ -25,6 +25,7 @@
   import FlowDiff from './routes/FlowDiff.svelte';
   import ConnectivityChecker from './routes/ConnectivityChecker.svelte';
   import PortDiagnostics from './routes/PortDiagnostics.svelte';
+  import History from './routes/History.svelte';
 
   let route = $derived(resolveRoute($location));
 </script>
@@ -52,6 +53,8 @@
     <ConnectivityChecker />
   {:else if route.component === 'port-diagnostics'}
     <PortDiagnostics />
+  {:else if route.component === 'history'}
+    <History />
   {:else if route.component === 'table-browser'}
     <TableBrowser db={route.db!} table={route.params.table} />
   {:else if route.component === 'raw-detail'}

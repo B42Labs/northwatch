@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/b42labs/northwatch/internal/enrich"
 	"github.com/b42labs/northwatch/internal/events"
 	"github.com/b42labs/northwatch/internal/flowdiff"
+	"github.com/b42labs/northwatch/internal/history"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
@@ -92,6 +94,18 @@ func run() error {
 	stopCollector := flowdiff.StartCollector(eventHub, flowDiffStore)
 	defer stopCollector()
 
+	// History & snapshot store
+	historyStore, err := history.NewStore(cfg.HistoryDBPath)
+	if err != nil {
+		return fmt.Errorf("opening history database: %w", err)
+	}
+	defer func() { _ = historyStore.Close() }()
+
+	snapshotSources := append(buildNBSnapshotSources(dbs), buildSBSnapshotSources(dbs)...)
+	historyCollector := history.NewCollector(historyStore, eventHub, snapshotSources, cfg.SnapshotInterval, cfg.EventRetention)
+	stopHistory := historyCollector.Start(context.Background())
+	defer stopHistory()
+
 	// Prometheus registry
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
@@ -127,6 +141,7 @@ func run() error {
 	handler.RegisterDebug(mux, connectivityChecker, diagnoser)
 	handler.RegisterTrace(mux, dbs.SB)
 	handler.RegisterFlowDiff(mux, flowDiffStore)
+	handler.RegisterHistory(mux, historyStore, historyCollector)
 
 	searchEngine := search.NewEngine(
 		buildNBSearchTables(dbs),
@@ -192,5 +207,56 @@ func buildSBSearchTables(dbs *ovndb.OVNDatabases) []search.TableDef {
 		search.RegisterTable[sb.DNS]("DNS", c),
 		search.RegisterTable[sb.LoadBalancer]("Load_Balancer", c),
 		search.RegisterTable[sb.StaticMACBinding]("Static_MAC_Binding", c),
+	}
+}
+
+func snapshotSource[T any](database, table string, c client.Client) history.TableSource {
+	return history.TableSource{
+		Database: database,
+		Table:    table,
+		ListFunc: func(ctx context.Context) ([]map[string]any, error) {
+			var results []T
+			if err := c.List(ctx, &results); err != nil {
+				return nil, err
+			}
+			return api.ModelsToMaps(results), nil
+		},
+	}
+}
+
+func buildNBSnapshotSources(dbs *ovndb.OVNDatabases) []history.TableSource {
+	c := dbs.NB
+	return []history.TableSource{
+		snapshotSource[nb.LogicalSwitch]("nb", "Logical_Switch", c),
+		snapshotSource[nb.LogicalSwitchPort]("nb", "Logical_Switch_Port", c),
+		snapshotSource[nb.LogicalRouter]("nb", "Logical_Router", c),
+		snapshotSource[nb.LogicalRouterPort]("nb", "Logical_Router_Port", c),
+		snapshotSource[nb.ACL]("nb", "ACL", c),
+		snapshotSource[nb.NAT]("nb", "NAT", c),
+		snapshotSource[nb.AddressSet]("nb", "Address_Set", c),
+		snapshotSource[nb.PortGroup]("nb", "Port_Group", c),
+		snapshotSource[nb.LoadBalancer]("nb", "Load_Balancer", c),
+		snapshotSource[nb.DHCPOptions]("nb", "DHCP_Options", c),
+		snapshotSource[nb.LogicalRouterStaticRoute]("nb", "Logical_Router_Static_Route", c),
+		snapshotSource[nb.LogicalRouterPolicy]("nb", "Logical_Router_Policy", c),
+		snapshotSource[nb.DNS]("nb", "DNS", c),
+		snapshotSource[nb.StaticMACBinding]("nb", "Static_MAC_Binding", c),
+	}
+}
+
+func buildSBSnapshotSources(dbs *ovndb.OVNDatabases) []history.TableSource {
+	c := dbs.SB
+	return []history.TableSource{
+		snapshotSource[sb.Chassis]("sb", "Chassis", c),
+		snapshotSource[sb.PortBinding]("sb", "Port_Binding", c),
+		snapshotSource[sb.LogicalFlow]("sb", "Logical_Flow", c),
+		snapshotSource[sb.DatapathBinding]("sb", "Datapath_Binding", c),
+		snapshotSource[sb.Encap]("sb", "Encap", c),
+		snapshotSource[sb.MACBinding]("sb", "MAC_Binding", c),
+		snapshotSource[sb.FDB]("sb", "FDB", c),
+		snapshotSource[sb.AddressSet]("sb", "Address_Set", c),
+		snapshotSource[sb.DNS]("sb", "DNS", c),
+		snapshotSource[sb.LoadBalancer]("sb", "Load_Balancer", c),
+		snapshotSource[sb.StaticMACBinding]("sb", "Static_MAC_Binding", c),
 	}
 }
