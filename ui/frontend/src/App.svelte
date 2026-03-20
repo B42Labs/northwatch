@@ -21,6 +21,10 @@
   import NatOverview from './routes/NatOverview.svelte';
   import HaFailover from './routes/HaFailover.svelte';
   import MacTable from './routes/MacTable.svelte';
+  import PacketTrace from './routes/PacketTrace.svelte';
+  import FlowDiff from './routes/FlowDiff.svelte';
+  import ConnectivityChecker from './routes/ConnectivityChecker.svelte';
+  import PortDiagnostics from './routes/PortDiagnostics.svelte';
 
   let route = $derived(resolveRoute($location));
 </script>
@@ -40,6 +44,14 @@
     <HaFailover />
   {:else if route.component === 'mac-table'}
     <MacTable />
+  {:else if route.component === 'packet-trace'}
+    <PacketTrace />
+  {:else if route.component === 'flow-diff'}
+    <FlowDiff />
+  {:else if route.component === 'connectivity-checker'}
+    <ConnectivityChecker />
+  {:else if route.component === 'port-diagnostics'}
+    <PortDiagnostics />
   {:else if route.component === 'table-browser'}
     <TableBrowser db={route.db!} table={route.params.table} />
   {:else if route.component === 'raw-detail'}

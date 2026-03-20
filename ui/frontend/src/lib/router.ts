@@ -76,6 +76,16 @@ export function resolveRoute(path: string): ResolvedRoute {
   if ((m = matchRoute('/mac-table', path)))
     return { component: 'mac-table', ...m };
 
+  // Debug routes
+  if ((m = matchRoute('/debug/trace', path)))
+    return { component: 'packet-trace', ...m };
+  if ((m = matchRoute('/debug/flow-diff', path)))
+    return { component: 'flow-diff', ...m };
+  if ((m = matchRoute('/debug/connectivity', path)))
+    return { component: 'connectivity-checker', ...m };
+  if ((m = matchRoute('/debug/port-diagnostics', path)))
+    return { component: 'port-diagnostics', ...m };
+
   // Search
   if ((m = matchRoute('/search', path))) return { component: 'search', ...m };
 

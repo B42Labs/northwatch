@@ -289,6 +289,7 @@
               {#each visibleIngress as tbl}
                 <FlowTable
                   tableId={tbl.table_id}
+                  tableName={tbl.table_name}
                   flows={tbl.flows}
                   pipeline="ingress"
                   {searchQuery}
@@ -309,6 +310,7 @@
               {#each visibleEgress as tbl}
                 <FlowTable
                   tableId={tbl.table_id}
+                  tableName={tbl.table_name}
                   flows={tbl.flows}
                   pipeline="egress"
                   {searchQuery}

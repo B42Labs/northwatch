@@ -12,8 +12,10 @@ import (
 	"github.com/b42labs/northwatch/internal/api/handler"
 	"github.com/b42labs/northwatch/internal/config"
 	"github.com/b42labs/northwatch/internal/correlate"
+	"github.com/b42labs/northwatch/internal/debug"
 	"github.com/b42labs/northwatch/internal/enrich"
 	"github.com/b42labs/northwatch/internal/events"
+	"github.com/b42labs/northwatch/internal/flowdiff"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
@@ -76,6 +78,15 @@ func run() error {
 	dbs.NB.Cache().AddEventHandler(events.NewBridge(eventHub, "nb"))
 	dbs.SB.Cache().AddEventHandler(events.NewBridge(eventHub, "sb"))
 
+	// Debug tools
+	diagnoser := &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB}
+	connectivityChecker := &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB}
+
+	// Flow diff tracking
+	flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
+	stopCollector := flowdiff.StartCollector(eventHub, flowDiffStore)
+	defer stopCollector()
+
 	srv := api.NewServer(cfg.Listen, dbs)
 	mux := srv.Mux()
 
@@ -87,6 +98,9 @@ func run() error {
 	handler.RegisterWS(mux, eventHub)
 	handler.RegisterTopology(mux, dbs.NB, dbs.SB)
 	handler.RegisterFlows(mux, dbs.SB)
+	handler.RegisterDebug(mux, connectivityChecker, diagnoser)
+	handler.RegisterTrace(mux, dbs.SB)
+	handler.RegisterFlowDiff(mux, flowDiffStore)
 
 	searchEngine := search.NewEngine(
 		buildNBSearchTables(dbs),

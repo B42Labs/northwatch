@@ -2,13 +2,17 @@
   import type { FlowEntry } from '../../lib/api';
   import { SvelteSet } from 'svelte/reactivity';
 
+  import { link } from '../../lib/router';
+
   let {
     tableId,
+    tableName = '',
     flows,
     pipeline = 'ingress',
     searchQuery = '',
   }: {
     tableId: number;
+    tableName?: string;
     flows: FlowEntry[];
     pipeline?: string;
     searchQuery?: string;
@@ -84,7 +88,11 @@
           ? ''
           : 'rotate-90'}">&#9654;</span
       >
-      <span class="text-sm font-semibold">Table {tableId}</span>
+      <span class="text-sm font-semibold"
+        >Table {tableId}{#if tableName}
+          <span class="ml-1 font-normal text-base-content/60">{tableName}</span
+          >{/if}</span
+      >
       <span
         class="badge badge-sm {hasSearch && matchCount === 0
           ? 'badge-ghost'
@@ -173,6 +181,30 @@
                     {flow.actions}
                   </div>
                 </div>
+                {#if flow.external_ids && Object.keys(flow.external_ids).length > 0}
+                  <div>
+                    <div class="mb-0.5 font-semibold text-base-content/50">
+                      External IDs
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                      {#each Object.entries(flow.external_ids) as [key, value]}
+                        {#if key === 'source' && /^[0-9a-f-]{36}$/i.test(value)}
+                          <a
+                            href={link(`/nb/acls/${value}`)}
+                            class="badge badge-primary badge-outline badge-sm gap-1"
+                            onclick={(e) => e.stopPropagation()}
+                          >
+                            {key}: {value.slice(0, 8)}...
+                          </a>
+                        {:else}
+                          <span class="badge badge-ghost badge-outline badge-sm"
+                            >{key}: {value}</span
+                          >
+                        {/if}
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
                 <div
                   class="flex gap-4 border-t border-base-300 pt-1 text-base-content/40"
                 >

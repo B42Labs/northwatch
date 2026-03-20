@@ -12,16 +12,18 @@ import (
 
 // FlowEntry represents a single logical flow in a pipeline table.
 type FlowEntry struct {
-	UUID     string `json:"uuid"`
-	Priority int    `json:"priority"`
-	Match    string `json:"match"`
-	Actions  string `json:"actions"`
+	UUID        string            `json:"uuid"`
+	Priority    int               `json:"priority"`
+	Match       string            `json:"match"`
+	Actions     string            `json:"actions"`
+	ExternalIDs map[string]string `json:"external_ids,omitempty"`
 }
 
 // FlowTableGroup groups flows by table_id within a pipeline.
 type FlowTableGroup struct {
-	TableID int         `json:"table_id"`
-	Flows   []FlowEntry `json:"flows"`
+	TableID   int         `json:"table_id"`
+	TableName string      `json:"table_name,omitempty"`
+	Flows     []FlowEntry `json:"flows"`
 }
 
 // FlowPipelineResponse is the JSON response for GET /api/v1/flows.
@@ -63,6 +65,8 @@ func handleFlows(sbClient client.Client) http.HandlerFunc {
 		// Group by pipeline then table_id
 		ingressMap := make(map[int][]FlowEntry)
 		egressMap := make(map[int][]FlowEntry)
+		ingressTableNames := make(map[int]string)
+		egressTableNames := make(map[int]string)
 
 		for _, f := range flows {
 			entry := FlowEntry{
@@ -71,6 +75,20 @@ func handleFlows(sbClient client.Client) http.HandlerFunc {
 				Match:    f.Match,
 				Actions:  f.Actions,
 			}
+			if len(f.ExternalIDs) > 0 {
+				entry.ExternalIDs = f.ExternalIDs
+			}
+
+			// Extract stage name from external_ids for table naming
+			if stageName, ok := f.ExternalIDs["stage-name"]; ok {
+				switch f.Pipeline {
+				case "ingress":
+					ingressTableNames[f.TableID] = stageName
+				case "egress":
+					egressTableNames[f.TableID] = stageName
+				}
+			}
+
 			switch f.Pipeline {
 			case "ingress":
 				ingressMap[f.TableID] = append(ingressMap[f.TableID], entry)
@@ -82,24 +100,29 @@ func handleFlows(sbClient client.Client) http.HandlerFunc {
 		resp := FlowPipelineResponse{
 			DatapathUUID: datapathUUID,
 			DatapathName: datapathName,
-			Ingress:      buildFlowTableGroups(ingressMap),
-			Egress:       buildFlowTableGroups(egressMap),
+			Ingress:      buildFlowTableGroups(ingressMap, ingressTableNames),
+			Egress:       buildFlowTableGroups(egressMap, egressTableNames),
 		}
 
 		api.WriteJSON(w, http.StatusOK, resp)
 	}
 }
 
-func buildFlowTableGroups(m map[int][]FlowEntry) []FlowTableGroup {
+func buildFlowTableGroups(m map[int][]FlowEntry, tableNames map[int]string) []FlowTableGroup {
 	groups := make([]FlowTableGroup, 0, len(m))
 	for tableID, flows := range m {
 		// Sort flows by priority descending
 		sort.Slice(flows, func(i, j int) bool {
 			return flows[i].Priority > flows[j].Priority
 		})
+		name := tableNames[tableID]
+		if name == "" {
+			name = OVNTableName(tableID)
+		}
 		groups = append(groups, FlowTableGroup{
-			TableID: tableID,
-			Flows:   flows,
+			TableID:   tableID,
+			TableName: name,
+			Flows:     flows,
 		})
 	}
 	// Sort groups by table_id ascending
@@ -109,6 +132,7 @@ func buildFlowTableGroups(m map[int][]FlowEntry) []FlowTableGroup {
 	return groups
 }
 
+// resolveDatapathName looks up a DatapathBinding and returns its logical name.
 func resolveDatapathName(ctx context.Context, sbClient client.Client, datapathUUID string) string {
 	var datapaths []sb.DatapathBinding
 	err := sbClient.WhereCache(func(dp *sb.DatapathBinding) bool {

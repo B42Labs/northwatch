@@ -106,6 +106,53 @@
       {/if}
     </li>
 
+    <!-- Debug -->
+    <li>
+      <button
+        class="menu-title flex justify-between"
+        onclick={() => toggleSection('debug')}
+      >
+        Debug
+        <span class="text-xs">{collapsedSections['debug'] ? '+' : '-'}</span>
+      </button>
+      {#if !collapsedSections['debug']}
+        <ul>
+          <li>
+            <a
+              href={link('/debug/trace')}
+              class:active={isActive($location, '/debug/trace')}
+            >
+              Packet Trace
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/debug/flow-diff')}
+              class:active={isActive($location, '/debug/flow-diff')}
+            >
+              Flow Diff
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/debug/connectivity')}
+              class:active={isActive($location, '/debug/connectivity')}
+            >
+              Connectivity
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/debug/port-diagnostics')}
+              class:active={isActive($location, '/debug/port-diagnostics')}
+            >
+              Port Diagnostics
+            </a>
+          </li>
+        </ul>
+      {/if}
+    </li>
+
     <div class="divider my-1"></div>
 
     <!-- Database tables -->

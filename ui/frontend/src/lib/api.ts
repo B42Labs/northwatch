@@ -172,10 +172,12 @@ export interface FlowEntry {
   priority: number;
   match: string;
   actions: string;
+  external_ids?: Record<string, string>;
 }
 
 export interface FlowTableGroup {
   table_id: number;
+  table_name?: string;
   flows: FlowEntry[];
 }
 
@@ -192,4 +194,144 @@ export function getFlows(datapathUuid: string): Promise<FlowPipelineResponse> {
 
 export function listDatapathBindings(): Promise<Record<string, unknown>[]> {
   return get('/api/v1/sb/datapath-bindings');
+}
+
+// Debug: Port Diagnostics
+export interface DiagnosticCheck {
+  name: string;
+  status: 'healthy' | 'warning' | 'error';
+  message: string;
+}
+
+export interface PortDiagnostic {
+  port_uuid: string;
+  port_name: string;
+  port_type: string;
+  switch_name?: string;
+  overall: 'healthy' | 'warning' | 'error';
+  checks: DiagnosticCheck[];
+}
+
+export interface PortDiagnosticsSummary {
+  total: number;
+  healthy: number;
+  warning: number;
+  error: number;
+  ports: PortDiagnostic[];
+}
+
+export function getPortDiagnostics(): Promise<PortDiagnosticsSummary> {
+  return get('/api/v1/debug/port-diagnostics');
+}
+
+export function getPortDiagnostic(uuid: string): Promise<PortDiagnostic> {
+  return get(`/api/v1/debug/port-diagnostics/${uuid}`);
+}
+
+// Debug: Connectivity Checker
+export interface ConnectivityCheck {
+  name: string;
+  category: string;
+  status: 'pass' | 'fail' | 'warning' | 'skipped';
+  message: string;
+  details?: unknown;
+}
+
+export interface PortInfo {
+  uuid: string;
+  name: string;
+  type?: string;
+  switch_name?: string;
+  bound_chassis?: string;
+  addresses?: string[];
+}
+
+export interface ConnectivityResult {
+  source: PortInfo;
+  destination: PortInfo;
+  overall: 'pass' | 'fail' | 'warning' | 'skipped';
+  checks: ConnectivityCheck[];
+}
+
+export function checkConnectivity(
+  srcUuid: string,
+  dstUuid: string,
+): Promise<ConnectivityResult> {
+  return get(
+    `/api/v1/debug/connectivity?src=${encodeURIComponent(srcUuid)}&dst=${encodeURIComponent(dstUuid)}`,
+  );
+}
+
+// Debug: Packet Trace
+export interface TraceFlowEntry {
+  uuid: string;
+  priority: number;
+  match: string;
+  actions: string;
+  hint: string;
+  selected: boolean;
+}
+
+export interface TraceStage {
+  pipeline: string;
+  table_id: number;
+  table_name?: string;
+  flows: TraceFlowEntry[];
+}
+
+export interface TraceResponse {
+  port_uuid: string;
+  port_name: string;
+  datapath_uuid: string;
+  datapath_name: string;
+  dst_ip?: string;
+  protocol?: string;
+  stages: TraceStage[];
+}
+
+export function getTrace(
+  portUuid: string,
+  opts?: { dstIp?: string; protocol?: string },
+): Promise<TraceResponse> {
+  const params = new URLSearchParams();
+  params.set('port', portUuid);
+  if (opts?.dstIp) params.set('dst_ip', opts.dstIp);
+  if (opts?.protocol) params.set('protocol', opts.protocol);
+  return get(`/api/v1/debug/trace?${params.toString()}`);
+}
+
+// Debug: Flow Diff
+export interface FlowChange {
+  timestamp: number;
+  type: 'insert' | 'update' | 'delete';
+  uuid: string;
+  old_row?: Record<string, unknown>;
+  new_row?: Record<string, unknown>;
+  datapath?: string;
+}
+
+export interface FlowDiffResponse {
+  changes: FlowChange[];
+  count: number;
+}
+
+export function getFlowDiff(opts?: {
+  datapath?: string;
+  since?: number;
+}): Promise<FlowDiffResponse> {
+  const params = new URLSearchParams();
+  if (opts?.datapath) params.set('datapath', opts.datapath);
+  if (opts?.since) params.set('since', String(opts.since));
+  const qs = params.toString();
+  return get(`/api/v1/debug/flow-diff${qs ? '?' + qs : ''}`);
+}
+
+// Port bindings listing (for trace port selector)
+export function listPortBindings(): Promise<Record<string, unknown>[]> {
+  return get('/api/v1/sb/port-bindings');
+}
+
+// Logical switch ports listing (for connectivity port selector)
+export function listLogicalSwitchPorts(): Promise<Record<string, unknown>[]> {
+  return get('/api/v1/nb/logical-switch-ports');
 }

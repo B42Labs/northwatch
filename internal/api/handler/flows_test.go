@@ -18,7 +18,7 @@ func TestBuildFlowTableGroups_Sorting(t *testing.T) {
 		},
 	}
 
-	groups := buildFlowTableGroups(m)
+	groups := buildFlowTableGroups(m, nil)
 
 	// Groups sorted by table_id ascending
 	require.Len(t, groups, 2)
@@ -31,6 +31,59 @@ func TestBuildFlowTableGroups_Sorting(t *testing.T) {
 }
 
 func TestBuildFlowTableGroups_Empty(t *testing.T) {
-	groups := buildFlowTableGroups(nil)
+	groups := buildFlowTableGroups(nil, nil)
 	assert.Empty(t, groups)
+}
+
+func TestBuildFlowTableGroups_ExternalIDs(t *testing.T) {
+	m := map[int][]FlowEntry{
+		8: {
+			{
+				UUID:        "f1",
+				Priority:    100,
+				Match:       `inport == "port1"`,
+				Actions:     "next;",
+				ExternalIDs: map[string]string{"source": "acl-uuid-1", "stage-name": "ACL"},
+			},
+		},
+	}
+
+	groups := buildFlowTableGroups(m, map[int]string{8: "ACL"})
+
+	require.Len(t, groups, 1)
+	assert.Equal(t, "ACL", groups[0].TableName)
+	require.Len(t, groups[0].Flows, 1)
+	assert.Equal(t, map[string]string{"source": "acl-uuid-1", "stage-name": "ACL"}, groups[0].Flows[0].ExternalIDs)
+}
+
+func TestBuildFlowTableGroups_TableNameFallback(t *testing.T) {
+	m := map[int][]FlowEntry{
+		0: {{UUID: "f1", Priority: 0, Match: "1", Actions: "next;"}},
+		7: {{UUID: "f2", Priority: 100, Match: "match", Actions: "next;"}},
+	}
+
+	// No stage-name from external_ids — should use static fallback
+	groups := buildFlowTableGroups(m, nil)
+
+	require.Len(t, groups, 2)
+	assert.Equal(t, "Admission Control", groups[0].TableName)
+	assert.Equal(t, "ACL Hints", groups[1].TableName)
+}
+
+func TestBuildFlowTableGroups_StageNameOverridesFallback(t *testing.T) {
+	m := map[int][]FlowEntry{
+		0: {{UUID: "f1", Priority: 0, Match: "1", Actions: "next;"}},
+	}
+
+	// Stage-name from external_ids should override static map
+	groups := buildFlowTableGroups(m, map[int]string{0: "ls_in_check_port_sec"})
+
+	require.Len(t, groups, 1)
+	assert.Equal(t, "ls_in_check_port_sec", groups[0].TableName)
+}
+
+func TestOVNTableName(t *testing.T) {
+	assert.Equal(t, "Admission Control", OVNTableName(0))
+	assert.Equal(t, "ACL", OVNTableName(8))
+	assert.Equal(t, "", OVNTableName(99))
 }
