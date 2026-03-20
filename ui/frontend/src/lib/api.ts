@@ -136,3 +136,60 @@ export function getCorrelatedPortBinding(
 ): Promise<PortBindingChain> {
   return get(`/api/v1/correlated/port-bindings/${uuid}`);
 }
+
+// Topology
+export interface TopologyNode {
+  id: string;
+  type: string;
+  label: string;
+  group?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface TopologyEdge {
+  source: string;
+  target: string;
+  type: string;
+}
+
+export interface TopologyResponse {
+  nodes: TopologyNode[];
+  edges: TopologyEdge[];
+}
+
+export function getTopology(opts?: {
+  vms?: boolean;
+}): Promise<TopologyResponse> {
+  const params = new URLSearchParams();
+  if (opts?.vms) params.set('vms', 'true');
+  const qs = params.toString();
+  return get(`/api/v1/topology${qs ? '?' + qs : ''}`);
+}
+
+// Flow Pipeline
+export interface FlowEntry {
+  uuid: string;
+  priority: number;
+  match: string;
+  actions: string;
+}
+
+export interface FlowTableGroup {
+  table_id: number;
+  flows: FlowEntry[];
+}
+
+export interface FlowPipelineResponse {
+  datapath_uuid: string;
+  datapath_name: string;
+  ingress: FlowTableGroup[];
+  egress: FlowTableGroup[];
+}
+
+export function getFlows(datapathUuid: string): Promise<FlowPipelineResponse> {
+  return get(`/api/v1/flows?datapath=${encodeURIComponent(datapathUuid)}`);
+}
+
+export function listDatapathBindings(): Promise<Record<string, unknown>[]> {
+  return get('/api/v1/sb/datapath-bindings');
+}

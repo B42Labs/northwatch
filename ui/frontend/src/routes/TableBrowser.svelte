@@ -1,11 +1,14 @@
 <script lang="ts">
   import { listTable } from '../lib/api';
   import { push, link } from '../lib/router';
-  import { findTable, type TableDef } from '../lib/tables';
+  import { findTable, type TableDef, ovsdbTableName } from '../lib/tables';
   import DataTable from '../components/table/DataTable.svelte';
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
   import { getCorrelatedRoute } from '../lib/tables';
+  import { subscribeToTable } from '../lib/eventStore';
+  import { changedUuids as changedUuidsStore } from '../lib/eventStore';
+  import type { WsEvent } from '../lib/websocket';
 
   let { db, table }: { db: string; table: string } = $props();
 
@@ -13,6 +16,7 @@
   let loading = $state(true);
   let error = $state('');
   let tableDef: TableDef | undefined = $state(undefined);
+  let currentChangedUuids = $derived($changedUuidsStore);
 
   // Derive columns from the first 50 rows. OVSDB rows are homogeneous so this
   // captures all columns; the limit avoids scanning very large result sets.
@@ -46,8 +50,32 @@
     }
   }
 
+  let unsubscribeWs: (() => void) | null = null;
+
+  function handleWsEvent(event: WsEvent) {
+    if (event.type === 'insert' && event.row) {
+      rows = [...rows, event.row];
+    } else if (event.type === 'update' && event.row) {
+      rows = rows.map((r) => (r._uuid === event.uuid ? event.row! : r));
+    } else if (event.type === 'delete') {
+      rows = rows.filter((r) => r._uuid !== event.uuid);
+    }
+  }
+
   $effect(() => {
     load(db, table);
+
+    // Clean up previous subscription
+    unsubscribeWs?.();
+    const ovsdbName = ovsdbTableName(db, table);
+    if (ovsdbName) {
+      unsubscribeWs = subscribeToTable(db, ovsdbName, handleWsEvent);
+    }
+
+    return () => {
+      unsubscribeWs?.();
+      unsubscribeWs = null;
+    };
   });
 
   function handleRowClick(row: Record<string, unknown>) {
@@ -95,6 +123,7 @@
       {allColumns}
       onRowClick={handleRowClick}
       refHref={getRefHref}
+      changedUuids={currentChangedUuids}
     />
   {/if}
 </div>

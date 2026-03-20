@@ -7,12 +7,14 @@
     allColumns = [],
     onRowClick,
     refHref,
+    changedUuids = new Map(),
   }: {
     rows: Record<string, unknown>[];
     columns: string[];
     allColumns?: string[];
     onRowClick?: (row: Record<string, unknown>) => void;
     refHref?: (column: string) => ((uuid: string) => string | null) | undefined;
+    changedUuids?: Map<string, number>;
   } = $props();
 
   let filterInput = $state('');
@@ -169,7 +171,11 @@
       <tbody>
         {#each displayedRows as row, i}
           <tr
-            class={onRowClick ? 'hover cursor-pointer' : 'hover'}
+            class="{onRowClick
+              ? 'hover cursor-pointer'
+              : 'hover'}{changedUuids.has(String(row._uuid ?? ''))
+              ? ' recently-changed'
+              : ''}"
             onclick={() => onRowClick?.(row)}
           >
             {#each displayColumns as col}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { push } from '../../lib/router';
   import ThemeToggle from './ThemeToggle.svelte';
+  import ConnectionStatus from '../ui/ConnectionStatus.svelte';
 
   let searchQuery = $state('');
 
@@ -40,6 +41,10 @@
         bind:value={searchQuery}
       />
     </form>
+  </div>
+
+  <div class="flex-none">
+    <ConnectionStatus />
   </div>
 
   <div class="flex-none">

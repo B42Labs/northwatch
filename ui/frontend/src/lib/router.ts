@@ -63,6 +63,12 @@ export function resolveRoute(path: string): ResolvedRoute {
 
   if (path === '/' || path === '') return { component: 'home', ...empty };
 
+  // Visualization routes
+  if ((m = matchRoute('/topology', path)))
+    return { component: 'topology', ...m };
+  if ((m = matchRoute('/flows', path)))
+    return { component: 'flow-pipeline', ...m };
+
   // Search
   if ((m = matchRoute('/search', path))) return { component: 'search', ...m };
 

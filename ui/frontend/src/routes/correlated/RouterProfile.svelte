@@ -7,15 +7,33 @@
   import CellRenderer from '../../components/table/CellRenderer.svelte';
   import LoadingSpinner from '../../components/ui/LoadingSpinner.svelte';
   import ErrorAlert from '../../components/ui/ErrorAlert.svelte';
+  import { subscribeToTables } from '../../lib/eventStore';
 
   let { uuid }: { uuid: string } = $props();
 
   let data: Record<string, unknown> | null = $state(null);
   let loading = $state(true);
   let error = $state('');
+  let refetchTimer: ReturnType<typeof setTimeout> | null = null;
 
   $effect(() => {
     load(uuid);
+
+    const unsubscribe = subscribeToTables(
+      'nb',
+      ['Logical_Router', 'Logical_Router_Port', 'NAT'],
+      () => {
+        if (refetchTimer) clearTimeout(refetchTimer);
+        refetchTimer = setTimeout(() => {
+          if (!loading) load(uuid);
+        }, 300);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      if (refetchTimer) clearTimeout(refetchTimer);
+    };
   });
 
   async function load(targetUuid: string) {

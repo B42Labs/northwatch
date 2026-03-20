@@ -28,7 +28,7 @@ func TestRegisterUI_ServesIndexAtRoot(t *testing.T) {
 	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Contains(t, w.Body.String(), "northwatch")
 	assert.Equal(t, "no-cache, no-store, must-revalidate", w.Header().Get("Cache-Control"))
-	assert.Equal(t, "default-src 'self'; style-src 'self' 'unsafe-inline'", w.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'", w.Header().Get("Content-Security-Policy"))
 }
 
 func TestRegisterUI_ServesStaticAssets(t *testing.T) {
@@ -71,7 +71,7 @@ func TestRegisterUI_SPAFallback(t *testing.T) {
 	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Contains(t, w.Body.String(), "spa")
 	assert.Equal(t, "no-cache, no-store, must-revalidate", w.Header().Get("Cache-Control"))
-	assert.Equal(t, "default-src 'self'; style-src 'self' 'unsafe-inline'", w.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'", w.Header().Get("Content-Security-Policy"))
 }
 
 func TestRegisterUI_NotBuilt(t *testing.T) {

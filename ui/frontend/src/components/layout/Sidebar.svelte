@@ -47,6 +47,39 @@
       {/if}
     </li>
 
+    <!-- Visualization -->
+    <li>
+      <button
+        class="menu-title flex justify-between"
+        onclick={() => toggleSection('visualization')}
+      >
+        Visualization
+        <span class="text-xs"
+          >{collapsedSections['visualization'] ? '+' : '-'}</span
+        >
+      </button>
+      {#if !collapsedSections['visualization']}
+        <ul>
+          <li>
+            <a
+              href={link('/topology')}
+              class:active={isActive($location, '/topology')}
+            >
+              Topology
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/flows')}
+              class:active={isActive($location, '/flows')}
+            >
+              Flow Pipeline
+            </a>
+          </li>
+        </ul>
+      {/if}
+    </li>
+
     <div class="divider my-1"></div>
 
     <!-- Database tables -->

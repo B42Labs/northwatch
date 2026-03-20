@@ -13,6 +13,7 @@ import (
 	"github.com/b42labs/northwatch/internal/config"
 	"github.com/b42labs/northwatch/internal/correlate"
 	"github.com/b42labs/northwatch/internal/enrich"
+	"github.com/b42labs/northwatch/internal/events"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
@@ -70,6 +71,11 @@ func run() error {
 		enricher = enrich.NewEnricher(nil, 0)
 	}
 
+	// Real-time event hub
+	eventHub := events.NewHub()
+	dbs.NB.Cache().AddEventHandler(events.NewBridge(eventHub, "nb"))
+	dbs.SB.Cache().AddEventHandler(events.NewBridge(eventHub, "sb"))
+
 	srv := api.NewServer(cfg.Listen, dbs)
 	mux := srv.Mux()
 
@@ -78,6 +84,9 @@ func run() error {
 	handler.RegisterNB(mux, dbs.NB)
 	handler.RegisterSB(mux, dbs.SB)
 	handler.RegisterCorrelated(mux, cor, enricher)
+	handler.RegisterWS(mux, eventHub)
+	handler.RegisterTopology(mux, dbs.NB, dbs.SB)
+	handler.RegisterFlows(mux, dbs.SB)
 
 	searchEngine := search.NewEngine(
 		buildNBSearchTables(dbs),

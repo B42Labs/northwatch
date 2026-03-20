@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes row-highlight {
+  0% {
+    background-color: oklch(0.85 0.15 85);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.recently-changed {
+  animation: row-highlight 2s ease-out;
+}

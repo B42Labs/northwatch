@@ -439,6 +439,26 @@ ovsdbNameToSlug.set('Meter', 'meters');
 ovsdbNameToSlug.set('Mirror', 'mirrors');
 ovsdbNameToSlug.set('Copp', 'copp');
 
+// Reverse lookup: slug → OVSDB name. Built from ovsdbNameToSlug.
+const slugToOvsdbName: Map<string, Map<string, string>> = new Map();
+for (const db of databases) {
+  const dbMap = new Map<string, string>();
+  slugToOvsdbName.set(db.key, dbMap);
+}
+for (const [ovsdbName, slug] of ovsdbNameToSlug.entries()) {
+  // We assign to both dbs; duplicates are fine since the slug is unique within a db.
+  for (const db of databases) {
+    if (db.tables.some((t) => t.slug === slug)) {
+      slugToOvsdbName.get(db.key)!.set(slug, ovsdbName);
+    }
+  }
+}
+
+// Given a db key and slug, return the OVSDB table name (e.g. "nb", "logical-switches" → "Logical_Switch")
+export function ovsdbTableName(dbKey: string, slug: string): string | null {
+  return slugToOvsdbName.get(dbKey)?.get(slug) ?? null;
+}
+
 export function tableSlugFromOvsdbName(name: string): string {
   const slug = ovsdbNameToSlug.get(name);
   if (slug) return slug;
