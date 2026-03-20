@@ -16,12 +16,18 @@ type Server struct {
 	dbs        *ovndb.OVNDatabases
 }
 
-func NewServer(addr string, dbs *ovndb.OVNDatabases) *Server {
+// NewServer creates a new HTTP server. Optional handler wrappers can be
+// provided to instrument the mux (e.g. with metrics middleware).
+func NewServer(addr string, dbs *ovndb.OVNDatabases, wrappers ...func(http.Handler) http.Handler) *Server {
 	mux := http.NewServeMux()
+	var handler http.Handler = mux
+	for _, wrap := range wrappers {
+		handler = wrap(handler)
+	}
 	s := &Server{
 		httpServer: &http.Server{
 			Addr:              addr,
-			Handler:           mux,
+			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
 		},
 		mux: mux,

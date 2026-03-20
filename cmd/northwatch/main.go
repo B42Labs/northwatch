@@ -8,6 +8,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/b42labs/northwatch/internal/alert"
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/api/handler"
 	"github.com/b42labs/northwatch/internal/config"
@@ -20,6 +24,7 @@ import (
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/search"
+	"github.com/b42labs/northwatch/internal/telemetry"
 	northwatchUI "github.com/b42labs/northwatch/ui"
 )
 
@@ -87,7 +92,28 @@ func run() error {
 	stopCollector := flowdiff.StartCollector(eventHub, flowDiffStore)
 	defer stopCollector()
 
-	srv := api.NewServer(cfg.Listen, dbs)
+	// Prometheus registry
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(collectors.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	metricsCollector := telemetry.NewCollector(dbs.NB, dbs.SB)
+	registry.MustRegister(metricsCollector)
+	httpMetrics := telemetry.NewMiddleware(registry)
+
+	// Telemetry querier
+	telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
+
+	// Alert engine
+	alertEngine := alert.NewEngine(eventHub, 30*time.Second)
+	alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
+	alertEngine.RegisterRule(alert.PortDown(dbs.SB))
+	alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
+	alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
+	alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
+	stopAlerts := alertEngine.Start(context.Background())
+	defer stopAlerts()
+
+	srv := api.NewServer(cfg.Listen, dbs, httpMetrics.Wrap)
 	mux := srv.Mux()
 
 	handler.RegisterHealth(mux, dbs)
@@ -107,6 +133,8 @@ func run() error {
 		buildSBSearchTables(dbs),
 	)
 	handler.RegisterSearch(mux, searchEngine)
+	handler.RegisterTelemetry(mux, telemetryQuerier, registry)
+	handler.RegisterAlerts(mux, alertEngine)
 	handler.RegisterAPICatchAll(mux)
 	handler.RegisterUI(mux, northwatchUI.DistFS)
 

@@ -140,6 +140,51 @@ func TestConnect_InvalidSBAddr(t *testing.T) {
 	assert.Contains(t, err.Error(), "SB")
 }
 
+func TestSplitEndpoints(t *testing.T) {
+	tests := []struct {
+		name  string
+		addr  string
+		count int
+	}{
+		{"single", "tcp:127.0.0.1:6641", 1},
+		{"two", "tcp:10.0.0.1:6641,tcp:10.0.0.2:6641", 2},
+		{"three with spaces", "tcp:10.0.0.1:6641, tcp:10.0.0.2:6641 , tcp:10.0.0.3:6641", 3},
+		{"trailing comma", "tcp:127.0.0.1:6641,", 1},
+		{"empty parts", "tcp:127.0.0.1:6641,,tcp:127.0.0.2:6641", 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := splitEndpoints(tt.addr)
+			assert.Len(t, opts, tt.count)
+		})
+	}
+}
+
+func TestConnect_CommaEndpoints(t *testing.T) {
+	nbAddr1, nbCleanup1 := setupNBServer(t)
+	defer nbCleanup1()
+	sbAddr, sbCleanup := setupSBServer(t)
+	defer sbCleanup()
+
+	// Use comma-separated endpoints (second is same as first for testing)
+	nbAddr := nbAddr1 + "," + nbAddr1
+
+	nbModel, err := nb.FullDatabaseModel()
+	require.NoError(t, err)
+	sbModel, err := sb.FullDatabaseModel()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel)
+	require.NoError(t, err)
+	defer dbs.Close()
+
+	assert.True(t, dbs.Ready())
+}
+
 func TestReady_AfterClose(t *testing.T) {
 	nbAddr, nbCleanup := setupNBServer(t)
 	defer nbCleanup()

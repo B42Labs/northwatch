@@ -27,8 +27,8 @@ func Parse(args []string) (*Config, error) {
 
 	cfg := &Config{}
 	fs.StringVar(&cfg.Listen, "listen", envOrDefault("NORTHWATCH_LISTEN", ":8080"), "HTTP listen address")
-	fs.StringVar(&cfg.OVNNBAddr, "ovn-nb-addr", os.Getenv("NORTHWATCH_OVN_NB_ADDR"), "OVN Northbound DB address (e.g. tcp:127.0.0.1:6641)")
-	fs.StringVar(&cfg.OVNSBAddr, "ovn-sb-addr", os.Getenv("NORTHWATCH_OVN_SB_ADDR"), "OVN Southbound DB address (e.g. tcp:127.0.0.1:6642)")
+	fs.StringVar(&cfg.OVNNBAddr, "ovn-nb-addr", os.Getenv("NORTHWATCH_OVN_NB_ADDR"), "OVN Northbound DB address, comma-separated for failover (e.g. tcp:10.0.0.1:6641,tcp:10.0.0.2:6641)")
+	fs.StringVar(&cfg.OVNSBAddr, "ovn-sb-addr", os.Getenv("NORTHWATCH_OVN_SB_ADDR"), "OVN Southbound DB address, comma-separated for failover (e.g. tcp:10.0.0.1:6642,tcp:10.0.0.2:6642)")
 
 	// OpenStack enrichment flags
 	fs.StringVar(&cfg.OpenStackAuthURL, "os-auth-url", os.Getenv("OS_AUTH_URL"), "OpenStack Keystone auth URL")

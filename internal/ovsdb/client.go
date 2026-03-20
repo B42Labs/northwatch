@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,23 +23,31 @@ func newBackoff() *backoff.ExponentialBackOff {
 	return bo
 }
 
+// splitEndpoints parses a comma-separated list of OVSDB addresses into
+// individual WithEndpoint options. This enables libovsdb's native failover
+// when multiple endpoints are provided (e.g. "tcp:10.0.0.1:6641,tcp:10.0.0.2:6641").
+func splitEndpoints(addr string) []client.Option {
+	parts := strings.Split(addr, ",")
+	opts := make([]client.Option, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			opts = append(opts, client.WithEndpoint(p))
+		}
+	}
+	return opts
+}
+
 func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.ClientDBModel) (*OVNDatabases, error) {
 	// Create clients sequentially to avoid race in libovsdb's stdr.SetVerbosity.
 	// Each client gets its own backoff instance since ExponentialBackOff is stateful.
-	nbClient, err := client.NewOVSDBClient(
-		nbModel,
-		client.WithEndpoint(nbAddr),
-		client.WithReconnect(10*time.Second, newBackoff()),
-	)
+	nbOpts := append(splitEndpoints(nbAddr), client.WithReconnect(10*time.Second, newBackoff()))
+	nbClient, err := client.NewOVSDBClient(nbModel, nbOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating NB client: %w", err)
 	}
 
-	sbClient, err := client.NewOVSDBClient(
-		sbModel,
-		client.WithEndpoint(sbAddr),
-		client.WithReconnect(10*time.Second, newBackoff()),
-	)
+	sbOpts := append(splitEndpoints(sbAddr), client.WithReconnect(10*time.Second, newBackoff()))
+	sbClient, err := client.NewOVSDBClient(sbModel, sbOpts...)
 	if err != nil {
 		nbClient.Close()
 		return nil, fmt.Errorf("creating SB client: %w", err)
