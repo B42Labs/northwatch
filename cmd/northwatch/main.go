@@ -17,6 +17,7 @@ import (
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/search"
+	northwatchUI "github.com/b42labs/northwatch/ui"
 )
 
 func main() {
@@ -83,6 +84,8 @@ func run() error {
 		buildSBSearchTables(dbs),
 	)
 	handler.RegisterSearch(mux, searchEngine)
+	handler.RegisterAPICatchAll(mux)
+	handler.RegisterUI(mux, northwatchUI.DistFS)
 
 	// Graceful shutdown
 	errCh := make(chan error, 1)

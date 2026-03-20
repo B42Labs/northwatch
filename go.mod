@@ -1,6 +1,6 @@
 module github.com/b42labs/northwatch
 
-go 1.25.0
+go 1.25.8
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
