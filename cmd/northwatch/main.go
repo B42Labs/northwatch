@@ -11,6 +11,8 @@ import (
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/api/handler"
 	"github.com/b42labs/northwatch/internal/config"
+	"github.com/b42labs/northwatch/internal/correlate"
+	"github.com/b42labs/northwatch/internal/enrich"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
@@ -50,13 +52,31 @@ func run() error {
 	defer dbs.Close()
 	fmt.Println("Connected to OVN databases")
 
+	// Correlation engine
+	cor := &correlate.Correlator{NB: dbs.NB, SB: dbs.SB}
+
+	// Enrichment provider (optional)
+	var enricher *enrich.Enricher
+	if cfg.OpenStackAuthURL != "" {
+		fmt.Println("Authenticating with OpenStack...")
+		provider, provErr := enrich.NewOpenStackProvider(ctx, cfg)
+		if provErr != nil {
+			return fmt.Errorf("creating OpenStack provider: %w", provErr)
+		}
+		enricher = enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL)
+		fmt.Println("OpenStack enrichment enabled")
+	} else {
+		enricher = enrich.NewEnricher(nil, 0)
+	}
+
 	srv := api.NewServer(cfg.Listen, dbs)
 	mux := srv.Mux()
 
 	handler.RegisterHealth(mux, dbs)
-	handler.RegisterCapabilities(mux)
+	handler.RegisterCapabilities(mux, enricher.HasProvider())
 	handler.RegisterNB(mux, dbs.NB)
 	handler.RegisterSB(mux, dbs.SB)
+	handler.RegisterCorrelated(mux, cor, enricher)
 
 	searchEngine := search.NewEngine(
 		buildNBSearchTables(dbs),

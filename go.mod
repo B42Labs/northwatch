@@ -1,10 +1,11 @@
 module github.com/b42labs/northwatch
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-logr/stdr v1.2.2
+	github.com/gophercloud/gophercloud/v2 v2.11.1
 	github.com/ovn-kubernetes/libovsdb v0.8.1
 	github.com/stretchr/testify v1.11.1
 )
