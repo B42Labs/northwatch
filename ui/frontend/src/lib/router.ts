@@ -72,8 +72,7 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { component: 'security-policy', ...m };
   if ((m = matchRoute('/nat', path)))
     return { component: 'nat-overview', ...m };
-  if ((m = matchRoute('/ha', path)))
-    return { component: 'ha-failover', ...m };
+  if ((m = matchRoute('/ha', path))) return { component: 'ha-failover', ...m };
   if ((m = matchRoute('/mac-table', path)))
     return { component: 'mac-table', ...m };
 

@@ -73,14 +73,10 @@
   });
 
   // Build a map from NAT UUID to NatRule
-  let natByUuid = $derived(
-    new Map(natRules.map((n) => [n._uuid, n])),
-  );
+  let natByUuid = $derived(new Map(natRules.map((n) => [n._uuid, n])));
 
   // Build a map from static route UUID to StaticRoute
-  let routeByUuid = $derived(
-    new Map(staticRoutes.map((r) => [r._uuid, r])),
-  );
+  let routeByUuid = $derived(new Map(staticRoutes.map((r) => [r._uuid, r])));
 
   // Group NAT rules by router
   let routerGroups = $derived.by((): RouterNatGroup[] => {
@@ -108,18 +104,43 @@
   });
 
   // Summary counts
-  let snatCount = $derived(
-    natRules.filter((n) => n.type === 'snat').length,
-  );
-  let dnatCount = $derived(
-    natRules.filter((n) => n.type === 'dnat').length,
-  );
+  let snatCount = $derived(natRules.filter((n) => n.type === 'snat').length);
+  let dnatCount = $derived(natRules.filter((n) => n.type === 'dnat').length);
   let dnatAndSnatCount = $derived(
     natRules.filter((n) => n.type === 'dnat_and_snat').length,
   );
   let routersWithNat = $derived(
     routerGroups.filter((g) => g.nats.length > 0).length,
   );
+
+  let searchQuery = $state('');
+
+  let filteredRouterGroups = $derived.by(() => {
+    if (!searchQuery) return routerGroups;
+    const q = searchQuery.toLowerCase();
+    return routerGroups.filter((g) => {
+      if ((g.router.name || '').toLowerCase().includes(q)) return true;
+      if (g.router._uuid.toLowerCase().includes(q)) return true;
+      if (
+        g.nats.some(
+          (n) =>
+            n.external_ip?.toLowerCase().includes(q) ||
+            n.logical_ip?.toLowerCase().includes(q) ||
+            n.type?.toLowerCase().includes(q),
+        )
+      )
+        return true;
+      if (
+        g.routes.some(
+          (r) =>
+            r.ip_prefix?.toLowerCase().includes(q) ||
+            r.nexthop?.toLowerCase().includes(q),
+        )
+      )
+        return true;
+      return false;
+    });
+  });
 
   function typeBadgeClass(type: string): string {
     switch (type) {
@@ -181,46 +202,61 @@
   {:else if error}
     <ErrorAlert message={error} />
   {:else}
-    <!-- Summary cards -->
-    <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">Total NAT Rules</div>
-        <div class="stat-value text-lg">{natRules.length}</div>
+    <!-- Summary bar -->
+    <div class="mb-4 flex flex-wrap items-center gap-4">
+      <div>
+        <input
+          type="text"
+          bind:value={searchQuery}
+          placeholder="Filter by IP, router, type..."
+          class="input input-sm input-bordered w-72"
+        />
       </div>
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">SNAT Rules</div>
-        <div class="stat-value text-lg text-blue-600">{snatCount}</div>
-      </div>
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">DNAT Rules</div>
-        <div class="stat-value text-lg text-green-600">{dnatCount + dnatAndSnatCount}</div>
-        {#if dnatAndSnatCount > 0}
-          <div class="stat-desc text-xs">
-            {dnatCount} DNAT + {dnatAndSnatCount} DNAT+SNAT
-          </div>
-        {/if}
-      </div>
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">Routers with NAT</div>
-        <div class="stat-value text-lg">{routersWithNat}</div>
+      <div
+        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
+      >
+        <div class="stat px-4 py-2">
+          <div class="stat-title text-xs">NAT Rules</div>
+          <div class="stat-value text-lg">{natRules.length}</div>
+        </div>
+        <div class="stat px-4 py-2">
+          <div class="stat-title text-xs">SNAT</div>
+          <div class="stat-value text-lg">{snatCount}</div>
+        </div>
+        <div class="stat px-4 py-2">
+          <div class="stat-title text-xs">DNAT</div>
+          <div class="stat-value text-lg">{dnatCount + dnatAndSnatCount}</div>
+        </div>
+        <div class="stat px-4 py-2">
+          <div class="stat-title text-xs">Routers</div>
+          <div class="stat-value text-lg">{routersWithNat}</div>
+        </div>
       </div>
     </div>
 
-    {#if routerGroups.length === 0}
+    {#if filteredRouterGroups.length === 0}
       <div class="py-8 text-center text-base-content/50">
-        No NAT rules or static routes found
+        {#if searchQuery}
+          No results matching "{searchQuery}"
+        {:else}
+          No NAT rules or static routes found
+        {/if}
       </div>
     {:else}
       <div class="flex flex-col gap-6">
-        {#each routerGroups as group}
+        {#each filteredRouterGroups as group}
           <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4">
               <!-- Router header -->
               <div class="flex items-center gap-2">
-                <span class="inline-block h-3 w-3 rotate-45 rounded-sm bg-green-500 opacity-85"></span>
+                <span
+                  class="inline-block h-3 w-3 rotate-45 rounded-sm bg-green-500 opacity-85"
+                ></span>
                 <h2 class="card-title text-sm">
                   <a
-                    href={link(`/correlated/logical-routers/${group.router._uuid}`)}
+                    href={link(
+                      `/correlated/logical-routers/${group.router._uuid}`,
+                    )}
                     class="link-hover link-primary"
                   >
                     {group.router.name || group.router._uuid.slice(0, 8)}
@@ -230,8 +266,10 @@
                   {group.router._uuid.slice(0, 8)}
                 </span>
                 {#if group.nats.length > 0}
-                  <span class="badge badge-sm badge-outline">
-                    {group.nats.length} NAT {group.nats.length === 1 ? 'rule' : 'rules'}
+                  <span class="badge badge-outline badge-sm">
+                    {group.nats.length} NAT {group.nats.length === 1
+                      ? 'rule'
+                      : 'rules'}
                   </span>
                 {/if}
               </div>
@@ -255,16 +293,26 @@
                         <tr>
                           <td>
                             <span
-                              class="badge badge-sm whitespace-nowrap {typeBadgeClass(nat.type)}"
+                              class="badge badge-sm whitespace-nowrap {typeBadgeClass(
+                                nat.type,
+                              )}"
                             >
                               {typeBadgeLabel(nat.type)}
                             </span>
                           </td>
-                          <td class="font-mono text-xs">{nat.external_ip || '-'}</td>
-                          <td class="text-center text-base-content/60">{typeArrow(nat.type)}</td>
-                          <td class="font-mono text-xs">{nat.logical_ip || '-'}</td>
-                          <td class="text-xs">{formatPort(nat.logical_port)}</td>
-                          <td class="text-xs">{formatPort(nat.gateway_port)}</td>
+                          <td class="font-mono text-xs"
+                            >{nat.external_ip || '-'}</td
+                          >
+                          <td class="text-center text-base-content/60"
+                            >{typeArrow(nat.type)}</td
+                          >
+                          <td class="font-mono text-xs"
+                            >{nat.logical_ip || '-'}</td
+                          >
+                          <td class="text-xs">{formatPort(nat.logical_port)}</td
+                          >
+                          <td class="text-xs">{formatPort(nat.gateway_port)}</td
+                          >
                         </tr>
                       {/each}
                     </tbody>
@@ -290,9 +338,15 @@
                       <tbody>
                         {#each group.routes as route}
                           <tr>
-                            <td class="font-mono text-xs">{route.ip_prefix || '-'}</td>
-                            <td class="font-mono text-xs">{route.nexthop || '-'}</td>
-                            <td class="text-xs">{formatPort(route.output_port)}</td>
+                            <td class="font-mono text-xs"
+                              >{route.ip_prefix || '-'}</td
+                            >
+                            <td class="font-mono text-xs"
+                              >{route.nexthop || '-'}</td
+                            >
+                            <td class="text-xs"
+                              >{formatPort(route.output_port)}</td
+                            >
                           </tr>
                         {/each}
                       </tbody>

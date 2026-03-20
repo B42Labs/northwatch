@@ -1,6 +1,7 @@
 <script lang="ts">
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
   // --- Types ---
 
@@ -88,22 +89,21 @@
     loading = true;
     error = '';
     try {
-      const [haGroups, haChassis, chassisList, portBindings] = await Promise.all(
-        [
+      const [haGroups, haChassis, chassisList, portBindings] =
+        await Promise.all([
           fetchJson<HaChassisGroup[]>('/api/v1/sb/ha-chassis-groups'),
           fetchJson<HaChassisEntry[]>('/api/v1/sb/ha-chassis'),
           fetchJson<ChassisRecord[]>('/api/v1/sb/chassis'),
           fetchJson<PortBindingRecord[]>('/api/v1/sb/port-bindings'),
-        ],
-      );
+        ]);
 
       // Build lookup maps
-      const haChassisMap = new Map<string, HaChassisEntry>();
+      const haChassisMap = new SvelteMap<string, HaChassisEntry>();
       for (const hc of haChassis) {
         haChassisMap.set(hc._uuid, hc);
       }
 
-      const chassisMap = new Map<string, ChassisRecord>();
+      const chassisMap = new SvelteMap<string, ChassisRecord>();
       for (const ch of chassisList) {
         chassisMap.set(ch._uuid, ch);
       }
@@ -112,8 +112,8 @@
       const crBindings = portBindings.filter(
         (pb) => pb.type === 'chassisredirect',
       );
-      const haGroupToActiveChassis = new Map<string, string>();
-      const haGroupToCrPort = new Map<string, string>();
+      const haGroupToActiveChassis = new SvelteMap<string, string>();
+      const haGroupToCrPort = new SvelteMap<string, string>();
       for (const pb of crBindings) {
         if (pb.ha_chassis_group && pb.chassis) {
           haGroupToActiveChassis.set(pb.ha_chassis_group, pb.chassis);
@@ -122,7 +122,7 @@
       }
 
       // Collect unique chassis involved
-      const chassisUuidsInvolved = new Set<string>();
+      const chassisUuidsInvolved = new SvelteSet<string>();
 
       // Resolve each HA group
       const resolved: ResolvedGroup[] = haGroups.map((group) => {
@@ -200,10 +200,18 @@
   {:else if error}
     <ErrorAlert message={error} />
   {:else}
-    <!-- Summary stats -->
+    <!-- Summary + Search bar -->
     <div class="mb-4 flex flex-wrap items-center gap-4">
+      <div>
+        <input
+          type="text"
+          bind:value={searchQuery}
+          placeholder="Filter by group name, chassis..."
+          class="input input-sm input-bordered w-72"
+        />
+      </div>
       <div
-        class="stats stats-horizontal border border-base-300 bg-base-100 shadow-sm"
+        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
       >
         <div class="stat px-4 py-2">
           <div class="stat-title text-xs">HA Groups</div>
@@ -213,24 +221,6 @@
           <div class="stat-title text-xs">Chassis Involved</div>
           <div class="stat-value text-lg">{totalChassisInvolved}</div>
         </div>
-      </div>
-
-      <!-- Search -->
-      <div class="flex items-center gap-2">
-        <input
-          type="text"
-          bind:value={searchQuery}
-          placeholder="Filter by group name, chassis..."
-          class="input input-sm input-bordered w-64"
-        />
-        {#if searchQuery}
-          <button
-            class="btn btn-ghost btn-xs"
-            onclick={() => (searchQuery = '')}
-          >
-            Clear
-          </button>
-        {/if}
       </div>
     </div>
 
@@ -248,7 +238,9 @@
           <div class="card border border-base-300 bg-base-100 shadow-sm">
             <div class="card-body p-4">
               <!-- Group header -->
-              <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div
+                class="mb-3 flex flex-wrap items-start justify-between gap-2"
+              >
                 <div>
                   <h2 class="card-title text-sm font-semibold">
                     {shortName(group.name)}
@@ -277,9 +269,7 @@
                   No chassis entries in this group
                 </div>
               {:else}
-                <div
-                  class="flex flex-wrap items-center gap-0"
-                >
+                <div class="flex flex-wrap items-center gap-0">
                   {#each group.chassisChain as entry, idx (entry.uuid)}
                     <!-- Chassis box -->
                     <div
@@ -297,18 +287,23 @@
                           P{entry.priority}
                         </span>
                         {#if entry.isActive}
-                          <span class="badge badge-success badge-sm">ACTIVE</span
+                          <span class="badge badge-success badge-sm"
+                            >ACTIVE</span
                           >
                         {:else if idx === 0 && !group.activeChassis}
                           <span class="badge badge-warning badge-sm"
                             >STANDBY</span
                           >
                         {:else}
-                          <span class="badge badge-ghost badge-sm">STANDBY</span>
+                          <span class="badge badge-ghost badge-sm">STANDBY</span
+                          >
                         {/if}
                       </div>
                       <!-- Chassis name -->
-                      <div class="text-sm font-medium" title={entry.chassisName}>
+                      <div
+                        class="text-sm font-medium"
+                        title={entry.chassisName}
+                      >
                         {shortName(entry.chassisName)}
                       </div>
                       {#if entry.hostname}
@@ -323,9 +318,7 @@
 
                     <!-- Arrow connector between chassis boxes -->
                     {#if idx < group.chassisChain.length - 1}
-                      <div
-                        class="flex items-center px-1 text-base-content/30"
-                      >
+                      <div class="flex items-center px-1 text-base-content/30">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           class="h-5 w-5"

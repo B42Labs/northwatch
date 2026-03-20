@@ -1,6 +1,7 @@
 <script lang="ts">
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import { SvelteMap } from 'svelte/reactivity';
 
   interface MacBinding {
     _uuid: string;
@@ -50,7 +51,8 @@
       macBindings = bindings;
       datapaths = dps;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load MAC binding data';
+      error =
+        e instanceof Error ? e.message : 'Failed to load MAC binding data';
     } finally {
       loading = false;
     }
@@ -61,9 +63,7 @@
   });
 
   // Build lookup map from datapath UUID to DatapathBinding
-  let datapathByUuid = $derived(
-    new Map(datapaths.map((dp) => [dp._uuid, dp])),
-  );
+  let datapathByUuid = $derived(new Map(datapaths.map((dp) => [dp._uuid, dp])));
 
   // Determine datapath name and type from external_ids
   function getDatapathInfo(dp: DatapathBinding | undefined): {
@@ -72,7 +72,11 @@
   } {
     if (!dp) return { name: 'Unknown Datapath', type: 'unknown' };
     const extIds = dp.external_ids ?? {};
-    const name = extIds['name'] || extIds['logical-router'] || extIds['logical-switch'] || dp._uuid.slice(0, 8);
+    const name =
+      extIds['name'] ||
+      extIds['logical-router'] ||
+      extIds['logical-switch'] ||
+      dp._uuid.slice(0, 8);
     const type: 'router' | 'switch' | 'unknown' = extIds['logical-router']
       ? 'router'
       : extIds['logical-switch']
@@ -95,7 +99,7 @@
 
   // Group filtered bindings by datapath
   let datapathGroups = $derived.by((): DatapathGroup[] => {
-    const groupMap = new Map<string, MacBinding[]>();
+    const groupMap = new SvelteMap<string, MacBinding[]>();
     for (const entry of filteredBindings) {
       const key = entry.datapath;
       const list = groupMap.get(key);
@@ -166,35 +170,31 @@
   {:else if error}
     <ErrorAlert message={error} />
   {:else}
-    <!-- Summary cards -->
-    <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">MAC Entries</div>
-        <div class="stat-value text-lg">{totalEntries}</div>
-        {#if globalSearch.trim() && totalEntries !== macBindings.length}
-          <div class="stat-desc text-xs">
-            of {macBindings.length} total
-          </div>
-        {/if}
+    <!-- Summary + Search bar -->
+    <div class="mb-4 flex flex-wrap items-center gap-4">
+      <div>
+        <input
+          type="text"
+          placeholder="Search by IP, MAC or port..."
+          class="input input-sm input-bordered w-72"
+          bind:value={globalSearch}
+        />
       </div>
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">Datapaths</div>
-        <div class="stat-value text-lg">{totalDatapaths}</div>
+      <div
+        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
+      >
+        <div class="stat px-4 py-2">
+          <div class="stat-title text-xs">MAC Entries</div>
+          <div class="stat-value text-lg">{totalEntries}</div>
+          {#if globalSearch.trim() && totalEntries !== macBindings.length}
+            <div class="stat-desc text-xs">of {macBindings.length} total</div>
+          {/if}
+        </div>
+        <div class="stat px-4 py-2">
+          <div class="stat-title text-xs">Datapaths</div>
+          <div class="stat-value text-lg">{totalDatapaths}</div>
+        </div>
       </div>
-      <div class="stat rounded-lg bg-base-100 shadow-sm">
-        <div class="stat-title text-xs">Total Bindings (All)</div>
-        <div class="stat-value text-lg">{macBindings.length}</div>
-      </div>
-    </div>
-
-    <!-- Global search -->
-    <div class="mb-4">
-      <input
-        type="text"
-        placeholder="Search across all groups by IP, MAC or port..."
-        class="input input-bordered input-sm w-full max-w-md"
-        bind:value={globalSearch}
-      />
     </div>
 
     {#if datapathGroups.length === 0}
@@ -229,8 +229,9 @@
                 <span class="text-xs text-base-content/40">
                   {group.datapath._uuid.slice(0, 8)}
                 </span>
-                <span class="badge badge-sm badge-outline">
-                  {group.entries.length} {group.entries.length === 1 ? 'entry' : 'entries'}
+                <span class="badge badge-outline badge-sm">
+                  {group.entries.length}
+                  {group.entries.length === 1 ? 'entry' : 'entries'}
                 </span>
               </div>
 
