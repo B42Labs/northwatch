@@ -21,10 +21,14 @@ type Config struct {
 	OpenStackRegionName  string
 	EnrichmentCacheTTL   time.Duration
 
+	// Alerting
+	AlertWebhookURLs string // comma-separated webhook URLs
+
 	// History & snapshots
 	HistoryDBPath    string
 	SnapshotInterval time.Duration
 	EventRetention   time.Duration
+	EventMaxCount    int64 // max number of events to retain (0 = unlimited)
 }
 
 func Parse(args []string) (*Config, error) {
@@ -46,12 +50,16 @@ func Parse(args []string) (*Config, error) {
 	var cacheTTLStr string
 	fs.StringVar(&cacheTTLStr, "enrichment-cache-ttl", envOrDefault("NORTHWATCH_ENRICHMENT_CACHE_TTL", "5m"), "Enrichment cache TTL (e.g. 5m, 1h)")
 
+	// Alerting flags
+	fs.StringVar(&cfg.AlertWebhookURLs, "alert-webhook-urls", os.Getenv("NORTHWATCH_ALERT_WEBHOOK_URLS"), "Comma-separated webhook URLs for alert notifications")
+
 	// History flags
 	fs.StringVar(&cfg.HistoryDBPath, "history-db-path", envOrDefault("NORTHWATCH_HISTORY_DB_PATH", "northwatch-history.db"), "Path to SQLite history database")
 	var snapshotIntervalStr string
 	fs.StringVar(&snapshotIntervalStr, "snapshot-interval", envOrDefault("NORTHWATCH_SNAPSHOT_INTERVAL", "5m"), "Automatic snapshot interval (e.g. 5m, 1h)")
 	var eventRetentionStr string
 	fs.StringVar(&eventRetentionStr, "event-retention", envOrDefault("NORTHWATCH_EVENT_RETENTION", "24h"), "Event log retention duration (e.g. 24h, 7d)")
+	fs.Int64Var(&cfg.EventMaxCount, "event-max-count", envOrDefaultInt64("NORTHWATCH_EVENT_MAX_COUNT", 0), "Maximum number of events to retain (0 = unlimited)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -90,4 +98,16 @@ func envOrDefault(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func envOrDefaultInt64(key string, defaultVal int64) int64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+	var result int64
+	if _, err := fmt.Sscanf(v, "%d", &result); err != nil {
+		return defaultVal
+	}
+	return result
 }

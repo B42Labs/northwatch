@@ -307,3 +307,82 @@ func TestHistory_QueryEvents_InvalidSince(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+func TestHistory_ExportSnapshot(t *testing.T) {
+	store, _, mux := newTestHistorySetup(t)
+	ctx := context.Background()
+
+	rows := []history.SnapshotRow{
+		{Database: "nb", Table: "Logical_Switch", UUID: "uuid-1", Data: map[string]any{"name": "sw1"}},
+		{Database: "sb", Table: "Chassis", UUID: "uuid-2", Data: map[string]any{"hostname": "node1"}},
+	}
+	_, err := store.CreateSnapshot(ctx, "manual", "export test", rows)
+	require.NoError(t, err)
+
+	req := httptest.NewRequestWithContext(ctx, "GET", "/api/v1/snapshots/1/export", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "snapshot-1.json")
+
+	var export history.SnapshotExport
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&export))
+	assert.Equal(t, "manual", export.Meta.Trigger)
+	assert.Equal(t, "export test", export.Meta.Label)
+	assert.Len(t, export.Rows, 2)
+}
+
+func TestHistory_ExportSnapshot_NotFound(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/999/export", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHistory_ImportSnapshot(t *testing.T) {
+	store, _, mux := newTestHistorySetup(t)
+	ctx := context.Background()
+
+	// Create and export a snapshot
+	rows := []history.SnapshotRow{
+		{Database: "nb", Table: "Logical_Switch", UUID: "uuid-1", Data: map[string]any{"name": "sw1"}},
+	}
+	_, err := store.CreateSnapshot(ctx, "manual", "original", rows)
+	require.NoError(t, err)
+
+	export, err := store.ExportSnapshot(ctx, 1)
+	require.NoError(t, err)
+
+	// Import via API
+	exportJSON, err := json.Marshal(export)
+	require.NoError(t, err)
+
+	req := httptest.NewRequestWithContext(ctx, "POST", "/api/v1/snapshots/import",
+		strings.NewReader(string(exportJSON)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var imported history.SnapshotMeta
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&imported))
+	assert.Equal(t, "manual", imported.Trigger)
+	assert.Equal(t, "original", imported.Label)
+	assert.Equal(t, 1, imported.RowCounts["nb.Logical_Switch"])
+}
+
+func TestHistory_ImportSnapshot_InvalidBody(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/snapshots/import",
+		strings.NewReader(`not valid json`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}

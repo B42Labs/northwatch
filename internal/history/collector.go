@@ -17,11 +17,12 @@ type TableSource struct {
 
 // Collector manages automatic snapshots, event persistence, and event pruning.
 type Collector struct {
-	store     *Store
-	sources   []TableSource
-	hub       *events.Hub
-	interval  time.Duration
-	retention time.Duration
+	store         *Store
+	sources       []TableSource
+	hub           *events.Hub
+	interval      time.Duration
+	retention     time.Duration
+	eventMaxCount int64
 }
 
 // NewCollector creates a new history collector.
@@ -33,6 +34,12 @@ func NewCollector(store *Store, hub *events.Hub, sources []TableSource, interval
 		interval:  interval,
 		retention: retention,
 	}
+}
+
+// SetEventMaxCount sets the maximum number of events to retain.
+// If maxCount is 0, no count-based pruning is performed.
+func (c *Collector) SetEventMaxCount(maxCount int64) {
+	c.eventMaxCount = maxCount
 }
 
 // TakeSnapshot captures the current state of all registered table sources.
@@ -57,20 +64,61 @@ func (c *Collector) TakeSnapshot(ctx context.Context, trigger, label string) (*S
 	return c.store.CreateSnapshot(ctx, trigger, label, rows)
 }
 
+// TakeSnapshotIfChanged captures a snapshot only if data has changed since
+// the last snapshot. Returns nil without error if no changes are detected.
+func (c *Collector) TakeSnapshotIfChanged(ctx context.Context, trigger, label string) (*SnapshotMeta, error) {
+	var rows []SnapshotRow
+	rowCounts := make(map[string]int)
+
+	for _, src := range c.sources {
+		data, err := src.ListFunc(ctx)
+		if err != nil {
+			log.Printf("history: snapshot source %s.%s failed: %v", src.Database, src.Table, err)
+			continue
+		}
+		key := src.Database + "." + src.Table
+		rowCounts[key] = len(data)
+		for _, d := range data {
+			uuid, _ := d["_uuid"].(string)
+			rows = append(rows, SnapshotRow{
+				Database: src.Database,
+				Table:    src.Table,
+				UUID:     uuid,
+				Data:     d,
+			})
+		}
+	}
+
+	// Check if content hash differs from the latest snapshot
+	currentHash := computeContentHash(rows)
+	lastHash, err := c.store.LatestSnapshotContentHash(ctx)
+	if err != nil {
+		log.Printf("history: failed to get latest snapshot hash: %v", err)
+		// Fall through and create the snapshot anyway
+	} else if lastHash == currentHash {
+		return nil, nil // no changes
+	}
+
+	return c.store.CreateSnapshot(ctx, trigger, label, rows)
+}
+
 // Start launches background goroutines for periodic snapshots, event persistence,
 // and event pruning. Returns a cleanup function that stops all goroutines.
 func (c *Collector) Start(ctx context.Context) func() {
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Goroutine 1: periodic snapshots
+	// Goroutine 1: periodic snapshots (with deduplication)
 	go func() {
 		ticker := time.NewTicker(c.interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if _, err := c.TakeSnapshot(ctx, "auto", ""); err != nil {
+				meta, err := c.TakeSnapshotIfChanged(ctx, "auto", "")
+				if err != nil {
 					log.Printf("history: auto-snapshot failed: %v", err)
+				} else if meta == nil {
+					log.Printf("history: auto-snapshot skipped (no changes)")
 				}
 			case <-ctx.Done():
 				return
@@ -125,17 +173,27 @@ func (c *Collector) Start(ctx context.Context) func() {
 		}
 	}()
 
-	// Goroutine 3: event pruning
+	// Goroutine 3: event pruning (time-based + count-based)
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
+				// Time-based pruning
 				if n, err := c.store.PruneEvents(ctx, c.retention); err != nil {
 					log.Printf("history: event pruning failed: %v", err)
 				} else if n > 0 {
 					log.Printf("history: pruned %d old events", n)
+				}
+
+				// Count-based pruning
+				if c.eventMaxCount > 0 {
+					if n, err := c.store.PruneEventsByCount(ctx, c.eventMaxCount); err != nil {
+						log.Printf("history: event count pruning failed: %v", err)
+					} else if n > 0 {
+						log.Printf("history: pruned %d events (count limit %d)", n, c.eventMaxCount)
+					}
 				}
 			case <-ctx.Done():
 				return

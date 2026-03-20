@@ -46,14 +46,15 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) migrate() error {
-	statements := []string{
+	// Phase 1: create base tables and indexes
+	baseStatements := []string{
 		`CREATE TABLE IF NOT EXISTS snapshots (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
-			timestamp  DATETIME NOT NULL,
-			trigger    TEXT NOT NULL,
-			label      TEXT DEFAULT '',
-			row_counts TEXT DEFAULT '{}',
-			size_bytes INTEGER DEFAULT 0
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp    DATETIME NOT NULL,
+			trigger      TEXT NOT NULL,
+			label        TEXT DEFAULT '',
+			row_counts   TEXT DEFAULT '{}',
+			size_bytes   INTEGER DEFAULT 0
 		)`,
 		`CREATE TABLE IF NOT EXISTS snapshot_rows (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,10 +82,43 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_events_lookup ON events(database, table_name)`,
 	}
 
-	for _, stmt := range statements {
+	for _, stmt := range baseStatements {
 		if _, err := s.db.ExecContext(context.Background(), stmt); err != nil {
 			return fmt.Errorf("executing %q: %w", stmt[:40], err)
 		}
 	}
+
+	// Phase 2: incremental migrations (add columns to existing tables)
+	if !s.hasColumn("snapshots", "content_hash") {
+		if _, err := s.db.ExecContext(context.Background(),
+			"ALTER TABLE snapshots ADD COLUMN content_hash TEXT DEFAULT ''"); err != nil {
+			return fmt.Errorf("adding content_hash column: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// hasColumn checks whether a given table already has the named column.
+func (s *Store) hasColumn(table, column string) bool {
+	rows, err := s.db.QueryContext(context.Background(),
+		fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull int
+		var dfltValue *string
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
+			if name == column {
+				return true
+			}
+		}
+	}
+	return false
 }

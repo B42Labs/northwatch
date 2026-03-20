@@ -18,7 +18,9 @@ func RegisterHistory(mux *http.ServeMux, store *history.Store, collector *histor
 	mux.HandleFunc("GET /api/v1/snapshots/diff", handleDiffSnapshots(store))
 	mux.HandleFunc("GET /api/v1/snapshots/{id}", handleGetSnapshot(store))
 	mux.HandleFunc("GET /api/v1/snapshots/{id}/rows", handleGetSnapshotRows(store))
+	mux.HandleFunc("GET /api/v1/snapshots/{id}/export", handleExportSnapshot(store))
 	mux.HandleFunc("DELETE /api/v1/snapshots/{id}", handleDeleteSnapshot(store))
+	mux.HandleFunc("POST /api/v1/snapshots/import", handleImportSnapshot(store))
 	mux.HandleFunc("GET /api/v1/events", handleQueryEvents(store))
 }
 
@@ -196,6 +198,46 @@ func handleQueryEvents(store *history.Store) http.HandlerFunc {
 			events = []history.EventRecord{}
 		}
 		api.WriteJSON(w, http.StatusOK, events)
+	}
+}
+
+func handleExportSnapshot(store *history.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			api.WriteError(w, http.StatusBadRequest, "invalid snapshot id")
+			return
+		}
+
+		export, err := store.ExportSnapshot(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, history.ErrNotFound) {
+				api.WriteError(w, http.StatusNotFound, "snapshot not found")
+			} else {
+				api.WriteError(w, http.StatusInternalServerError, err.Error())
+			}
+			return
+		}
+
+		w.Header().Set("Content-Disposition", "attachment; filename=snapshot-"+r.PathValue("id")+".json")
+		api.WriteJSON(w, http.StatusOK, export)
+	}
+}
+
+func handleImportSnapshot(store *history.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var export history.SnapshotExport
+		if err := json.NewDecoder(r.Body).Decode(&export); err != nil {
+			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+			return
+		}
+
+		meta, err := store.ImportSnapshot(r.Context(), export)
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		api.WriteJSON(w, http.StatusCreated, meta)
 	}
 }
 

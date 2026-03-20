@@ -175,3 +175,30 @@ func (s *Store) PruneEvents(ctx context.Context, retention time.Duration) (int64
 	}
 	return res.RowsAffected()
 }
+
+// PruneEventsByCount keeps only the most recent maxCount events,
+// deleting any older surplus. Returns the number of deleted events.
+// If maxCount is 0, no pruning is performed.
+func (s *Store) PruneEventsByCount(ctx context.Context, maxCount int64) (int64, error) {
+	if maxCount <= 0 {
+		return 0, nil
+	}
+
+	res, err := s.db.ExecContext(ctx,
+		"DELETE FROM events WHERE id NOT IN (SELECT id FROM events ORDER BY id DESC LIMIT ?)",
+		maxCount)
+	if err != nil {
+		return 0, fmt.Errorf("pruning events by count: %w", err)
+	}
+	return res.RowsAffected()
+}
+
+// EventCount returns the total number of persisted events.
+func (s *Store) EventCount(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM events").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("counting events: %w", err)
+	}
+	return count, nil
+}

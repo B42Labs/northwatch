@@ -37,6 +37,7 @@ type RuleSummary struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	Severity    Severity `json:"severity"`
+	Enabled     bool     `json:"enabled"`
 }
 
 // Alert represents a single alert instance.

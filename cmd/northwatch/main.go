@@ -103,6 +103,9 @@ func run() error {
 
 	snapshotSources := append(buildNBSnapshotSources(dbs), buildSBSnapshotSources(dbs)...)
 	historyCollector := history.NewCollector(historyStore, eventHub, snapshotSources, cfg.SnapshotInterval, cfg.EventRetention)
+	if cfg.EventMaxCount > 0 {
+		historyCollector.SetEventMaxCount(cfg.EventMaxCount)
+	}
 	stopHistory := historyCollector.Start(context.Background())
 	defer stopHistory()
 
@@ -124,6 +127,14 @@ func run() error {
 	alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
 	alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
 	alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
+
+	// Webhook notifications (optional)
+	if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
+		notifier := alert.NewWebhookNotifier(urls)
+		alertEngine.SetNotifier(notifier.Notifier())
+		fmt.Printf("Alert webhook notifications enabled (%d endpoints)\n", len(urls))
+	}
+
 	stopAlerts := alertEngine.Start(context.Background())
 	defer stopAlerts()
 

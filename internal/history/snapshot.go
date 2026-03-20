@@ -2,9 +2,11 @@ package history
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -41,6 +43,8 @@ func (s *Store) CreateSnapshot(ctx context.Context, trigger, label string, rows 
 		return nil, fmt.Errorf("marshaling row counts: %w", err)
 	}
 
+	contentHash := computeContentHash(rows)
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("beginning transaction: %w", err)
@@ -48,8 +52,8 @@ func (s *Store) CreateSnapshot(ctx context.Context, trigger, label string, rows 
 	defer func() { _ = tx.Rollback() }()
 
 	res, err := tx.ExecContext(ctx,
-		"INSERT INTO snapshots (timestamp, trigger, label, row_counts, size_bytes) VALUES (?, ?, ?, ?, 0)",
-		now, trigger, label, string(countsJSON))
+		"INSERT INTO snapshots (timestamp, trigger, label, row_counts, size_bytes, content_hash) VALUES (?, ?, ?, ?, 0, ?)",
+		now, trigger, label, string(countsJSON), contentHash)
 	if err != nil {
 		return nil, fmt.Errorf("inserting snapshot: %w", err)
 	}
@@ -201,4 +205,74 @@ func (s *Store) DeleteSnapshot(ctx context.Context, id int64) error {
 		return fmt.Errorf("snapshot %d: %w", id, ErrNotFound)
 	}
 	return nil
+}
+
+// SnapshotExport is a portable representation of a snapshot for export/import.
+type SnapshotExport struct {
+	Meta SnapshotMeta  `json:"meta"`
+	Rows []SnapshotRow `json:"rows"`
+}
+
+// ExportSnapshot returns a self-contained snapshot (metadata + all rows).
+func (s *Store) ExportSnapshot(ctx context.Context, id int64) (*SnapshotExport, error) {
+	meta, err := s.GetSnapshot(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting snapshot metadata: %w", err)
+	}
+
+	rows, err := s.GetSnapshotRows(ctx, id, "", "")
+	if err != nil {
+		return nil, fmt.Errorf("getting snapshot rows: %w", err)
+	}
+
+	return &SnapshotExport{
+		Meta: *meta,
+		Rows: rows,
+	}, nil
+}
+
+// ImportSnapshot creates a new snapshot from exported data, preserving trigger
+// and label but assigning a new ID and timestamp.
+func (s *Store) ImportSnapshot(ctx context.Context, exp SnapshotExport) (*SnapshotMeta, error) {
+	return s.CreateSnapshot(ctx, exp.Meta.Trigger, exp.Meta.Label, exp.Rows)
+}
+
+// LatestSnapshotContentHash returns the content hash of the most recent snapshot.
+// Returns empty string if no snapshots exist.
+func (s *Store) LatestSnapshotContentHash(ctx context.Context) (string, error) {
+	var hash string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT content_hash FROM snapshots ORDER BY id DESC LIMIT 1",
+	).Scan(&hash)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("querying latest snapshot hash: %w", err)
+	}
+	return hash, nil
+}
+
+// computeContentHash returns a deterministic SHA-256 hash of all snapshot rows.
+func computeContentHash(rows []SnapshotRow) string {
+	type sortableRow struct {
+		key  string
+		data []byte
+	}
+	var sorted []sortableRow
+	for _, r := range rows {
+		key := fmt.Sprintf("%s.%s.%s", r.Database, r.Table, r.UUID)
+		j, _ := json.Marshal(r.Data)
+		sorted = append(sorted, sortableRow{key: key, data: j})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].key < sorted[j].key
+	})
+
+	h := sha256.New()
+	for _, s := range sorted {
+		h.Write([]byte(s.key))
+		h.Write(s.data)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
