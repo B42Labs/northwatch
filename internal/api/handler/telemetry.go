@@ -49,7 +49,20 @@ func RegisterTelemetry(mux *http.ServeMux, querier *telemetry.Querier, registry 
 		api.WriteJSON(w, http.StatusOK, result)
 	})
 
+	mux.HandleFunc("GET /api/v1/telemetry/raft-health", handleRaftHealth(querier))
+
 	if registry != nil {
 		mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	}
+}
+
+func handleRaftHealth(querier *telemetry.Querier) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := querier.RaftHealth(r.Context())
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, result)
 	}
 }

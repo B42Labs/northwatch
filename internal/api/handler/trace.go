@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"sort"
 	"strings"
@@ -30,6 +32,7 @@ type TraceStage struct {
 
 // TraceResponse is the full trace result.
 type TraceResponse struct {
+	ID           string       `json:"id,omitempty"`
 	PortUUID     string       `json:"port_uuid"`
 	PortName     string       `json:"port_name"`
 	DatapathUUID string       `json:"datapath_uuid"`
@@ -40,11 +43,17 @@ type TraceResponse struct {
 }
 
 // RegisterTrace registers the packet trace endpoint.
-func RegisterTrace(mux *http.ServeMux, sbClient client.Client) {
-	mux.HandleFunc("GET /api/v1/debug/trace", handleTrace(sbClient))
+func RegisterTrace(mux *http.ServeMux, sbClient client.Client, traceStore *TraceStore) {
+	mux.HandleFunc("GET /api/v1/debug/trace", handleTrace(sbClient, traceStore))
 }
 
-func handleTrace(sbClient client.Client) http.HandlerFunc {
+func generateTraceID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func handleTrace(sbClient client.Client, traceStore *TraceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		portUUID := r.URL.Query().Get("port")
 		if portUUID == "" {
@@ -83,7 +92,9 @@ func handleTrace(sbClient client.Client) http.HandlerFunc {
 
 		stages := buildTraceStages(flows, portName, dstIP, protocol)
 
+		traceID := generateTraceID()
 		resp := TraceResponse{
+			ID:           traceID,
 			PortUUID:     portUUID,
 			PortName:     portName,
 			DatapathUUID: datapathUUID,
@@ -91,6 +102,10 @@ func handleTrace(sbClient client.Client) http.HandlerFunc {
 			DstIP:        dstIP,
 			Protocol:     protocol,
 			Stages:       stages,
+		}
+
+		if traceStore != nil {
+			traceStore.Store(traceID, resp)
 		}
 
 		api.WriteJSON(w, http.StatusOK, resp)

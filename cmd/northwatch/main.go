@@ -92,6 +92,8 @@ func run() error {
 		// Debug tools
 		diagnoser := &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB}
 		connectivityChecker := &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB}
+		aclAuditor := &debug.ACLAuditor{NB: dbs.NB}
+		staleDetector := &debug.StaleDetector{NB: dbs.NB, SB: dbs.SB}
 
 		// Flow diff tracking
 		flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
@@ -108,6 +110,7 @@ func run() error {
 		alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
 		alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
 		alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
+		alertEngine.RegisterRule(alert.HAFailover(dbs.SB))
 
 		// Webhook notifications (optional)
 		if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
@@ -138,6 +141,8 @@ func run() error {
 			Telemetry:           telemetryQuerier,
 			ConnectivityChecker: connectivityChecker,
 			PortDiagnoser:       diagnoser,
+			ACLAuditor:          aclAuditor,
+			StaleDetector:       staleDetector,
 		}
 		reg.Register(cc.Name, c)
 	}
@@ -189,6 +194,9 @@ func run() error {
 		fmt.Println("Write operations enabled")
 	}
 
+	// Trace store (shared)
+	traceStore := handler.NewTraceStore(1 * time.Hour)
+
 	// Register default (non-prefixed) routes using the default cluster
 	handler.RegisterHealth(mux, def.DBs)
 	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster)
@@ -197,9 +205,12 @@ func run() error {
 	handler.RegisterCorrelated(mux, def.Correlator, def.Enricher)
 	handler.RegisterWS(mux, def.EventHub)
 	handler.RegisterTopology(mux, def.DBs.NB, def.DBs.SB)
+	handler.RegisterNATTopology(mux, def.DBs.NB)
+	handler.RegisterLBTopology(mux, def.DBs.NB, def.DBs.SB)
 	handler.RegisterFlows(mux, def.DBs.SB)
-	handler.RegisterDebug(mux, def.ConnectivityChecker, def.PortDiagnoser)
-	handler.RegisterTrace(mux, def.DBs.SB)
+	handler.RegisterDebug(mux, def.ConnectivityChecker, def.PortDiagnoser, def.ACLAuditor, def.StaleDetector)
+	handler.RegisterTrace(mux, def.DBs.SB, traceStore)
+	handler.RegisterExport(mux, def.DBs.NB, def.DBs.SB, traceStore)
 	handler.RegisterFlowDiff(mux, def.FlowDiff)
 	handler.RegisterHistory(mux, historyStore, historyCollector)
 	handler.RegisterSearch(mux, def.SearchEngine)
@@ -215,14 +226,17 @@ func run() error {
 			handler.RegisterSB(subMux, c.DBs.SB)
 			handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
 			handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
+			handler.RegisterNATTopology(subMux, c.DBs.NB)
+			handler.RegisterLBTopology(subMux, c.DBs.NB, c.DBs.SB)
 			handler.RegisterFlows(subMux, c.DBs.SB)
 			handler.RegisterSearch(subMux, c.SearchEngine)
 			handler.RegisterFlowDiff(subMux, c.FlowDiff)
 			handler.RegisterAlerts(subMux, c.AlertEngine)
 			handler.RegisterTelemetry(subMux, c.Telemetry, nil)
 			handler.RegisterWS(subMux, c.EventHub)
-			handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser)
-			handler.RegisterTrace(subMux, c.DBs.SB)
+			handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser, c.ACLAuditor, c.StaleDetector)
+			handler.RegisterTrace(subMux, c.DBs.SB, traceStore)
+			handler.RegisterExport(subMux, c.DBs.NB, c.DBs.SB, traceStore)
 		})
 		fmt.Printf("Multi-cluster mode enabled with %d clusters\n", reg.Len())
 	}

@@ -75,6 +75,8 @@ export function resolveRoute(path: string): ResolvedRoute {
   if ((m = matchRoute('/ha', path))) return { component: 'ha-failover', ...m };
   if ((m = matchRoute('/mac-table', path)))
     return { component: 'mac-table', ...m };
+  if ((m = matchRoute('/load-balancers', path)))
+    return { component: 'load-balancers', ...m };
 
   // Debug routes
   if ((m = matchRoute('/debug/trace', path)))
@@ -85,9 +87,17 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { component: 'connectivity-checker', ...m };
   if ((m = matchRoute('/debug/port-diagnostics', path)))
     return { component: 'port-diagnostics', ...m };
+  if ((m = matchRoute('/debug/acl-audit', path)))
+    return { component: 'acl-audit', ...m };
+  if ((m = matchRoute('/debug/stale-entries', path)))
+    return { component: 'stale-entries', ...m };
 
   // History
   if ((m = matchRoute('/history', path))) return { component: 'history', ...m };
+
+  // Monitoring
+  if ((m = matchRoute('/raft-health', path)))
+    return { component: 'raft-health', ...m };
 
   // Write
   if ((m = matchRoute('/write/audit/:id', path)))

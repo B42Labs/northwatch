@@ -306,7 +306,6 @@ Safe configuration interface for OVN NB database. Requires the `write` capabilit
 - **Preview mode**: Show what SB changes a NB modification would produce (by analyzing ovn-northd compilation patterns) -- similar to `terraform plan`
 - **Snapshot before write**: Automatic snapshot before every mutation for point-in-time rollback
 - **Batch operations**: Apply multiple related changes as a single OVSDB transaction
-- **Template-based creation**: Pre-built templates for common patterns (e.g. "add router with SNAT", "create network with DHCP")
 - **Audit log**: Every write operation logged with timestamp, user context (from reverse proxy headers), previous state, and new state
 
 ### 5. Snapshots & Timeline

@@ -164,7 +164,28 @@ func handleCancelPlan(engine *write.Engine) http.HandlerFunc {
 
 func handleRollback(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		api.WriteError(w, http.StatusNotImplemented, "rollback is not yet implemented")
+		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
+		var body struct {
+			SnapshotID int64  `json:"snapshot_id"`
+			Actor      string `json:"actor"`
+			Reason     string `json:"reason"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+			return
+		}
+		if body.SnapshotID == 0 {
+			api.WriteError(w, http.StatusBadRequest, "snapshot_id is required")
+			return
+		}
+
+		plan, err := engine.Rollback(r.Context(), body.SnapshotID, body.Actor, body.Reason)
+		if err != nil {
+			api.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		api.WriteJSON(w, http.StatusOK, plan)
 	}
 }
 

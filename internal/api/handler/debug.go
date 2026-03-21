@@ -8,10 +8,12 @@ import (
 )
 
 // RegisterDebug registers the debug tool endpoints.
-func RegisterDebug(mux *http.ServeMux, checker *debug.ConnectivityChecker, diagnoser *debug.PortDiagnoser) {
+func RegisterDebug(mux *http.ServeMux, checker *debug.ConnectivityChecker, diagnoser *debug.PortDiagnoser, auditor *debug.ACLAuditor, detector *debug.StaleDetector) {
 	mux.HandleFunc("GET /api/v1/debug/port-diagnostics", handlePortDiagnostics(diagnoser))
 	mux.HandleFunc("GET /api/v1/debug/port-diagnostics/{uuid}", handleSinglePortDiagnostic(diagnoser))
 	mux.HandleFunc("GET /api/v1/debug/connectivity", handleConnectivity(checker))
+	mux.HandleFunc("GET /api/v1/debug/acl-audit", handleACLAudit(auditor))
+	mux.HandleFunc("GET /api/v1/debug/stale-entries", handleStaleEntries(detector))
 }
 
 func handlePortDiagnostics(diagnoser *debug.PortDiagnoser) http.HandlerFunc {
@@ -53,6 +55,28 @@ func handleConnectivity(checker *debug.ConnectivityChecker) http.HandlerFunc {
 			return
 		}
 
+		api.WriteJSON(w, http.StatusOK, result)
+	}
+}
+
+func handleACLAudit(auditor *debug.ACLAuditor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := auditor.Audit(r.Context())
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, result)
+	}
+}
+
+func handleStaleEntries(detector *debug.StaleDetector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := detector.DetectAll(r.Context())
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		api.WriteJSON(w, http.StatusOK, result)
 	}
 }

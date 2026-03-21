@@ -152,3 +152,57 @@ func TestFlowCountAnomaly(t *testing.T) {
 	alerts = rule.Check(context.Background())
 	assert.Empty(t, alerts)
 }
+
+func TestHAFailover_FirstRunNoAlert(t *testing.T) {
+	sbClient := testutil.SetupSBTestClient(t)
+
+	ch1UUID := testutil.InsertChassis(t, sbClient, "gw-1", "host-1", "10.0.0.1")
+	ch2UUID := testutil.InsertChassis(t, sbClient, "gw-2", "host-2", "10.0.0.2")
+
+	testutil.InsertHAChassisGroup(t, sbClient, "ha-group-1", []testutil.HAChassisEntry{
+		{ChassisUUID: ch1UUID, Priority: 100},
+		{ChassisUUID: ch2UUID, Priority: 50},
+	})
+
+	rule := HAFailover(sbClient)
+
+	// First run — initialization, no alerts
+	alerts := rule.Check(context.Background())
+	assert.Empty(t, alerts)
+}
+
+func TestHAFailover_NoChangeNoAlert(t *testing.T) {
+	sbClient := testutil.SetupSBTestClient(t)
+
+	ch1UUID := testutil.InsertChassis(t, sbClient, "gw-1", "host-1", "10.0.0.1")
+	ch2UUID := testutil.InsertChassis(t, sbClient, "gw-2", "host-2", "10.0.0.2")
+
+	testutil.InsertHAChassisGroup(t, sbClient, "ha-group-1", []testutil.HAChassisEntry{
+		{ChassisUUID: ch1UUID, Priority: 100},
+		{ChassisUUID: ch2UUID, Priority: 50},
+	})
+
+	rule := HAFailover(sbClient)
+
+	// First run — initialization
+	alerts := rule.Check(context.Background())
+	assert.Empty(t, alerts)
+
+	// Second run — no change
+	alerts = rule.Check(context.Background())
+	assert.Empty(t, alerts)
+}
+
+func TestHAFailover_EmptyGroups(t *testing.T) {
+	sbClient := testutil.SetupSBTestClient(t)
+
+	rule := HAFailover(sbClient)
+
+	// First run with no HA groups — should not panic
+	alerts := rule.Check(context.Background())
+	assert.Empty(t, alerts)
+
+	// Second run — still no groups
+	alerts = rule.Check(context.Background())
+	assert.Empty(t, alerts)
+}

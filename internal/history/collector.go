@@ -36,6 +36,9 @@ func NewCollector(store *Store, hub *events.Hub, sources []TableSource, interval
 	}
 }
 
+// Store returns the underlying history store.
+func (c *Collector) Store() *Store { return c.store }
+
 // SetEventMaxCount sets the maximum number of events to retain.
 // If maxCount is 0, no count-based pruning is performed.
 func (c *Collector) SetEventMaxCount(maxCount int64) {

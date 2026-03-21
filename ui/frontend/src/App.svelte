@@ -28,7 +28,10 @@
   import History from './routes/History.svelte';
   import WriteBuilder from './routes/WriteBuilder.svelte';
   import AuditLog from './routes/AuditLog.svelte';
-
+  import AclAudit from './routes/AclAudit.svelte';
+  import StaleEntries from './routes/StaleEntries.svelte';
+  import LoadBalancers from './routes/LoadBalancers.svelte';
+  import RaftHealth from './routes/RaftHealth.svelte';
   let route = $derived(resolveRoute($location));
 </script>
 
@@ -91,6 +94,14 @@
     <AuditLog />
   {:else if route.component === 'audit-detail'}
     <AuditLog entryId={route.params.id} />
+  {:else if route.component === 'acl-audit'}
+    <AclAudit />
+  {:else if route.component === 'stale-entries'}
+    <StaleEntries />
+  {:else if route.component === 'load-balancers'}
+    <LoadBalancers />
+  {:else if route.component === 'raft-health'}
+    <RaftHealth />
   {:else}
     <NotFound />
   {/if}

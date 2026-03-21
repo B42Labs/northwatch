@@ -235,3 +235,82 @@ func (q *Querier) Cluster(ctx context.Context) (*ClusterResult, error) {
 
 	return result, nil
 }
+
+// RaftHealthResult provides detailed Raft cluster health information.
+type RaftHealthResult struct {
+	NB RaftDBHealth `json:"nb"`
+	SB RaftDBHealth `json:"sb"`
+}
+
+// RaftDBHealth describes the health of one OVSDB database's cluster.
+type RaftDBHealth struct {
+	Connected      bool               `json:"connected"`
+	Endpoints      int                `json:"endpoints"`
+	ActiveEndpoint string             `json:"active_endpoint,omitempty"`
+	Connections    []ConnectionDetail `json:"connections"`
+}
+
+// ConnectionDetail describes a single OVSDB connection entry.
+type ConnectionDetail struct {
+	UUID        string `json:"uuid"`
+	Target      string `json:"target"`
+	IsConnected bool   `json:"is_connected"`
+	Status      string `json:"status,omitempty"`
+}
+
+// RaftHealth returns detailed Raft cluster health for NB and SB.
+func (q *Querier) RaftHealth(ctx context.Context) (*RaftHealthResult, error) {
+	result := &RaftHealthResult{}
+
+	// NB connections
+	var nbConns []nb.Connection
+	if err := q.NB.List(ctx, &nbConns); err == nil {
+		result.NB.Connected = q.NB.Connected()
+		result.NB.Endpoints = len(nbConns)
+		for _, c := range nbConns {
+			detail := ConnectionDetail{
+				UUID:        c.UUID,
+				Target:      c.Target,
+				IsConnected: c.IsConnected,
+			}
+			if c.Status != nil {
+				// Status is a map
+				for k, v := range c.Status {
+					detail.Status = k + "=" + v
+					break
+				}
+			}
+			result.NB.Connections = append(result.NB.Connections, detail)
+		}
+	}
+
+	// SB connections
+	var sbConns []sb.Connection
+	if err := q.SB.List(ctx, &sbConns); err == nil {
+		result.SB.Connected = q.SB.Connected()
+		result.SB.Endpoints = len(sbConns)
+		for _, c := range sbConns {
+			detail := ConnectionDetail{
+				UUID:        c.UUID,
+				Target:      c.Target,
+				IsConnected: c.IsConnected,
+			}
+			if c.Status != nil {
+				for k, v := range c.Status {
+					detail.Status = k + "=" + v
+					break
+				}
+			}
+			result.SB.Connections = append(result.SB.Connections, detail)
+		}
+	}
+
+	if result.NB.Connections == nil {
+		result.NB.Connections = []ConnectionDetail{}
+	}
+	if result.SB.Connections == nil {
+		result.SB.Connections = []ConnectionDetail{}
+	}
+
+	return result, nil
+}

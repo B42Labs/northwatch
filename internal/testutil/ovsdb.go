@@ -239,3 +239,68 @@ func InsertPortBindingWithUp(t *testing.T, c client.Client, logicalPort, pbType 
 	}, 2*time.Second, 10*time.Millisecond)
 	return uuid
 }
+
+// HAChassisEntry describes a single HA_Chassis member for InsertHAChassisGroup.
+type HAChassisEntry struct {
+	ChassisUUID string
+	Priority    int
+}
+
+// InsertHAChassisGroupResult holds the UUIDs returned from InsertHAChassisGroup.
+type InsertHAChassisGroupResult struct {
+	GroupUUID      string
+	HaChassisUUIDs []string
+}
+
+// InsertHAChassisGroup inserts an HA_Chassis_Group row along with its HA_Chassis members
+// in a single transaction to satisfy strong reference constraints.
+func InsertHAChassisGroup(t *testing.T, c client.Client, name string, members []HAChassisEntry) InsertHAChassisGroupResult {
+	t.Helper()
+
+	var allOps []ovsdb.Operation
+	namedUUIDs := make([]string, len(members))
+
+	for i, m := range members {
+		namedUUID := fmt.Sprintf("hac_%s_%d", name, i)
+		namedUUIDs[i] = namedUUID
+		chassisRef := m.ChassisUUID
+		hac := &sb.HAChassis{
+			UUID:        namedUUID,
+			Chassis:     &chassisRef,
+			Priority:    m.Priority,
+			ExternalIDs: map[string]string{},
+		}
+		ops, err := c.Create(hac)
+		require.NoError(t, err)
+		allOps = append(allOps, ops...)
+	}
+
+	group := &sb.HAChassisGroup{
+		Name:        name,
+		HaChassis:   namedUUIDs,
+		ExternalIDs: map[string]string{},
+	}
+	groupOps, err := c.Create(group)
+	require.NoError(t, err)
+	allOps = append(allOps, groupOps...)
+
+	reply, err := c.Transact(context.Background(), allOps...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, allOps)
+	require.NoError(t, err)
+
+	// Collect real UUIDs: first len(members) replies are HAChassis, last is the group
+	result := InsertHAChassisGroupResult{
+		GroupUUID:      reply[len(members)].UUID.GoUUID,
+		HaChassisUUIDs: make([]string, len(members)),
+	}
+	for i := 0; i < len(members); i++ {
+		result.HaChassisUUIDs[i] = reply[i].UUID.GoUUID
+	}
+
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &sb.HAChassisGroup{UUID: result.GroupUUID}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+
+	return result
+}

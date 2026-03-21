@@ -135,7 +135,7 @@ func TestWriteCancelPlan_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestWriteRollback_NotImplemented(t *testing.T) {
+func TestWriteRollback_NoCollector(t *testing.T) {
 	engine := setupTestWriteEngine(t)
 	mux := http.NewServeMux()
 	RegisterWrite(mux, engine)
@@ -146,10 +146,10 @@ func TestWriteRollback_NotImplemented(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusNotImplemented, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Contains(t, body["error"], "not yet implemented")
+	assert.Contains(t, body["error"], "requires history collector")
 }
 
 func TestWriteAuditLog_Empty(t *testing.T) {

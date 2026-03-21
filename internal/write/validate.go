@@ -1,8 +1,12 @@
 package write
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	"github.com/b42labs/northwatch/internal/ovsdb/nb"
+	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
 var validActions = map[string]bool{
@@ -72,6 +76,71 @@ func ValidateFields(fields map[string]any, spec TableSpec) error {
 
 	if len(errs) > 0 {
 		return fmt.Errorf("field validation errors: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// ValidateReferences checks that referenced entities exist in the NB database.
+func ValidateReferences(ctx context.Context, op WriteOperation, nbClient client.Client) error {
+	switch op.Table {
+	case "Logical_Switch_Port":
+		return validateLSPReferences(ctx, op, nbClient)
+	case "NAT":
+		return validateNATReferences(ctx, op, nbClient)
+	case "ACL":
+		return validateACLReferences(ctx, op, nbClient)
+	}
+	return nil
+}
+
+func validateLSPReferences(ctx context.Context, op WriteOperation, nbClient client.Client) error {
+	// Check router-port reference
+	if options, ok := op.Fields["options"].(map[string]any); ok {
+		if routerPort, ok := options["router-port"].(string); ok && routerPort != "" {
+			var lrps []nb.LogicalRouterPort
+			err := nbClient.WhereCache(func(lrp *nb.LogicalRouterPort) bool {
+				return lrp.Name == routerPort
+			}).List(ctx, &lrps)
+			if err != nil || len(lrps) == 0 {
+				return fmt.Errorf("referenced router-port %q does not exist", routerPort)
+			}
+		}
+	}
+	return nil
+}
+
+func validateNATReferences(ctx context.Context, op WriteOperation, nbClient client.Client) error {
+	if op.Action != "create" {
+		return nil
+	}
+	// Check for duplicate external_ip + type combination
+	externalIP, _ := op.Fields["external_ip"].(string)
+	natType, _ := op.Fields["type"].(string)
+	if externalIP != "" && (natType == "dnat" || natType == "dnat_and_snat") {
+		var existingNATs []nb.NAT
+		err := nbClient.WhereCache(func(n *nb.NAT) bool {
+			return n.ExternalIP == externalIP && n.Type == natType
+		}).List(ctx, &existingNATs)
+		if err == nil && len(existingNATs) > 0 {
+			return fmt.Errorf("NAT entry with external_ip %q and type %q already exists", externalIP, natType)
+		}
+	}
+	return nil
+}
+
+func validateACLReferences(_ context.Context, op WriteOperation, _ client.Client) error {
+	// Validate priority range
+	if priority, ok := op.Fields["priority"]; ok {
+		var p int
+		switch v := priority.(type) {
+		case float64:
+			p = int(v)
+		case int:
+			p = v
+		}
+		if p < 0 || p > 32767 {
+			return fmt.Errorf("ACL priority must be between 0 and 32767, got %d", p)
+		}
 	}
 	return nil
 }

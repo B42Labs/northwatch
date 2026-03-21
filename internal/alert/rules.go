@@ -192,6 +192,120 @@ func FlowCountAnomaly(sbClient client.Client, thresholdPct float64) Rule {
 	}
 }
 
+// HAFailover returns a rule that detects when the active chassis in an HA chassis
+// group changes, indicating a gateway failover event.
+func HAFailover(sbClient client.Client) Rule {
+	var (
+		mu          sync.Mutex
+		lastActive  map[string]string // HA group UUID -> active chassis UUID
+		initialized bool
+	)
+
+	return Rule{
+		Name:        "ha_failover",
+		Description: "HA chassis group active chassis changed (gateway failover)",
+		Severity:    SeverityCritical,
+		Check: func(ctx context.Context) []Alert {
+			var groups []sb.HAChassisGroup
+			if err := sbClient.List(ctx, &groups); err != nil {
+				return nil
+			}
+
+			var haChassisList []sb.HAChassis
+			if err := sbClient.List(ctx, &haChassisList); err != nil {
+				return nil
+			}
+
+			var chassisList []sb.Chassis
+			if err := sbClient.List(ctx, &chassisList); err != nil {
+				return nil
+			}
+
+			// Build chassis name lookup
+			chassisNames := make(map[string]string, len(chassisList))
+			for _, ch := range chassisList {
+				chassisNames[ch.UUID] = ch.Name
+			}
+
+			// Build HAChassis lookup by UUID
+			haChassisMap := make(map[string]sb.HAChassis, len(haChassisList))
+			for _, hac := range haChassisList {
+				haChassisMap[hac.UUID] = hac
+			}
+
+			// Determine current active chassis per group (highest priority)
+			currentActive := make(map[string]string) // group UUID -> chassis UUID
+			for _, group := range groups {
+				var bestPriority int
+				var bestChassis string
+				for _, hacUUID := range group.HaChassis {
+					hac, ok := haChassisMap[hacUUID]
+					if !ok {
+						continue
+					}
+					if hac.Chassis == nil || *hac.Chassis == "" {
+						continue
+					}
+					if hac.Priority > bestPriority || bestChassis == "" {
+						bestPriority = hac.Priority
+						bestChassis = *hac.Chassis
+					}
+				}
+				if bestChassis != "" {
+					currentActive[group.UUID] = bestChassis
+				}
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if !initialized {
+				lastActive = currentActive
+				initialized = true
+				return nil
+			}
+
+			var alerts []Alert
+			for groupUUID, currentChassis := range currentActive {
+				prevChassis, existed := lastActive[groupUUID]
+				if existed && prevChassis != currentChassis {
+					// Failover detected
+					groupName := groupUUID[:8]
+					for _, g := range groups {
+						if g.UUID == groupUUID {
+							groupName = g.Name
+							break
+						}
+					}
+					prevName := chassisNames[prevChassis]
+					if prevName == "" {
+						prevName = prevChassis[:8]
+					}
+					currentName := chassisNames[currentChassis]
+					if currentName == "" {
+						currentName = currentChassis[:8]
+					}
+
+					alerts = append(alerts, Alert{
+						Rule:     "ha_failover",
+						Severity: SeverityCritical,
+						Message:  fmt.Sprintf("HA group %s failover: %s -> %s", groupName, prevName, currentName),
+						Labels: map[string]string{
+							"ha_group":         groupUUID,
+							"ha_group_name":    groupName,
+							"previous_chassis": prevName,
+							"current_chassis":  currentName,
+						},
+					})
+				}
+			}
+
+			lastActive = currentActive
+			return alerts
+		},
+	}
+}
+
 func portType(t string) string {
 	if t == "" {
 		return "VIF"

@@ -71,6 +71,13 @@ func (e *Engine) Preview(ctx context.Context, ops []WriteOperation) (*Plan, erro
 		}
 	}
 
+	// Advanced validation: check references
+	for i, op := range ops {
+		if err := ValidateReferences(ctx, op, e.nbClient); err != nil {
+			return nil, fmt.Errorf("operation %d: %w", i, err)
+		}
+	}
+
 	diffs, err := e.computeDiffs(ctx, ops)
 	if err != nil {
 		return nil, fmt.Errorf("computing diffs: %w", err)
@@ -161,6 +168,13 @@ func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error
 		}
 	}
 
+	// Advanced validation: check references
+	for i, op := range ops {
+		if err := ValidateReferences(ctx, op, e.nbClient); err != nil {
+			return nil, fmt.Errorf("operation %d: %w", i, err)
+		}
+	}
+
 	diffs, err := e.computeDiffs(ctx, ops)
 	if err != nil {
 		return nil, fmt.Errorf("computing diffs: %w", err)
@@ -176,11 +190,102 @@ func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error
 	return plan, nil
 }
 
-// Rollback is not yet implemented. It will generate a preview plan that
-// reverses the changes since a given snapshot by diffing snapshot rows
-// against live state.
-func (e *Engine) Rollback(_ context.Context, _ int64, _, _ string) (*Plan, error) {
-	return nil, fmt.Errorf("rollback is not yet implemented")
+// Rollback generates a preview plan that reverses changes between a snapshot
+// and the current live state. It compares snapshot rows to current NB state
+// and produces operations to restore the snapshot state.
+func (e *Engine) Rollback(ctx context.Context, snapshotID int64, actor, reason string) (*Plan, error) {
+	if e.rateLimiter != nil && !e.rateLimiter.allow() {
+		return nil, fmt.Errorf("rate limit exceeded")
+	}
+
+	if e.collector == nil {
+		return nil, fmt.Errorf("rollback requires history collector")
+	}
+
+	// Get snapshot rows for NB tables only
+	rows, err := e.collector.Store().GetSnapshotRows(ctx, snapshotID, "nb", "")
+	if err != nil {
+		return nil, fmt.Errorf("loading snapshot rows: %w", err)
+	}
+
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("snapshot %d not found or has no NB data", snapshotID)
+	}
+
+	// Group snapshot rows by table -> uuid -> data
+	snapshotState := make(map[string]map[string]map[string]any)
+	for _, r := range rows {
+		if snapshotState[r.Table] == nil {
+			snapshotState[r.Table] = make(map[string]map[string]any)
+		}
+		snapshotState[r.Table][r.UUID] = r.Data
+	}
+
+	// Build operations by comparing snapshot state to current live state
+	var ops []WriteOperation
+
+	for table, uuidMap := range snapshotState {
+		// Only process writable tables
+		if _, err := e.registry.Get(table); err != nil {
+			continue
+		}
+
+		for uuid, snapData := range uuidMap {
+			current, err := e.readCurrentState(ctx, table, uuid)
+			if err != nil {
+				// Row doesn't exist anymore - recreate it
+				fields := make(map[string]any)
+				for k, v := range snapData {
+					if k == "_uuid" {
+						continue
+					}
+					fields[k] = v
+				}
+				if len(fields) > 0 {
+					ops = append(ops, WriteOperation{
+						Action: "create",
+						Table:  table,
+						Fields: fields,
+						Reason: fmt.Sprintf("Rollback: recreate %s/%s from snapshot %d", table, uuid, snapshotID),
+					})
+				}
+				continue
+			}
+
+			// Compare current to snapshot - generate update if different
+			var changed bool
+			fields := make(map[string]any)
+			for k, v := range snapData {
+				if k == "_uuid" {
+					continue
+				}
+				if !reflect.DeepEqual(v, current[k]) {
+					fields[k] = v
+					changed = true
+				}
+			}
+			if changed {
+				ops = append(ops, WriteOperation{
+					Action: "update",
+					Table:  table,
+					UUID:   uuid,
+					Fields: fields,
+					Reason: fmt.Sprintf("Rollback: restore %s/%s from snapshot %d", table, uuid, snapshotID),
+				})
+			}
+		}
+	}
+
+	if len(ops) == 0 {
+		return &Plan{
+			ID:        generateID(),
+			CreatedAt: time.Now().UTC(),
+			Status:    "no-changes",
+		}, nil
+	}
+
+	// Use Preview to get the full plan with diffs, snapshot, token
+	return e.Preview(ctx, ops)
 }
 
 // GetPlan retrieves a cached plan by ID.

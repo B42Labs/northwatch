@@ -28,6 +28,8 @@ type Cluster struct {
 	Telemetry            *telemetry.Querier
 	ConnectivityChecker  *debug.ConnectivityChecker
 	PortDiagnoser        *debug.PortDiagnoser
+	ACLAuditor           *debug.ACLAuditor
+	StaleDetector        *debug.StaleDetector
 }
 
 // Registry manages multiple named clusters.

@@ -193,7 +193,7 @@
       <div
         class="mb-4 rounded-lg border border-base-300 bg-base-100 p-3 text-sm"
       >
-        <div class="flex flex-wrap gap-4">
+        <div class="flex flex-wrap items-center gap-4">
           <span
             >Port: <span class="font-mono font-semibold"
               >{traceData.port_name}</span
@@ -216,6 +216,13 @@
               ></span
             >
           {/if}
+          <a
+            href="/api/v1/export/trace?port={traceData.port_uuid}&format=json"
+            download="trace-{traceData.port_name}.json"
+            class="btn btn-ghost btn-sm ml-auto"
+          >
+            Export JSON
+          </a>
         </div>
       </div>
 

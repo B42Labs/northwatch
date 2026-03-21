@@ -103,6 +103,14 @@
               MAC Table
             </a>
           </li>
+          <li>
+            <a
+              href={link('/load-balancers')}
+              class:active={isActive($location, '/load-balancers')}
+            >
+              Load Balancers
+            </a>
+          </li>
         </ul>
       {/if}
     </li>
@@ -150,6 +158,22 @@
               Port Diagnostics
             </a>
           </li>
+          <li>
+            <a
+              href={link('/debug/acl-audit')}
+              class:active={isActive($location, '/debug/acl-audit')}
+            >
+              ACL Audit
+            </a>
+          </li>
+          <li>
+            <a
+              href={link('/debug/stale-entries')}
+              class:active={isActive($location, '/debug/stale-entries')}
+            >
+              Stale Entries
+            </a>
+          </li>
         </ul>
       {/if}
     </li>
@@ -171,6 +195,31 @@
               class:active={isActive($location, '/history')}
             >
               Timeline & Snapshots
+            </a>
+          </li>
+        </ul>
+      {/if}
+    </li>
+
+    <!-- Monitoring -->
+    <li>
+      <button
+        class="menu-title flex justify-between"
+        onclick={() => toggleSection('monitoring')}
+      >
+        Monitoring
+        <span class="text-xs"
+          >{collapsedSections['monitoring'] ? '+' : '-'}</span
+        >
+      </button>
+      {#if !collapsedSections['monitoring']}
+        <ul>
+          <li>
+            <a
+              href={link('/raft-health')}
+              class:active={isActive($location, '/raft-health')}
+            >
+              Raft Health
             </a>
           </li>
         </ul>
