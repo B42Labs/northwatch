@@ -14,9 +14,7 @@
   import SnapshotTimeline from '../components/history/SnapshotTimeline.svelte';
   import SnapshotViewer from '../components/history/SnapshotViewer.svelte';
   import DiffView from '../components/history/DiffView.svelte';
-  import EventLog from '../components/history/EventLog.svelte';
 
-  let activeTab: 'snapshots' | 'events' = $state('snapshots');
   let snapshots: SnapshotMeta[] = $state([]);
   let loading = $state(true);
   let error = $state('');
@@ -109,9 +107,9 @@
 
 <div>
   <div class="mb-4">
-    <h1 class="text-xl font-bold">History & Snapshots</h1>
+    <h1 class="text-xl font-bold">Snapshots</h1>
     <p class="text-sm text-base-content/60">
-      Browse OVN state snapshots, compare changes, and view the event log
+      Browse OVN state snapshots and compare changes
     </p>
   </div>
 
@@ -119,87 +117,65 @@
     <ErrorAlert message={error} />
   {/if}
 
-  <!-- Tabs -->
-  <div role="tablist" class="tabs tabs-bordered mb-4">
-    <button
-      role="tab"
-      class="tab {activeTab === 'snapshots' ? 'tab-active' : ''}"
-      onclick={() => (activeTab = 'snapshots')}
-    >
-      Snapshots
-    </button>
-    <button
-      role="tab"
-      class="tab {activeTab === 'events' ? 'tab-active' : ''}"
-      onclick={() => (activeTab = 'events')}
-    >
-      Event Log
-    </button>
-  </div>
-
-  {#if activeTab === 'snapshots'}
-    {#if viewingSnapshot}
-      <div class="mb-3">
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick={() => (viewingSnapshot = null)}
-        >
-          &larr; Back to snapshots
-        </button>
-      </div>
-      <SnapshotViewer
-        snapshot={viewingSnapshot}
-        onClose={() => (viewingSnapshot = null)}
-      />
-    {:else if diff}
-      <div class="mb-3">
-        <button class="btn btn-ghost btn-sm" onclick={() => (diff = null)}>
-          &larr; Back to snapshots
-        </button>
-      </div>
-      <DiffView {diff} />
-    {:else}
-      <div class="mb-3 flex items-center gap-2">
-        <button
-          class="btn btn-primary btn-sm"
-          onclick={handleCreate}
-          disabled={creating}
-        >
-          {creating ? 'Creating...' : 'Take Snapshot'}
-        </button>
-
-        {#if selectedIds.size === 2}
-          <button
-            class="btn btn-outline btn-sm"
-            onclick={handleCompare}
-            disabled={diffLoading}
-          >
-            {diffLoading ? 'Comparing...' : 'Compare Selected'}
-          </button>
-        {:else if selectedIds.size > 0}
-          <span class="text-xs text-base-content/50">
-            Select 2 snapshots to compare
-          </span>
-        {/if}
-
-        <button class="btn btn-ghost btn-xs ml-auto" onclick={loadSnapshots}>
-          Refresh
-        </button>
-      </div>
-
-      {#if loading}
-        <LoadingSpinner />
-      {:else}
-        <SnapshotTimeline
-          {snapshots}
-          {selectedIds}
-          onToggle={handleToggle}
-          onView={handleView}
-          onDelete={handleDelete}
-        />
-      {/if}
-    {/if}
+  {#if viewingSnapshot}
+    <div class="mb-3">
+      <button
+        class="btn btn-ghost btn-sm"
+        onclick={() => (viewingSnapshot = null)}
+      >
+        &larr; Back to snapshots
+      </button>
+    </div>
+    <SnapshotViewer
+      snapshot={viewingSnapshot}
+      onClose={() => (viewingSnapshot = null)}
+    />
+  {:else if diff}
+    <div class="mb-3">
+      <button class="btn btn-ghost btn-sm" onclick={() => (diff = null)}>
+        &larr; Back to snapshots
+      </button>
+    </div>
+    <DiffView {diff} />
   {:else}
-    <EventLog />
+    <div class="mb-3 flex items-center gap-2">
+      <button
+        class="btn btn-primary btn-sm"
+        onclick={handleCreate}
+        disabled={creating}
+      >
+        {creating ? 'Creating...' : 'Take Snapshot'}
+      </button>
+
+      {#if selectedIds.size === 2}
+        <button
+          class="btn btn-outline btn-sm"
+          onclick={handleCompare}
+          disabled={diffLoading}
+        >
+          {diffLoading ? 'Comparing...' : 'Compare Selected'}
+        </button>
+      {:else if selectedIds.size > 0}
+        <span class="text-xs text-base-content/50">
+          Select 2 snapshots to compare
+        </span>
+      {/if}
+
+      <button class="btn btn-ghost btn-xs ml-auto" onclick={loadSnapshots}>
+        Refresh
+      </button>
+    </div>
+
+    {#if loading}
+      <LoadingSpinner />
+    {:else}
+      <SnapshotTimeline
+        {snapshots}
+        {selectedIds}
+        onToggle={handleToggle}
+        onView={handleView}
+        onDelete={handleDelete}
+      />
+    {/if}
   {/if}
 </div>

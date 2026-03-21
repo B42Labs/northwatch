@@ -26,6 +26,7 @@
   import ConnectivityChecker from './routes/ConnectivityChecker.svelte';
   import PortDiagnostics from './routes/PortDiagnostics.svelte';
   import History from './routes/History.svelte';
+  import Events from './routes/Events.svelte';
   import WriteBuilder from './routes/WriteBuilder.svelte';
   import AuditLog from './routes/AuditLog.svelte';
   import AclAudit from './routes/AclAudit.svelte';
@@ -60,6 +61,8 @@
     <PortDiagnostics />
   {:else if route.component === 'history'}
     <History />
+  {:else if route.component === 'events'}
+    <Events />
   {:else if route.component === 'table-browser'}
     <TableBrowser db={route.db!} table={route.params.table} />
   {:else if route.component === 'raw-detail'}

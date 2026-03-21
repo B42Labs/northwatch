@@ -92,8 +92,9 @@ export function resolveRoute(path: string): ResolvedRoute {
   if ((m = matchRoute('/debug/stale-entries', path)))
     return { component: 'stale-entries', ...m };
 
-  // History
+  // History & Events
   if ((m = matchRoute('/history', path))) return { component: 'history', ...m };
+  if ((m = matchRoute('/events', path))) return { component: 'events', ...m };
 
   // Monitoring
   if ((m = matchRoute('/raft-health', path)))
