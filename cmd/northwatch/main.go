@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 	"github.com/b42labs/northwatch/internal/alert"
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/api/handler"
+	"github.com/b42labs/northwatch/internal/cluster"
 	"github.com/b42labs/northwatch/internal/config"
 	"github.com/b42labs/northwatch/internal/correlate"
 	"github.com/b42labs/northwatch/internal/debug"
@@ -22,11 +24,13 @@ import (
 	"github.com/b42labs/northwatch/internal/events"
 	"github.com/b42labs/northwatch/internal/flowdiff"
 	"github.com/b42labs/northwatch/internal/history"
+	"github.com/b42labs/northwatch/internal/openapi"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/search"
 	"github.com/b42labs/northwatch/internal/telemetry"
+	"github.com/b42labs/northwatch/internal/write"
 	northwatchUI "github.com/b42labs/northwatch/ui"
 )
 
@@ -43,66 +47,118 @@ func run() error {
 		return err
 	}
 
-	fmt.Println("Connecting to OVN databases...")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	nbModel, err := nb.FullDatabaseModel()
-	if err != nil {
-		return fmt.Errorf("creating NB model: %w", err)
-	}
-	sbModel, err := sb.FullDatabaseModel()
-	if err != nil {
-		return fmt.Errorf("creating SB model: %w", err)
-	}
+	// Build cluster registry from config
+	reg := cluster.NewRegistry()
+	var stopFuncs []func()
 
-	dbs, err := ovndb.Connect(ctx, cfg.OVNNBAddr, cfg.OVNSBAddr, nbModel, sbModel)
-	if err != nil {
-		return fmt.Errorf("connecting to OVN: %w", err)
-	}
-	defer dbs.Close()
-	fmt.Println("Connected to OVN databases")
+	for _, cc := range cfg.Clusters {
+		fmt.Printf("Connecting to OVN databases for cluster %q...\n", cc.Name)
 
-	// Correlation engine
-	cor := &correlate.Correlator{NB: dbs.NB, SB: dbs.SB}
-
-	// Enrichment provider (optional)
-	var enricher *enrich.Enricher
-	if cfg.OpenStackAuthURL != "" {
-		fmt.Println("Authenticating with OpenStack...")
-		provider, provErr := enrich.NewOpenStackProvider(ctx, cfg)
-		if provErr != nil {
-			return fmt.Errorf("creating OpenStack provider: %w", provErr)
+		nbModel, err := nb.FullDatabaseModel()
+		if err != nil {
+			return fmt.Errorf("cluster %q: creating NB model: %w", cc.Name, err)
 		}
-		enricher = enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL)
-		fmt.Println("OpenStack enrichment enabled")
-	} else {
-		enricher = enrich.NewEnricher(nil, 0)
+		sbModel, err := sb.FullDatabaseModel()
+		if err != nil {
+			return fmt.Errorf("cluster %q: creating SB model: %w", cc.Name, err)
+		}
+
+		dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel)
+		if err != nil {
+			reg.Close() // close any already-connected clusters
+			return fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
+		}
+		fmt.Printf("Connected to OVN databases for cluster %q\n", cc.Name)
+
+		// Correlation engine
+		cor := &correlate.Correlator{NB: dbs.NB, SB: dbs.SB}
+
+		// Enrichment provider (optional)
+		enricher, err := buildEnricher(ctx, cfg, cc)
+		if err != nil {
+			dbs.Close()
+			reg.Close()
+			return fmt.Errorf("cluster %q: %w", cc.Name, err)
+		}
+
+		// Real-time event hub
+		eventHub := events.NewHub()
+		dbs.NB.Cache().AddEventHandler(events.NewBridge(eventHub, "nb"))
+		dbs.SB.Cache().AddEventHandler(events.NewBridge(eventHub, "sb"))
+
+		// Debug tools
+		diagnoser := &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB}
+		connectivityChecker := &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB}
+
+		// Flow diff tracking
+		flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
+		stopCollector := flowdiff.StartCollector(eventHub, flowDiffStore)
+		stopFuncs = append(stopFuncs, stopCollector)
+
+		// Telemetry querier
+		telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
+
+		// Alert engine
+		alertEngine := alert.NewEngine(eventHub, 30*time.Second)
+		alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
+		alertEngine.RegisterRule(alert.PortDown(dbs.SB))
+		alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
+		alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
+		alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
+
+		// Webhook notifications (optional)
+		if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
+			notifier := alert.NewWebhookNotifier(urls)
+			alertEngine.SetNotifier(notifier.Notifier())
+			fmt.Printf("Cluster %q: alert webhook notifications enabled (%d endpoints)\n", cc.Name, len(urls))
+		}
+
+		stopAlerts := alertEngine.Start(context.Background())
+		stopFuncs = append(stopFuncs, stopAlerts)
+
+		// Search engine
+		searchEngine := search.NewEngine(
+			buildNBSearchTables(dbs),
+			buildSBSearchTables(dbs),
+		)
+
+		c := &cluster.Cluster{
+			Name:                cc.Name,
+			Label:               cc.Label,
+			DBs:                 dbs,
+			Correlator:          cor,
+			Enricher:            enricher,
+			EventHub:            eventHub,
+			SearchEngine:        searchEngine,
+			FlowDiff:            flowDiffStore,
+			AlertEngine:         alertEngine,
+			Telemetry:           telemetryQuerier,
+			ConnectivityChecker: connectivityChecker,
+			PortDiagnoser:       diagnoser,
+		}
+		reg.Register(cc.Name, c)
 	}
+	defer reg.Close()
+	defer func() {
+		for _, stop := range stopFuncs {
+			stop()
+		}
+	}()
 
-	// Real-time event hub
-	eventHub := events.NewHub()
-	dbs.NB.Cache().AddEventHandler(events.NewBridge(eventHub, "nb"))
-	dbs.SB.Cache().AddEventHandler(events.NewBridge(eventHub, "sb"))
+	def := reg.Default()
 
-	// Debug tools
-	diagnoser := &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB}
-	connectivityChecker := &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB}
-
-	// Flow diff tracking
-	flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
-	stopCollector := flowdiff.StartCollector(eventHub, flowDiffStore)
-	defer stopCollector()
-
-	// History & snapshot store
+	// History & snapshot store (shared across clusters, uses default cluster)
 	historyStore, err := history.NewStore(cfg.HistoryDBPath)
 	if err != nil {
 		return fmt.Errorf("opening history database: %w", err)
 	}
 	defer func() { _ = historyStore.Close() }()
 
-	snapshotSources := append(buildNBSnapshotSources(dbs), buildSBSnapshotSources(dbs)...)
-	historyCollector := history.NewCollector(historyStore, eventHub, snapshotSources, cfg.SnapshotInterval, cfg.EventRetention)
+	snapshotSources := append(buildNBSnapshotSources(def.DBs), buildSBSnapshotSources(def.DBs)...)
+	historyCollector := history.NewCollector(historyStore, def.EventHub, snapshotSources, cfg.SnapshotInterval, cfg.EventRetention)
 	if cfg.EventMaxCount > 0 {
 		historyCollector.SetEventMaxCount(cfg.EventMaxCount)
 	}
@@ -110,57 +166,67 @@ func run() error {
 	defer stopHistory()
 
 	// Prometheus registry
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(collectors.NewGoCollector())
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	metricsCollector := telemetry.NewCollector(dbs.NB, dbs.SB)
-	registry.MustRegister(metricsCollector)
-	httpMetrics := telemetry.NewMiddleware(registry)
+	promRegistry := prometheus.NewRegistry()
+	promRegistry.MustRegister(collectors.NewGoCollector())
+	promRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	metricsCollector := telemetry.NewCollector(def.DBs.NB, def.DBs.SB)
+	promRegistry.MustRegister(metricsCollector)
+	httpMetrics := telemetry.NewMiddleware(promRegistry)
 
-	// Telemetry querier
-	telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
-
-	// Alert engine
-	alertEngine := alert.NewEngine(eventHub, 30*time.Second)
-	alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
-	alertEngine.RegisterRule(alert.PortDown(dbs.SB))
-	alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
-	alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
-	alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
-
-	// Webhook notifications (optional)
-	if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
-		notifier := alert.NewWebhookNotifier(urls)
-		alertEngine.SetNotifier(notifier.Notifier())
-		fmt.Printf("Alert webhook notifications enabled (%d endpoints)\n", len(urls))
-	}
-
-	stopAlerts := alertEngine.Start(context.Background())
-	defer stopAlerts()
-
-	srv := api.NewServer(cfg.Listen, dbs, httpMetrics.Wrap)
+	srv := api.NewServer(cfg.Listen, def.DBs, httpMetrics.Wrap)
 	mux := srv.Mux()
 
-	handler.RegisterHealth(mux, dbs)
-	handler.RegisterCapabilities(mux, enricher.HasProvider())
-	handler.RegisterNB(mux, dbs.NB)
-	handler.RegisterSB(mux, dbs.SB)
-	handler.RegisterCorrelated(mux, cor, enricher)
-	handler.RegisterWS(mux, eventHub)
-	handler.RegisterTopology(mux, dbs.NB, dbs.SB)
-	handler.RegisterFlows(mux, dbs.SB)
-	handler.RegisterDebug(mux, connectivityChecker, diagnoser)
-	handler.RegisterTrace(mux, dbs.SB)
-	handler.RegisterFlowDiff(mux, flowDiffStore)
-	handler.RegisterHistory(mux, historyStore, historyCollector)
+	multiCluster := reg.Len() > 1
 
-	searchEngine := search.NewEngine(
-		buildNBSearchTables(dbs),
-		buildSBSearchTables(dbs),
-	)
-	handler.RegisterSearch(mux, searchEngine)
-	handler.RegisterTelemetry(mux, telemetryQuerier, registry)
-	handler.RegisterAlerts(mux, alertEngine)
+	// Write operations (optional, uses default cluster)
+	if cfg.WriteEnabled {
+		auditStore, err := write.NewAuditStore(historyStore.DB())
+		if err != nil {
+			return fmt.Errorf("creating audit store: %w", err)
+		}
+		writeEngine := write.NewEngine(def.DBs.NB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
+		handler.RegisterWrite(mux, writeEngine)
+		fmt.Println("Write operations enabled")
+	}
+
+	// Register default (non-prefixed) routes using the default cluster
+	handler.RegisterHealth(mux, def.DBs)
+	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster)
+	handler.RegisterNB(mux, def.DBs.NB)
+	handler.RegisterSB(mux, def.DBs.SB)
+	handler.RegisterCorrelated(mux, def.Correlator, def.Enricher)
+	handler.RegisterWS(mux, def.EventHub)
+	handler.RegisterTopology(mux, def.DBs.NB, def.DBs.SB)
+	handler.RegisterFlows(mux, def.DBs.SB)
+	handler.RegisterDebug(mux, def.ConnectivityChecker, def.PortDiagnoser)
+	handler.RegisterTrace(mux, def.DBs.SB)
+	handler.RegisterFlowDiff(mux, def.FlowDiff)
+	handler.RegisterHistory(mux, historyStore, historyCollector)
+	handler.RegisterSearch(mux, def.SearchEngine)
+	handler.RegisterTelemetry(mux, def.Telemetry, promRegistry)
+	handler.RegisterAlerts(mux, def.AlertEngine)
+	handler.RegisterClusters(mux, reg)
+	handler.RegisterOpenAPI(mux, openapi.BuildSpec())
+
+	// Multi-cluster: register cluster-prefixed routes
+	if multiCluster {
+		handler.RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
+			handler.RegisterNB(subMux, c.DBs.NB)
+			handler.RegisterSB(subMux, c.DBs.SB)
+			handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
+			handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
+			handler.RegisterFlows(subMux, c.DBs.SB)
+			handler.RegisterSearch(subMux, c.SearchEngine)
+			handler.RegisterFlowDiff(subMux, c.FlowDiff)
+			handler.RegisterAlerts(subMux, c.AlertEngine)
+			handler.RegisterTelemetry(subMux, c.Telemetry, nil)
+			handler.RegisterWS(subMux, c.EventHub)
+			handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser)
+			handler.RegisterTrace(subMux, c.DBs.SB)
+		})
+		fmt.Printf("Multi-cluster mode enabled with %d clusters\n", reg.Len())
+	}
+
 	handler.RegisterAPICatchAll(mux)
 	handler.RegisterUI(mux, northwatchUI.DistFS)
 
@@ -182,6 +248,64 @@ func run() error {
 		defer shutdownCancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// buildEnricher creates an enricher for a cluster based on its config.
+func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterConfig) (*enrich.Enricher, error) {
+	if cc.Enrichment != nil {
+		switch cc.Enrichment.Type {
+		case "kubernetes":
+			fmt.Printf("Cluster %q: setting up Kubernetes enrichment...\n", cc.Name)
+			provider, err := enrich.NewKubernetesProvider(ctx, cc.Enrichment.Kubeconfig, cc.Enrichment.KubeContext)
+			if err != nil {
+				return nil, fmt.Errorf("creating Kubernetes provider: %w", err)
+			}
+			fmt.Printf("Cluster %q: Kubernetes enrichment enabled\n", cc.Name)
+			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
+
+		case "openstack":
+			fmt.Printf("Cluster %q: authenticating with OpenStack...\n", cc.Name)
+			// Build a temporary config-like struct for the OpenStack provider
+			osCfg := &config.Config{
+				OpenStackAuthURL:     cc.Enrichment.OpenStackAuthURL,
+				OpenStackUsername:     cc.Enrichment.OpenStackUsername,
+				OpenStackPassword:    cc.Enrichment.OpenStackPassword,
+				OpenStackProjectName: cc.Enrichment.OpenStackProjectName,
+				OpenStackDomainName:  cc.Enrichment.OpenStackDomainName,
+				OpenStackRegionName:  cc.Enrichment.OpenStackRegionName,
+			}
+			provider, err := enrich.NewOpenStackProvider(ctx, osCfg)
+			if err != nil {
+				return nil, fmt.Errorf("creating OpenStack provider: %w", err)
+			}
+			fmt.Printf("Cluster %q: OpenStack enrichment enabled\n", cc.Name)
+			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
+		}
+	}
+
+	// Fallback: check legacy flat flags for the default cluster
+	if cc.Name == "default" {
+		if cfg.KubeEnrichment {
+			fmt.Println("Setting up Kubernetes enrichment...")
+			provider, err := enrich.NewKubernetesProvider(ctx, cfg.Kubeconfig, cfg.KubeContext)
+			if err != nil {
+				return nil, fmt.Errorf("creating Kubernetes provider: %w", err)
+			}
+			fmt.Println("Kubernetes enrichment enabled")
+			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
+		}
+		if cfg.OpenStackAuthURL != "" {
+			fmt.Println("Authenticating with OpenStack...")
+			provider, err := enrich.NewOpenStackProvider(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("creating OpenStack provider: %w", err)
+			}
+			fmt.Println("OpenStack enrichment enabled")
+			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
+		}
+	}
+
+	return enrich.NewEnricher(nil, 0), nil
 }
 
 func buildNBSearchTables(dbs *ovndb.OVNDatabases) []search.TableDef {

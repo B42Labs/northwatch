@@ -1,7 +1,9 @@
 <script lang="ts">
   import { getEntity } from '../lib/api';
   import { link } from '../lib/router';
-  import { findTable, getCorrelatedRoute } from '../lib/tables';
+  import { findTable, getCorrelatedRoute, ovsdbTableName } from '../lib/tables';
+  import { isWritableTable } from '../lib/writableTables';
+  import { writeEnabled } from '../lib/capabilitiesStore';
   import CellRenderer from '../components/table/CellRenderer.svelte';
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
@@ -48,6 +50,8 @@
   let correlatedHref = $derived(
     correlatedRoute ? `${correlatedRoute}/${uuid}` : null,
   );
+  let ovsdbName = $derived(ovsdbTableName(db, table));
+  let canWrite = $derived(!!ovsdbName && isWritableTable(ovsdbName));
 
   function getRefHref(
     column: string,
@@ -74,6 +78,20 @@
     {#if correlatedHref}
       <a href={link(correlatedHref)} class="btn btn-outline btn-primary btn-sm">
         Correlated View
+      </a>
+    {/if}
+    {#if $writeEnabled && canWrite}
+      <a
+        href={link(`/write?action=update&table=${ovsdbName}&uuid=${uuid}`)}
+        class="btn btn-outline btn-warning btn-sm"
+      >
+        Edit
+      </a>
+      <a
+        href={link(`/write?action=delete&table=${ovsdbName}&uuid=${uuid}`)}
+        class="btn btn-outline btn-error btn-sm"
+      >
+        Delete
       </a>
     {/if}
   </div>

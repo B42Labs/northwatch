@@ -133,6 +133,30 @@ describe('resolveRoute', () => {
     expect(route.component).toBe('switch-profile');
   });
 
+  it('resolves write builder', () => {
+    const route = resolveRoute('/write');
+    expect(route.component).toBe('write-builder');
+  });
+
+  it('resolves write builder with query params', () => {
+    const route = resolveRoute('/write?action=update&table=Logical_Switch');
+    expect(route.component).toBe('write-builder');
+    expect(route.query.action).toBe('update');
+    expect(route.query.table).toBe('Logical_Switch');
+  });
+
+  it('resolves audit log', () => {
+    expect(resolveRoute('/write/audit')).toMatchObject({
+      component: 'audit-log',
+    });
+  });
+
+  it('resolves audit detail', () => {
+    const route = resolveRoute('/write/audit/42');
+    expect(route.component).toBe('audit-detail');
+    expect(route.params.id).toBe('42');
+  });
+
   it('returns not-found for unknown paths', () => {
     expect(resolveRoute('/unknown/path/here')).toMatchObject({
       component: 'not-found',

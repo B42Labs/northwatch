@@ -92,6 +92,11 @@ func handleTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 		// Build topology
 		includeVMs := r.URL.Query().Get("vms") == "true"
 		resp := buildTopology(switches, routers, lsps, lrps, chassisList, portBindings, datapaths, includeVMs)
+
+		if r.URL.Query().Get("format") == "download" {
+			w.Header().Set("Content-Disposition", "attachment; filename=topology.json")
+		}
+
 		api.WriteJSON(w, http.StatusOK, resp)
 	}
 }

@@ -8,14 +8,14 @@
     edges,
     searchQuery = '',
     relayoutKey = 0,
+    svgRef = $bindable<SVGSVGElement | undefined>(undefined),
   }: {
     nodes: TopologyNode[];
     edges: TopologyEdge[];
     searchQuery?: string;
     relayoutKey?: number;
+    svgRef?: SVGSVGElement;
   } = $props();
-
-  let svgElement: SVGSVGElement;
   let containerEl: HTMLDivElement;
 
   // Hover info card state
@@ -150,16 +150,17 @@
     void edges;
     void searchQuery;
     void relayoutKey;
-    if (svgElement) renderGraph();
+    if (svgRef) renderGraph();
   });
 
   function renderGraph() {
-    const svg = d3.select(svgElement);
+    if (!svgRef) return;
+    const svg = d3.select(svgRef);
     svg.selectAll('*').remove();
     hoveredNode = null;
 
-    const width = svgElement.clientWidth || 900;
-    const height = svgElement.clientHeight || 600;
+    const width = svgRef.clientWidth || 900;
+    const height = svgRef.clientHeight || 600;
 
     const hasVMs = nodes.some((n) => n.type === 'vm-port');
 
@@ -616,7 +617,7 @@
 
 <div bind:this={containerEl} class="relative h-full w-full">
   <svg
-    bind:this={svgElement}
+    bind:this={svgRef}
     class="h-full w-full"
     style="background: {palette.bg};"
   ></svg>

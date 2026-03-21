@@ -26,6 +26,8 @@
   import ConnectivityChecker from './routes/ConnectivityChecker.svelte';
   import PortDiagnostics from './routes/PortDiagnostics.svelte';
   import History from './routes/History.svelte';
+  import WriteBuilder from './routes/WriteBuilder.svelte';
+  import AuditLog from './routes/AuditLog.svelte';
 
   let route = $derived(resolveRoute($location));
 </script>
@@ -83,6 +85,12 @@
     <LRPProfile uuid={route.params.uuid} />
   {:else if route.component === 'port-binding-profile'}
     <PortBindingProfile uuid={route.params.uuid} />
+  {:else if route.component === 'write-builder'}
+    <WriteBuilder query={route.query} />
+  {:else if route.component === 'audit-log'}
+    <AuditLog />
+  {:else if route.component === 'audit-detail'}
+    <AuditLog entryId={route.params.id} />
   {:else}
     <NotFound />
   {/if}

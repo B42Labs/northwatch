@@ -1,3 +1,5 @@
+import { clusterPath } from './clusterStore';
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -7,8 +9,8 @@ export class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+export async function get<T>(path: string): Promise<T> {
+  const res = await fetch(clusterPath(path));
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.error || res.statusText);
@@ -50,8 +52,9 @@ export function search(query: string): Promise<SearchResponse> {
 }
 
 // Capabilities
-export function getCapabilities(): Promise<string[]> {
-  return get('/api/v1/capabilities');
+export async function getCapabilities(): Promise<string[]> {
+  const data = await get<{ capabilities: string[] }>('/api/v1/capabilities');
+  return data.capabilities;
 }
 
 // Correlated response types
@@ -338,8 +341,8 @@ export function listLogicalSwitchPorts(): Promise<Record<string, unknown>[]> {
 
 // --- History & Snapshots ---
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+export async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(clusterPath(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -351,8 +354,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-async function del(path: string): Promise<void> {
-  const res = await fetch(path, { method: 'DELETE' });
+export async function del(path: string): Promise<void> {
+  const res = await fetch(clusterPath(path), { method: 'DELETE' });
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
     throw new ApiError(res.status, b.error || res.statusText);

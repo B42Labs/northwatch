@@ -2,6 +2,7 @@
   import { location } from '../../lib/router';
   import { databases, correlatedViews } from '../../lib/tables';
   import { link } from '../../lib/router';
+  import { writeEnabled } from '../../lib/capabilitiesStore';
 
   let collapsedSections: Record<string, boolean> = $state({});
 
@@ -175,6 +176,40 @@
         </ul>
       {/if}
     </li>
+
+    <!-- Write (conditional) -->
+    {#if $writeEnabled}
+      <li>
+        <button
+          class="menu-title flex justify-between"
+          onclick={() => toggleSection('write')}
+        >
+          Write
+          <span class="text-xs">{collapsedSections['write'] ? '+' : '-'}</span>
+        </button>
+        {#if !collapsedSections['write']}
+          <ul>
+            <li>
+              <a
+                href={link('/write')}
+                class:active={isActive($location, '/write') &&
+                  !isActive($location, '/write/audit')}
+              >
+                Operation Builder
+              </a>
+            </li>
+            <li>
+              <a
+                href={link('/write/audit')}
+                class:active={isActive($location, '/write/audit')}
+              >
+                Audit Log
+              </a>
+            </li>
+          </ul>
+        {/if}
+      </li>
+    {/if}
 
     <div class="divider my-1"></div>
 

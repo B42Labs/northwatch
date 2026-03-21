@@ -89,6 +89,14 @@ export function resolveRoute(path: string): ResolvedRoute {
   // History
   if ((m = matchRoute('/history', path))) return { component: 'history', ...m };
 
+  // Write
+  if ((m = matchRoute('/write/audit/:id', path)))
+    return { component: 'audit-detail', ...m };
+  if ((m = matchRoute('/write/audit', path)))
+    return { component: 'audit-log', ...m };
+  if ((m = matchRoute('/write', path)))
+    return { component: 'write-builder', ...m };
+
   // Search
   if ((m = matchRoute('/search', path))) return { component: 'search', ...m };
 

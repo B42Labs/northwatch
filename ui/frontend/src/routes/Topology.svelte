@@ -9,6 +9,7 @@
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { subscribeToTables } from '../lib/eventStore';
+  import { exportSVG, exportPNG, exportJSON } from '../lib/export';
 
   let allNodes: TopologyNode[] = $state([]);
   let allEdges: TopologyEdge[] = $state([]);
@@ -21,6 +22,17 @@
   let relayoutKey = $state(0);
   let liveUpdates = $state(false);
   let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+  let topologySvgRef: SVGSVGElement | undefined = $state(undefined);
+
+  function handleExportSVG() {
+    if (topologySvgRef) exportSVG(topologySvgRef, 'northwatch-topology.svg');
+  }
+  function handleExportPNG() {
+    if (topologySvgRef) exportPNG(topologySvgRef, 'northwatch-topology.png');
+  }
+  function handleExportJSON() {
+    exportJSON({ nodes, edges }, 'northwatch-topology.json');
+  }
 
   // Dropdown options derived from data
   let networkOptions = $derived(
@@ -235,6 +247,20 @@
       >
         &#x21bb; Layout
       </button>
+      <div class="dropdown dropdown-end">
+        <button tabindex="0" class="btn btn-ghost btn-sm">
+          Export &#9662;
+        </button>
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+        <ul
+          tabindex="0"
+          class="menu dropdown-content z-50 w-44 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+        >
+          <li><button onclick={handleExportSVG}>Download SVG</button></li>
+          <li><button onclick={handleExportPNG}>Download PNG</button></li>
+          <li><button onclick={handleExportJSON}>Download JSON</button></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -424,7 +450,13 @@
       class="flex-1 overflow-hidden rounded-lg border border-base-300 bg-base-100"
       style="min-height: 500px"
     >
-      <TopologyGraph {nodes} {edges} {searchQuery} {relayoutKey} />
+      <TopologyGraph
+        {nodes}
+        {edges}
+        {searchQuery}
+        {relayoutKey}
+        bind:svgRef={topologySvgRef}
+      />
     </div>
   {/if}
 </div>

@@ -1,4 +1,4 @@
-.PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist
+.PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export
 
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
@@ -36,6 +36,9 @@ schema-download:
 
 unquarantine:
 	xattr -d com.apple.quarantine bin/northwatch*
+
+openapi-export:
+	go run ./cmd/openapi-export > openapi.json
 
 clean:
 	rm -rf bin/ ui/frontend/dist/ ui/frontend/node_modules/

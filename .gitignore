@@ -31,6 +31,13 @@ coverage.html
 *.db-shm
 *.db-wal
 
+# Generated
+openapi-export/
+openapi.json
+
+# Tools
+.serena/
+
 # Frontend
 ui/frontend/node_modules/
 ui/frontend/dist/

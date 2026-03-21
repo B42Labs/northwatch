@@ -475,7 +475,22 @@ export function tableSlugFromOvsdbName(name: string): string {
     .toLowerCase();
 }
 
-// Get the correlated route for a raw table entity, if available
+// Get the correlated list route for a raw table (only tables with a list view).
+// Used by TableBrowser to link to the correlated list page.
+export function getCorrelatedListRoute(
+  db: string,
+  table: string,
+): string | null {
+  const map: Record<string, string> = {
+    'nb:logical-switches': '/correlated/logical-switches',
+    'nb:logical-routers': '/correlated/logical-routers',
+    'sb:chassis': '/correlated/chassis',
+  };
+  return map[`${db}:${table}`] || null;
+}
+
+// Get the correlated detail route prefix for a raw table entity.
+// Used by RawDetail to link to the correlated detail page (appends /{uuid}).
 export function getCorrelatedRoute(db: string, table: string): string | null {
   const map: Record<string, string> = {
     'nb:logical-switches': '/correlated/logical-switches',

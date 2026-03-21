@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -176,4 +178,199 @@ func TestParse_InvalidEventRetention(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "event-retention")
+}
+
+func TestParse_SynthesizesSingleCluster(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	require.Len(t, cfg.Clusters, 1)
+	assert.Equal(t, "default", cfg.Clusters[0].Name)
+	assert.Equal(t, "Default", cfg.Clusters[0].Label)
+	assert.Equal(t, "tcp:127.0.0.1:6641", cfg.Clusters[0].OVNNBAddr)
+	assert.Equal(t, "tcp:127.0.0.1:6642", cfg.Clusters[0].OVNSBAddr)
+	assert.Nil(t, cfg.Clusters[0].Enrichment)
+}
+
+func TestParse_SynthesizesClusterWithOpenStackEnrichment(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--os-auth-url", "https://keystone:5000/v3",
+		"--os-username", "admin",
+	})
+	require.NoError(t, err)
+	require.Len(t, cfg.Clusters, 1)
+	require.NotNil(t, cfg.Clusters[0].Enrichment)
+	assert.Equal(t, "openstack", cfg.Clusters[0].Enrichment.Type)
+	assert.Equal(t, "https://keystone:5000/v3", cfg.Clusters[0].Enrichment.OpenStackAuthURL)
+}
+
+func TestParse_SynthesizesClusterWithKubeEnrichment(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--kube-enrichment",
+		"--kubeconfig", "/home/user/.kube/config",
+	})
+	require.NoError(t, err)
+	require.Len(t, cfg.Clusters, 1)
+	require.NotNil(t, cfg.Clusters[0].Enrichment)
+	assert.Equal(t, "kubernetes", cfg.Clusters[0].Enrichment.Type)
+	assert.Equal(t, "/home/user/.kube/config", cfg.Clusters[0].Enrichment.Kubeconfig)
+}
+
+func TestParse_ConfigFile(t *testing.T) {
+	content := `{
+		"clusters": [
+			{
+				"name": "prod",
+				"label": "Production",
+				"ovn_nb_addr": "tcp:10.0.0.1:6641",
+				"ovn_sb_addr": "tcp:10.0.0.1:6642"
+			},
+			{
+				"name": "staging",
+				"ovn_nb_addr": "tcp:10.0.0.2:6641",
+				"ovn_sb_addr": "tcp:10.0.0.2:6642"
+			}
+		]
+	}`
+	path := writeTestFile(t, content)
+
+	cfg, err := Parse([]string{"--config-file", path})
+	require.NoError(t, err)
+	require.Len(t, cfg.Clusters, 2)
+
+	assert.Equal(t, "prod", cfg.Clusters[0].Name)
+	assert.Equal(t, "Production", cfg.Clusters[0].Label)
+	assert.Equal(t, "tcp:10.0.0.1:6641", cfg.Clusters[0].OVNNBAddr)
+	assert.Equal(t, "tcp:10.0.0.1:6642", cfg.Clusters[0].OVNSBAddr)
+
+	assert.Equal(t, "staging", cfg.Clusters[1].Name)
+	assert.Equal(t, "staging", cfg.Clusters[1].Label) // label defaults to name
+	assert.Equal(t, "tcp:10.0.0.2:6641", cfg.Clusters[1].OVNNBAddr)
+}
+
+func TestParse_ConfigFile_WithEnrichment(t *testing.T) {
+	content := `{
+		"clusters": [
+			{
+				"name": "prod",
+				"ovn_nb_addr": "tcp:10.0.0.1:6641",
+				"ovn_sb_addr": "tcp:10.0.0.1:6642",
+				"enrichment": {
+					"type": "openstack",
+					"os_auth_url": "https://keystone:5000/v3",
+					"os_username": "admin"
+				}
+			}
+		]
+	}`
+	path := writeTestFile(t, content)
+
+	cfg, err := Parse([]string{"--config-file", path})
+	require.NoError(t, err)
+	require.Len(t, cfg.Clusters, 1)
+	require.NotNil(t, cfg.Clusters[0].Enrichment)
+	assert.Equal(t, "openstack", cfg.Clusters[0].Enrichment.Type)
+	assert.Equal(t, "https://keystone:5000/v3", cfg.Clusters[0].Enrichment.OpenStackAuthURL)
+}
+
+func TestParse_ConfigFile_Empty(t *testing.T) {
+	content := `{"clusters": []}`
+	path := writeTestFile(t, content)
+
+	_, err := Parse([]string{"--config-file", path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one cluster")
+}
+
+func TestParse_ConfigFile_MissingName(t *testing.T) {
+	content := `{"clusters": [{"ovn_nb_addr": "tcp:10.0.0.1:6641", "ovn_sb_addr": "tcp:10.0.0.1:6642"}]}`
+	path := writeTestFile(t, content)
+
+	_, err := Parse([]string{"--config-file", path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "name is required")
+}
+
+func TestParse_ConfigFile_MissingNBAddr(t *testing.T) {
+	content := `{"clusters": [{"name": "prod", "ovn_sb_addr": "tcp:10.0.0.1:6642"}]}`
+	path := writeTestFile(t, content)
+
+	_, err := Parse([]string{"--config-file", path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ovn_nb_addr is required")
+}
+
+func TestParse_ConfigFile_MissingSBAddr(t *testing.T) {
+	content := `{"clusters": [{"name": "prod", "ovn_nb_addr": "tcp:10.0.0.1:6641"}]}`
+	path := writeTestFile(t, content)
+
+	_, err := Parse([]string{"--config-file", path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ovn_sb_addr is required")
+}
+
+func TestParse_ConfigFile_InvalidJSON(t *testing.T) {
+	content := `{not valid json}`
+	path := writeTestFile(t, content)
+
+	_, err := Parse([]string{"--config-file", path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing")
+}
+
+func TestParse_ConfigFile_NotFound(t *testing.T) {
+	_, err := Parse([]string{"--config-file", "/nonexistent/config.json"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading")
+}
+
+func TestParse_ConfigFile_NoBAddrValidation(t *testing.T) {
+	// When using config file, NB/SB addresses are not required via flags
+	content := `{
+		"clusters": [
+			{
+				"name": "prod",
+				"ovn_nb_addr": "tcp:10.0.0.1:6641",
+				"ovn_sb_addr": "tcp:10.0.0.1:6642"
+			}
+		]
+	}`
+	path := writeTestFile(t, content)
+
+	cfg, err := Parse([]string{"--config-file", path})
+	require.NoError(t, err)
+	assert.Empty(t, cfg.OVNNBAddr) // flat flag is empty
+	assert.Len(t, cfg.Clusters, 1)  // but clusters are populated
+}
+
+func TestParse_ConfigFileEnv(t *testing.T) {
+	content := `{
+		"clusters": [
+			{
+				"name": "env-cluster",
+				"ovn_nb_addr": "tcp:10.0.0.1:6641",
+				"ovn_sb_addr": "tcp:10.0.0.1:6642"
+			}
+		]
+	}`
+	path := writeTestFile(t, content)
+	t.Setenv("NORTHWATCH_CONFIG_FILE", path)
+
+	cfg, err := Parse([]string{})
+	require.NoError(t, err)
+	require.Len(t, cfg.Clusters, 1)
+	assert.Equal(t, "env-cluster", cfg.Clusters[0].Name)
+}
+
+func writeTestFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.json")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+	return path
 }

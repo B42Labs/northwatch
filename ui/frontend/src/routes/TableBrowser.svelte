@@ -5,7 +5,7 @@
   import DataTable from '../components/table/DataTable.svelte';
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
-  import { getCorrelatedRoute } from '../lib/tables';
+  import { getCorrelatedListRoute } from '../lib/tables';
   import { subscribeToTable } from '../lib/eventStore';
   import { changedUuids as changedUuidsStore } from '../lib/eventStore';
   import type { WsEvent } from '../lib/websocket';
@@ -91,7 +91,7 @@
     return (uuid: string) => `/${ref.db}/${ref.table}/${uuid}`;
   }
 
-  let correlatedRoute = $derived(getCorrelatedRoute(db, table));
+  let correlatedRoute = $derived(getCorrelatedListRoute(db, table));
 </script>
 
 <div>

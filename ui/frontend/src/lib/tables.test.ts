@@ -4,6 +4,7 @@ import {
   findTable,
   tableSlugFromOvsdbName,
   getCorrelatedRoute,
+  getCorrelatedListRoute,
   correlatedViews,
 } from './tables';
 
@@ -115,6 +116,24 @@ describe('getCorrelatedRoute', () => {
   it('returns null for non-correlated tables', () => {
     expect(getCorrelatedRoute('nb', 'acls')).toBeNull();
     expect(getCorrelatedRoute('sb', 'logical-flows')).toBeNull();
+  });
+});
+
+describe('getCorrelatedListRoute', () => {
+  it('returns route only for tables with list views', () => {
+    expect(getCorrelatedListRoute('nb', 'logical-switches')).toBe(
+      '/correlated/logical-switches',
+    );
+    expect(getCorrelatedListRoute('nb', 'logical-routers')).toBe(
+      '/correlated/logical-routers',
+    );
+    expect(getCorrelatedListRoute('sb', 'chassis')).toBe('/correlated/chassis');
+  });
+
+  it('returns null for detail-only correlated tables', () => {
+    expect(getCorrelatedListRoute('nb', 'logical-switch-ports')).toBeNull();
+    expect(getCorrelatedListRoute('nb', 'logical-router-ports')).toBeNull();
+    expect(getCorrelatedListRoute('sb', 'port-bindings')).toBeNull();
   });
 });
 

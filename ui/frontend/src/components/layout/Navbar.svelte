@@ -1,6 +1,7 @@
 <script lang="ts">
   import { push } from '../../lib/router';
   import ThemeToggle from './ThemeToggle.svelte';
+  import ClusterSwitcher from './ClusterSwitcher.svelte';
   import ConnectionStatus from '../ui/ConnectionStatus.svelte';
   import { sidebarOpen } from '../../lib/sidebarStore';
 
@@ -70,6 +71,10 @@
         bind:value={searchQuery}
       />
     </form>
+  </div>
+
+  <div class="flex-none">
+    <ClusterSwitcher />
   </div>
 
   <div class="flex-none">
