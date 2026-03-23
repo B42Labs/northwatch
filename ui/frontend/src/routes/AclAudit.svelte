@@ -127,7 +127,7 @@
       </div>
     {:else}
       <div class="flex flex-col gap-2">
-        {#each filtered as finding (finding.acl_uuid)}
+        {#each filtered as finding, i (finding.acl_uuid + '-' + (finding.related_uuid ?? i))}
           <div
             class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
           >
