@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write # cosign keyless signing
+
+jobs:
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-latest
+          - goos: linux
+            goarch: arm64
+            runner: ubuntu-latest
+          - goos: darwin
+            goarch: arm64
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build UI
+        run: make build-ui
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o bin/northwatch-${{ matrix.goos }}-${{ matrix.goarch }} \
+            ./cmd/northwatch/
+      - name: Import Apple signing certificate
+        if: matrix.goos == 'darwin' && env.APPLE_CERTIFICATE != ''
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+      - name: Sign macOS binary
+        if: matrix.goos == 'darwin'
+        env:
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+        run: |
+          IDENTITY="${APPLE_IDENTITY:--}"
+          codesign --force --options runtime -s "$IDENTITY" \
+            bin/northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: bin/northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 1
+
+  sign-and-release:
+    name: Sign, SBOM & Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v6
+        with:
+          path: artifacts/
+
+      - name: Collect binaries
+        run: |
+          mkdir -p dist
+          for dir in artifacts/northwatch-*; do
+            cp "$dir"/northwatch-* dist/
+          done
+          ls -lh dist/
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum northwatch-* > checksums.txt
+
+      - name: Sign binaries and checksums with cosign
+        working-directory: dist
+        run: |
+          for file in northwatch-* checksums.txt; do
+            cosign sign-blob --yes \
+              --output-signature "${file}.sig" \
+              --output-certificate "${file}.pem" \
+              "$file"
+          done
+
+      - name: Generate SBOMs
+        run: |
+          for bin in dist/northwatch-*; do
+            # skip signature and certificate files
+            case "$bin" in *.sig|*.pem) continue ;; esac
+            name=$(basename "$bin")
+            syft "$bin" --output spdx-json="dist/${name}.spdx.json"
+            syft "$bin" --output cyclonedx-json="dist/${name}.cdx.json"
+          done
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/*
