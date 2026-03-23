@@ -2,6 +2,7 @@ export interface WritableTable {
   ovsdbName: string;
   slug: string;
   label: string;
+  deleteOnly?: boolean;
 }
 
 export const writableTables: WritableTable[] = [
@@ -60,6 +61,20 @@ export const writableTables: WritableTable[] = [
     ovsdbName: 'Gateway_Chassis',
     slug: 'gateway-chassis',
     label: 'Gateway Chassis',
+  },
+  // SB tables — delete-only (stale entry cleanup)
+  {
+    ovsdbName: 'MAC_Binding',
+    slug: 'mac-bindings',
+    label: 'MAC Bindings',
+    deleteOnly: true,
+  },
+  { ovsdbName: 'FDB', slug: 'fdb', label: 'FDB', deleteOnly: true },
+  {
+    ovsdbName: 'Port_Binding',
+    slug: 'port-bindings',
+    label: 'Port Bindings',
+    deleteOnly: true,
   },
 ];
 

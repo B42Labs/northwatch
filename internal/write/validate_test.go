@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
+	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,6 +13,7 @@ func testRegistry() *Registry {
 	r := NewRegistry()
 	RegisterModel[nb.LogicalSwitch](r, "Logical_Switch")
 	RegisterModel[nb.ACL](r, "ACL")
+	RegisterSBModel[sb.MACBinding](r, "MAC_Binding")
 	return r
 }
 
@@ -155,4 +157,60 @@ func TestValidateFields_ValidFields(t *testing.T) {
 	}
 	err = ValidateFields(fields, spec)
 	assert.NoError(t, err)
+}
+
+func TestValidateOperation_SBDeleteOnly(t *testing.T) {
+	reg := testRegistry()
+
+	t.Run("delete is allowed", func(t *testing.T) {
+		op := WriteOperation{Action: "delete", Table: "MAC_Binding", UUID: "some-uuid"}
+		assert.NoError(t, ValidateOperation(op, reg))
+	})
+
+	t.Run("create is rejected", func(t *testing.T) {
+		op := WriteOperation{Action: "create", Table: "MAC_Binding", Fields: map[string]any{"ip": "1.2.3.4"}}
+		err := ValidateOperation(op, reg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "only supports delete")
+	})
+
+	t.Run("update is rejected", func(t *testing.T) {
+		op := WriteOperation{Action: "update", Table: "MAC_Binding", UUID: "some-uuid", Fields: map[string]any{"ip": "1.2.3.4"}}
+		err := ValidateOperation(op, reg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "only supports delete")
+	})
+}
+
+func TestValidateSingleDatabase(t *testing.T) {
+	reg := testRegistry()
+
+	t.Run("all NB is fine", func(t *testing.T) {
+		ops := []WriteOperation{
+			{Action: "create", Table: "Logical_Switch", Fields: map[string]any{"name": "a"}},
+			{Action: "delete", Table: "ACL", UUID: "u1"},
+		}
+		assert.NoError(t, ValidateSingleDatabase(ops, reg))
+	})
+
+	t.Run("all SB is fine", func(t *testing.T) {
+		ops := []WriteOperation{
+			{Action: "delete", Table: "MAC_Binding", UUID: "u1"},
+		}
+		assert.NoError(t, ValidateSingleDatabase(ops, reg))
+	})
+
+	t.Run("mixed NB and SB is rejected", func(t *testing.T) {
+		ops := []WriteOperation{
+			{Action: "delete", Table: "Logical_Switch", UUID: "u1"},
+			{Action: "delete", Table: "MAC_Binding", UUID: "u2"},
+		}
+		err := ValidateSingleDatabase(ops, reg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot mix")
+	})
+
+	t.Run("empty ops is fine", func(t *testing.T) {
+		assert.NoError(t, ValidateSingleDatabase(nil, reg))
+	})
 }

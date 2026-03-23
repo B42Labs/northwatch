@@ -68,6 +68,8 @@ func TestDefaultRegistry(t *testing.T) {
 		"Load_Balancer", "Logical_Router_Static_Route",
 		"Logical_Router_Policy", "DHCP_Options", "DNS",
 		"Static_MAC_Binding", "HA_Chassis", "Gateway_Chassis",
+		// SB tables (delete-only)
+		"MAC_Binding", "FDB", "Port_Binding",
 	}
 
 	tables := r.Tables()

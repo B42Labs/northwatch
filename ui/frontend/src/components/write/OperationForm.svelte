@@ -37,6 +37,14 @@
   let selectedTable = $derived(
     writableTables.find((t) => t.ovsdbName === table),
   );
+
+  // Force action to 'delete' when a delete-only table is selected.
+  $effect(() => {
+    if (selectedTable?.deleteOnly && action !== 'delete') {
+      action = 'delete';
+    }
+  });
+
   let needsUuid = $derived(action === 'update' || action === 'delete');
   let needsFields = $derived(action === 'create' || action === 'update');
 
@@ -97,10 +105,15 @@
           id="op-action"
           class="select select-bordered select-sm"
           bind:value={action}
+          disabled={selectedTable?.deleteOnly}
         >
-          <option value="create">Create</option>
-          <option value="update">Update</option>
-          <option value="delete">Delete</option>
+          {#if selectedTable?.deleteOnly}
+            <option value="delete">Delete</option>
+          {:else}
+            <option value="create">Create</option>
+            <option value="update">Update</option>
+            <option value="delete">Delete</option>
+          {/if}
         </select>
       </div>
 

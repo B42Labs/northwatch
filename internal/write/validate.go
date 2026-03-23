@@ -26,6 +26,10 @@ func ValidateOperation(op WriteOperation, reg *Registry) error {
 		return err
 	}
 
+	if spec.DeleteOnly && op.Action != "delete" {
+		return fmt.Errorf("table %q only supports delete operations", op.Table)
+	}
+
 	switch op.Action {
 	case "create":
 		if op.UUID != "" {
@@ -53,6 +57,27 @@ func ValidateOperation(op WriteOperation, reg *Registry) error {
 		}
 	}
 
+	return nil
+}
+
+// ValidateSingleDatabase rejects plans that mix NB and SB operations,
+// since they cannot be applied atomically across two OVSDB databases.
+func ValidateSingleDatabase(ops []WriteOperation, reg *Registry) error {
+	var hasNB, hasSB bool
+	for _, op := range ops {
+		spec, err := reg.Get(op.Table)
+		if err != nil {
+			return err
+		}
+		if spec.Database == "sb" {
+			hasSB = true
+		} else {
+			hasNB = true
+		}
+		if hasNB && hasSB {
+			return fmt.Errorf("plans cannot mix NB and SB operations; submit separate plans for each database")
+		}
+	}
 	return nil
 }
 

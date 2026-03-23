@@ -7,13 +7,16 @@ import (
 	"strings"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
+	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 )
 
-// TableSpec describes a writable NB table.
+// TableSpec describes a writable table.
 type TableSpec struct {
 	Table          string
+	Database       string          // "nb" or "sb"
 	ModelType      reflect.Type
 	ReadOnlyFields map[string]bool // fields users cannot set
+	DeleteOnly     bool            // if true, only delete operations are allowed
 }
 
 // Registry maps table names to their specs.
@@ -58,8 +61,21 @@ func RegisterModel[T any](r *Registry, table string, extraReadOnly ...string) {
 	}
 	r.Register(TableSpec{
 		Table:          table,
+		Database:       "nb",
 		ModelType:      reflect.TypeOf(zero),
 		ReadOnlyFields: readOnly,
+	})
+}
+
+// RegisterSBModel registers an SB table as delete-only.
+func RegisterSBModel[T any](r *Registry, table string) {
+	var zero T
+	r.Register(TableSpec{
+		Table:          table,
+		Database:       "sb",
+		ModelType:      reflect.TypeOf(zero),
+		ReadOnlyFields: map[string]bool{"_uuid": true},
+		DeleteOnly:     true,
 	})
 }
 
@@ -73,8 +89,10 @@ type FieldInfo struct {
 
 // TableSchema describes a writable table and its fields.
 type TableSchema struct {
-	Table  string      `json:"table"`
-	Fields []FieldInfo `json:"fields"`
+	Table      string      `json:"table"`
+	Database   string      `json:"database"`
+	DeleteOnly bool        `json:"delete_only,omitempty"`
+	Fields     []FieldInfo `json:"fields"`
 }
 
 // Schema returns the schema for all registered writable tables.
@@ -112,7 +130,7 @@ func tableSchema(spec TableSpec) TableSchema {
 		}
 		fields = append(fields, fi)
 	}
-	return TableSchema{Table: spec.Table, Fields: fields}
+	return TableSchema{Table: spec.Table, Database: spec.Database, DeleteOnly: spec.DeleteOnly, Fields: fields}
 }
 
 func goTypeToOVSDB(t reflect.Type) string {
@@ -173,5 +191,11 @@ func DefaultRegistry() *Registry {
 	RegisterModel[nb.StaticMACBinding](r, "Static_MAC_Binding")
 	RegisterModel[nb.HAChassis](r, "HA_Chassis", "chassis_name", "external_ids")
 	RegisterModel[nb.GatewayChassis](r, "Gateway_Chassis", "chassis_name", "name", "external_ids", "options")
+
+	// SB tables — delete-only (for stale entry cleanup)
+	RegisterSBModel[sb.MACBinding](r, "MAC_Binding")
+	RegisterSBModel[sb.FDB](r, "FDB")
+	RegisterSBModel[sb.PortBinding](r, "Port_Binding")
+
 	return r
 }

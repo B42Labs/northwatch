@@ -68,17 +68,8 @@ func (e *Engine) Preview(ctx context.Context, ops []WriteOperation) (*Plan, erro
 	if e.rateLimiter != nil && !e.rateLimiter.allow() {
 		return nil, fmt.Errorf("rate limit exceeded")
 	}
-	for i, op := range ops {
-		if err := ValidateOperation(op, e.registry); err != nil {
-			return nil, fmt.Errorf("operation %d: %w", i, err)
-		}
-	}
-
-	// Advanced validation: check references
-	for i, op := range ops {
-		if err := ValidateReferences(ctx, op, e.nbClient); err != nil {
-			return nil, fmt.Errorf("operation %d: %w", i, err)
-		}
+	if err := e.validateOps(ctx, ops); err != nil {
+		return nil, err
 	}
 
 	diffs, err := e.computeDiffs(ctx, ops)
@@ -136,25 +127,13 @@ func (e *Engine) Apply(ctx context.Context, planID, token, actor string) (*Audit
 		return nil, fmt.Errorf("taking pre-apply snapshot: %w", err)
 	}
 
-	ovsdbOps, err := e.buildOVSDBOps(plan.Operations)
+	// Determine the target client and transact.
+	c, err := e.clientForOps(plan.Operations)
 	if err != nil {
-		plan.Status = "failed"
-		entry := e.recordAudit(ctx, plan, actor, snap.ID, "error", err.Error())
-		return entry, fmt.Errorf("building OVSDB operations: %w", err)
+		return e.failPlan(ctx, plan, actor, snap.ID, err)
 	}
-
-	reply, err := e.nbClient.Transact(ctx, ovsdbOps...)
-	if err != nil {
-		plan.Status = "failed"
-		entry := e.recordAudit(ctx, plan, actor, snap.ID, "error", err.Error())
-		return entry, fmt.Errorf("transacting: %w", err)
-	}
-
-	_, err = ovsdb.CheckOperationResults(reply, ovsdbOps)
-	if err != nil {
-		plan.Status = "failed"
-		entry := e.recordAudit(ctx, plan, actor, snap.ID, "error", err.Error())
-		return entry, fmt.Errorf("operation failed: %w", err)
+	if err := e.transactOps(ctx, c, plan.Operations); err != nil {
+		return e.failPlan(ctx, plan, actor, snap.ID, err)
 	}
 
 	plan.Status = "applied"
@@ -165,17 +144,8 @@ func (e *Engine) Apply(ctx context.Context, planID, token, actor string) (*Audit
 // DryRun validates operations and computes diffs without taking a snapshot
 // or storing the plan in cache.
 func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error) {
-	for i, op := range ops {
-		if err := ValidateOperation(op, e.registry); err != nil {
-			return nil, fmt.Errorf("operation %d: %w", i, err)
-		}
-	}
-
-	// Advanced validation: check references
-	for i, op := range ops {
-		if err := ValidateReferences(ctx, op, e.nbClient); err != nil {
-			return nil, fmt.Errorf("operation %d: %w", i, err)
-		}
+	if err := e.validateOps(ctx, ops); err != nil {
+		return nil, err
 	}
 
 	diffs, err := e.computeDiffs(ctx, ops)
@@ -374,9 +344,29 @@ func (e *Engine) computeDiffs(ctx context.Context, ops []WriteOperation) ([]Plan
 	return diffs, nil
 }
 
-// readCurrentState fetches the current row from the NB cache by UUID.
+// clientForTable returns the appropriate OVSDB client for the given table.
+func (e *Engine) clientForTable(table string) (client.Client, error) {
+	spec, err := e.registry.Get(table)
+	if err != nil {
+		return nil, err
+	}
+	if spec.Database == "sb" {
+		if e.sbClient == nil {
+			return nil, fmt.Errorf("SB client not available for table %q", table)
+		}
+		return e.sbClient, nil
+	}
+	return e.nbClient, nil
+}
+
+// readCurrentState fetches the current row from the cache by UUID.
 func (e *Engine) readCurrentState(ctx context.Context, table, uuid string) (map[string]any, error) {
 	spec, err := e.registry.Get(table)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := e.clientForTable(table)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +387,7 @@ func (e *Engine) readCurrentState(ctx context.Context, table, uuid string) (map[
 		}
 	}
 
-	if err := e.nbClient.Get(ctx, modelPtr.Interface()); err != nil {
+	if err := c.Get(ctx, modelPtr.Interface()); err != nil {
 		return nil, fmt.Errorf("row not found: %w", err)
 	}
 
@@ -485,6 +475,63 @@ func (e *Engine) generateToken(planID string, snapshotID int64) string {
 	mac.Write([]byte(planID))
 	mac.Write([]byte(strconv.FormatInt(snapshotID, 10)))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// validateOps runs basic and reference validation for a set of operations.
+func (e *Engine) validateOps(ctx context.Context, ops []WriteOperation) error {
+	for i, op := range ops {
+		if err := ValidateOperation(op, e.registry); err != nil {
+			return fmt.Errorf("operation %d: %w", i, err)
+		}
+	}
+	if err := ValidateSingleDatabase(ops, e.registry); err != nil {
+		return err
+	}
+	for i, op := range ops {
+		spec, err := e.registry.Get(op.Table)
+		if err != nil {
+			return fmt.Errorf("operation %d: %w", i, err)
+		}
+		if spec.Database == "sb" {
+			continue
+		}
+		if err := ValidateReferences(ctx, op, e.nbClient); err != nil {
+			return fmt.Errorf("operation %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// failPlan marks a plan as failed, records an audit entry, and returns the error.
+func (e *Engine) failPlan(ctx context.Context, plan *Plan, actor string, snapshotID int64, err error) (*AuditEntry, error) {
+	plan.Status = "failed"
+	entry := e.recordAudit(ctx, plan, actor, snapshotID, "error", err.Error())
+	return entry, err
+}
+
+// clientForOps returns the appropriate OVSDB client for a set of operations.
+// All operations must target the same database (enforced by ValidateSingleDatabase).
+func (e *Engine) clientForOps(ops []WriteOperation) (client.Client, error) {
+	if len(ops) == 0 {
+		return e.nbClient, nil
+	}
+	return e.clientForTable(ops[0].Table)
+}
+
+// transactOps builds OVSDB operations from WriteOperations and transacts them on the given client.
+func (e *Engine) transactOps(ctx context.Context, c client.Client, ops []WriteOperation) error {
+	ovsdbOps, err := e.buildOVSDBOps(ops)
+	if err != nil {
+		return fmt.Errorf("building OVSDB operations: %w", err)
+	}
+	reply, err := c.Transact(ctx, ovsdbOps...)
+	if err != nil {
+		return fmt.Errorf("transact: %w", err)
+	}
+	if _, err = ovsdb.CheckOperationResults(reply, ovsdbOps); err != nil {
+		return fmt.Errorf("operation failed: %w", err)
+	}
+	return nil
 }
 
 // generateID creates a short random hex ID.
