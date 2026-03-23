@@ -4,7 +4,7 @@
   import Badge from '../components/ui/Badge.svelte';
 </script>
 
-<div class="mx-auto max-w-3xl">
+<div class="mx-auto max-w-4xl">
   <h1 class="mb-2 text-3xl font-bold">Northwatch</h1>
   <p class="mb-6 text-base-content/70">OVN Database Browser & Analyzer</p>
 
@@ -21,52 +21,187 @@
     </div>
   {/if}
 
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-    <a
-      href={link('/correlated/logical-switches')}
-      class="card bg-base-100 shadow-sm transition-shadow hover:shadow-md"
-    >
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <!-- Correlated -->
+    <div class="card bg-base-100 shadow-sm">
       <div class="card-body">
-        <h3 class="card-title text-sm">Logical Switches</h3>
-        <p class="text-xs text-base-content/60">
-          Correlated NB/SB view with enrichment
+        <h2 class="card-title text-base">Correlated</h2>
+        <p class="mb-2 text-xs text-base-content/60">
+          Enriched NB/SB views with cross-database correlation
         </p>
+        <ul class="flex flex-col gap-1">
+          <li>
+            <a
+              href={link('/correlated/logical-switches')}
+              class="link-hover link text-sm">Logical Switches</a
+            >
+          </li>
+          <li>
+            <a
+              href={link('/correlated/logical-routers')}
+              class="link-hover link text-sm">Logical Routers</a
+            >
+          </li>
+          <li>
+            <a
+              href={link('/correlated/chassis')}
+              class="link-hover link text-sm">Chassis</a
+            >
+          </li>
+        </ul>
       </div>
-    </a>
-    <a
-      href={link('/correlated/logical-routers')}
-      class="card bg-base-100 shadow-sm transition-shadow hover:shadow-md"
-    >
+    </div>
+
+    <!-- Visualization -->
+    <div class="card bg-base-100 shadow-sm">
       <div class="card-body">
-        <h3 class="card-title text-sm">Logical Routers</h3>
-        <p class="text-xs text-base-content/60">
-          Routers with ports, NATs, and datapaths
+        <h2 class="card-title text-base">Visualization</h2>
+        <p class="mb-2 text-xs text-base-content/60">
+          Topology, flows, and network policy views
         </p>
+        <ul class="flex flex-col gap-1">
+          <li>
+            <a href={link('/topology')} class="link-hover link text-sm"
+              >Topology</a
+            >
+          </li>
+          <li>
+            <a href={link('/flows')} class="link-hover link text-sm"
+              >Flow Pipeline</a
+            >
+          </li>
+          <li>
+            <a href={link('/security')} class="link-hover link text-sm"
+              >Security Policy</a
+            >
+          </li>
+          <li>
+            <a href={link('/nat')} class="link-hover link text-sm"
+              >NAT Overview</a
+            >
+          </li>
+          <li>
+            <a href={link('/ha')} class="link-hover link text-sm">HA Failover</a
+            >
+          </li>
+          <li>
+            <a href={link('/mac-table')} class="link-hover link text-sm"
+              >MAC Table</a
+            >
+          </li>
+          <li>
+            <a href={link('/load-balancers')} class="link-hover link text-sm"
+              >Load Balancers</a
+            >
+          </li>
+        </ul>
       </div>
-    </a>
-    <a
-      href={link('/correlated/chassis')}
-      class="card bg-base-100 shadow-sm transition-shadow hover:shadow-md"
-    >
+    </div>
+
+    <!-- Debug -->
+    <div class="card bg-base-100 shadow-sm">
       <div class="card-body">
-        <h3 class="card-title text-sm">Chassis</h3>
-        <p class="text-xs text-base-content/60">
-          Physical hosts with encaps and port bindings
+        <h2 class="card-title text-base">Debug</h2>
+        <p class="mb-2 text-xs text-base-content/60">
+          Packet tracing, diagnostics, and audit tools
         </p>
+        <ul class="flex flex-col gap-1">
+          <li>
+            <a href={link('/debug/trace')} class="link-hover link text-sm"
+              >Packet Trace</a
+            >
+          </li>
+          <li>
+            <a href={link('/debug/flow-diff')} class="link-hover link text-sm"
+              >Flow Diff</a
+            >
+          </li>
+          <li>
+            <a
+              href={link('/debug/connectivity')}
+              class="link-hover link text-sm">Connectivity</a
+            >
+          </li>
+          <li>
+            <a
+              href={link('/debug/port-diagnostics')}
+              class="link-hover link text-sm">Port Diagnostics</a
+            >
+          </li>
+          <li>
+            <a href={link('/debug/acl-audit')} class="link-hover link text-sm"
+              >ACL Audit</a
+            >
+          </li>
+          <li>
+            <a
+              href={link('/debug/stale-entries')}
+              class="link-hover link text-sm">Stale Entries</a
+            >
+          </li>
+        </ul>
       </div>
-    </a>
+    </div>
+
+    <!-- History & Events -->
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title text-base">History & Events</h2>
+        <p class="mb-2 text-xs text-base-content/60">
+          Database change events and state snapshots
+        </p>
+        <ul class="flex flex-col gap-1">
+          <li>
+            <a href={link('/events')} class="link-hover link text-sm">Events</a>
+          </li>
+          <li>
+            <a href={link('/history')} class="link-hover link text-sm"
+              >Snapshots</a
+            >
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Monitoring -->
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title text-base">Monitoring</h2>
+        <p class="mb-2 text-xs text-base-content/60">
+          Cluster health and RAFT consensus status
+        </p>
+        <ul class="flex flex-col gap-1">
+          <li>
+            <a href={link('/raft-health')} class="link-hover link text-sm"
+              >Raft Health</a
+            >
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Write (conditional) -->
     {#if $writeEnabled}
-      <a
-        href={link('/write')}
-        class="card bg-base-100 shadow-sm transition-shadow hover:shadow-md"
-      >
+      <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
-          <h3 class="card-title text-sm">Write Operations</h3>
-          <p class="text-xs text-base-content/60">
-            Create, update, or delete OVN Northbound entities
+          <h2 class="card-title text-base">Write</h2>
+          <p class="mb-2 text-xs text-base-content/60">
+            Create, update, or delete OVN entities
           </p>
+          <ul class="flex flex-col gap-1">
+            <li>
+              <a href={link('/write')} class="link-hover link text-sm"
+                >Operation Builder</a
+              >
+            </li>
+            <li>
+              <a href={link('/write/audit')} class="link-hover link text-sm"
+                >Audit Log</a
+              >
+            </li>
+          </ul>
         </div>
-      </a>
+      </div>
     {/if}
   </div>
 </div>
