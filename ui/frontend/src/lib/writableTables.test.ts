@@ -6,8 +6,8 @@ import {
 } from './writableTables';
 
 describe('writableTables', () => {
-  it('contains 14 writable tables', () => {
-    expect(writableTables).toHaveLength(14);
+  it('contains 16 writable tables', () => {
+    expect(writableTables).toHaveLength(16);
   });
 
   it('includes core NB tables', () => {

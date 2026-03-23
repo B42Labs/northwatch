@@ -661,7 +661,7 @@
           class="w-full border-collapse overflow-hidden rounded border border-slate-700 text-xs"
         >
           <tbody>
-            {#each infoRows(hoveredNode) as row, i}
+            {#each infoRows(hoveredNode) as row, i (row.key)}
               <tr class={i % 2 === 0 ? 'bg-slate-700/40' : 'bg-slate-800'}>
                 <td class="whitespace-nowrap px-2 py-1 align-top text-slate-400"
                   >{row.key}</td

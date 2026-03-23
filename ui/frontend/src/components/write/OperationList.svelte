@@ -32,7 +32,7 @@
   </div>
 {:else}
   <div class="flex flex-col gap-2">
-    {#each operations as op, i}
+    {#each operations as op, i (i)}
       <div
         class="flex items-center justify-between rounded-lg border border-base-300 bg-base-100 px-3 py-2"
       >

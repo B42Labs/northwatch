@@ -23,6 +23,7 @@ import (
 // Engine orchestrates safe writes to the OVN Northbound database.
 type Engine struct {
 	nbClient    client.Client
+	sbClient    client.Client // optional, used for SB-aware active chassis detection
 	registry    *Registry
 	collector   *history.Collector
 	auditStore  *AuditStore
@@ -33,7 +34,8 @@ type Engine struct {
 }
 
 // NewEngine creates a new write Engine with the given rate limit (operations per minute, 0 = unlimited).
-func NewEngine(nbClient client.Client, registry *Registry, collector *history.Collector, auditStore *AuditStore, planTTL time.Duration, rateLimit int) *Engine {
+// sbClient is optional (may be nil) and enables SB-aware active chassis detection for failover/evacuate.
+func NewEngine(nbClient, sbClient client.Client, registry *Registry, collector *history.Collector, auditStore *AuditStore, planTTL time.Duration, rateLimit int) *Engine {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		panic(fmt.Sprintf("crypto/rand.Read failed: %v", err))
@@ -41,6 +43,7 @@ func NewEngine(nbClient client.Client, registry *Registry, collector *history.Co
 	cache := NewPlanCache(planTTL)
 	e := &Engine{
 		nbClient:   nbClient,
+		sbClient:   sbClient,
 		registry:   registry,
 		collector:  collector,
 		auditStore: auditStore,

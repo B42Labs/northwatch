@@ -84,7 +84,7 @@
         onchange={(e) => onSelect(e.currentTarget.value)}
       >
         <option value="">-- select entity --</option>
-        {#each filtered as entity}
+        {#each filtered as entity (String(entity._uuid || ''))}
           {@const uuid = String(entity._uuid || '')}
           {@const name = String(entity.name || '')}
           <option value={uuid}>

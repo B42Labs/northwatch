@@ -55,6 +55,12 @@ export const writableTables: WritableTable[] = [
     slug: 'static-mac-bindings',
     label: 'Static MAC Bindings',
   },
+  { ovsdbName: 'HA_Chassis', slug: 'ha-chassis', label: 'HA Chassis' },
+  {
+    ovsdbName: 'Gateway_Chassis',
+    slug: 'gateway-chassis',
+    label: 'Gateway Chassis',
+  },
 ];
 
 export function isWritableTable(ovsdbName: string): boolean {

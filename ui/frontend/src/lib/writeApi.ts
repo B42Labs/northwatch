@@ -119,3 +119,22 @@ export function listAuditEntries(limit?: number): Promise<AuditEntry[]> {
 export function getAuditEntry(id: number): Promise<AuditEntry> {
   return get(`/api/v1/write/audit/${id}`);
 }
+
+// --- Failover API ---
+
+export interface FailoverRequest {
+  group_name: string;
+  target_chassis: string;
+}
+
+export interface EvacuateRequest {
+  chassis_name: string;
+}
+
+export function requestFailover(req: FailoverRequest): Promise<Plan> {
+  return post('/api/v1/write/failover', req);
+}
+
+export function requestEvacuate(req: EvacuateRequest): Promise<Plan> {
+  return post('/api/v1/write/evacuate', req);
+}

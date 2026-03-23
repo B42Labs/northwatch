@@ -207,7 +207,7 @@
       </div>
     {:else}
       <div class="flex flex-col gap-6">
-        {#each datapathGroups as group}
+        {#each datapathGroups as group (group.datapath._uuid)}
           <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4">
               <!-- Datapath header -->
@@ -246,7 +246,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {#each group.entries as entry}
+                    {#each group.entries as entry, i (i)}
                       <tr>
                         <td class="font-mono text-xs">{entry.ip}</td>
                         <td class="font-mono text-xs">{entry.mac}</td>

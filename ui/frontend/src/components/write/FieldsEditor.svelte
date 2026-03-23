@@ -274,7 +274,7 @@
     <!-- Structured field rows -->
     <table class="w-full border-separate border-spacing-y-1">
       <tbody>
-        {#each rows as row, i}
+        {#each rows as row, i (i)}
           <tr>
             <td style="width: 11rem; min-width: 11rem" class="align-top">
               {#if writableSchemaFields.length > 0}
@@ -284,7 +284,7 @@
                   onchange={handleRowChange}
                 >
                   <option value="">-- field --</option>
-                  {#each writableSchemaFields as f}
+                  {#each writableSchemaFields as f (f.name)}
                     <option value={f.name}>{f.name}</option>
                   {/each}
                 </select>

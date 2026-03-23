@@ -244,7 +244,7 @@
       </div>
     {:else}
       <div class="flex flex-col gap-6">
-        {#each filteredRouterGroups as group}
+        {#each filteredRouterGroups as group (group.router._uuid)}
           <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4">
               <!-- Router header -->
@@ -289,7 +289,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {#each group.nats as nat}
+                      {#each group.nats as nat (nat._uuid)}
                         <tr>
                           <td>
                             <span
@@ -336,7 +336,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        {#each group.routes as route}
+                        {#each group.routes as route (route._uuid)}
                           <tr>
                             <td class="font-mono text-xs"
                               >{route.ip_prefix || '-'}</td

@@ -114,7 +114,7 @@
 
   <!-- Stepper -->
   <ul class="steps steps-horizontal mb-6 w-full">
-    {#each stepLabels as label, i}
+    {#each stepLabels as label, i (i)}
       <li class="step" class:step-primary={i <= stepIndex}>{label}</li>
     {/each}
   </ul>

@@ -17,7 +17,7 @@
         activeCluster.set(target.value);
       }}
     >
-      {#each $clusters as c}
+      {#each $clusters as c (c.name)}
         <option value={c.name}>
           {c.label}
           {#if !c.ready}(offline){/if}

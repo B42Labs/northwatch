@@ -54,7 +54,7 @@
     <LoadingSpinner />
   {:else if data}
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {#each [{ label: 'Northbound', db: data.nb }, { label: 'Southbound', db: data.sb }] as { label, db }}
+      {#each [{ label: 'Northbound', db: data.nb }, { label: 'Southbound', db: data.sb }] as { label, db } (label)}
         <div class="card border border-base-300 bg-base-100 shadow-sm">
           <div class="card-body p-4">
             <h2 class="card-title text-base">
@@ -82,7 +82,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {#each db.connections as conn}
+                    {#each db.connections as conn (conn.target)}
                       <tr>
                         <td class="font-mono text-xs">{conn.target}</td>
                         <td class="text-xs">{conn.status ?? '-'}</td>

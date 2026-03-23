@@ -189,8 +189,9 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("creating audit store: %w", err)
 		}
-		writeEngine := write.NewEngine(def.DBs.NB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
+		writeEngine := write.NewEngine(def.DBs.NB, def.DBs.SB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
 		handler.RegisterWrite(mux, writeEngine)
+		handler.RegisterFailover(mux, writeEngine)
 		fmt.Println("Write operations enabled")
 	}
 

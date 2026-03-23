@@ -45,7 +45,7 @@
   </div>
 {:else}
   <div class="flex flex-col gap-3">
-    {#each diffs as diff}
+    {#each diffs as diff, i (i)}
       <div
         class="card border-l-4 bg-base-100 shadow-sm {borderClass(diff.action)}"
       >
@@ -71,7 +71,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {#each diff.fields as change}
+                  {#each diff.fields as change (change.field)}
                     <tr>
                       <td class="font-mono text-xs font-semibold">
                         {change.field}

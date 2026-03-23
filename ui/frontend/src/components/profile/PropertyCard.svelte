@@ -24,7 +24,7 @@
       <h2 class="card-title text-sm">{title}</h2>
       <table class="table table-sm">
         <tbody>
-          {#each fields as [key, value]}
+          {#each fields as [key, value] (key)}
             <tr>
               <td class="w-48 whitespace-nowrap text-xs font-semibold">{key}</td
               >

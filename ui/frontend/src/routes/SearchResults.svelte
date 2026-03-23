@@ -79,7 +79,7 @@
     <div class="py-8 text-center text-base-content/50">No results found</div>
   {:else if result}
     <div class="flex flex-col gap-4">
-      {#each result.results as group}
+      {#each result.results as group (`${group.database}:${group.table}`)}
         {#if group.matches && group.matches.length > 0}
           <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4">
@@ -93,7 +93,7 @@
               <div class="overflow-x-auto">
                 <table class="table table-zebra table-xs">
                   <tbody>
-                    {#each group.matches.slice(0, groupLimit(`${group.database}:${group.table}`)) as match}
+                    {#each group.matches.slice(0, groupLimit(`${group.database}:${group.table}`)) as match (match._uuid)}
                       {@const uuid = match._uuid as string}
                       <tr
                         class="hover cursor-pointer"

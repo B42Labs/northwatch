@@ -71,14 +71,14 @@
       onchange={() => (filterTable = '')}
     >
       <option value="">All databases</option>
-      {#each databases as db}
+      {#each databases as db (db)}
         <option value={db}>{db}</option>
       {/each}
     </select>
 
     <select bind:value={filterTable} class="select select-bordered select-sm">
       <option value="">All tables</option>
-      {#each filteredTables as t}
+      {#each filteredTables as t (t)}
         <option value={t.split('.')[1]}>{t}</option>
       {/each}
     </select>

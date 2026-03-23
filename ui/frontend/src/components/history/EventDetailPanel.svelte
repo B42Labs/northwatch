@@ -132,7 +132,7 @@
       <h3 class="mb-2 text-sm font-semibold">Changed Fields</h3>
       {#if diffKeys.size > 0}
         <div class="mb-4 space-y-2">
-          {#each allKeys.filter((k) => diffKeys.has(k)) as key}
+          {#each allKeys.filter((k) => diffKeys.has(k)) as key (key)}
             <div class="rounded-lg border border-base-300 p-2">
               <div class="mb-1 text-xs font-semibold text-base-content/60">
                 {key}
@@ -171,7 +171,7 @@
         <div class="mb-4 overflow-x-auto rounded-lg border border-base-300">
           <table class="table table-xs">
             <tbody>
-              {#each allKeys.filter((k) => !diffKeys.has(k)) as key}
+              {#each allKeys.filter((k) => !diffKeys.has(k)) as key (key)}
                 <tr>
                   <td
                     class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
@@ -202,7 +202,7 @@
       >
         <table class="table table-xs">
           <tbody>
-            {#each allKeys as key}
+            {#each allKeys as key (key)}
               <tr>
                 <td
                   class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
@@ -231,7 +231,7 @@
       >
         <table class="table table-xs">
           <tbody>
-            {#each allKeys as key}
+            {#each allKeys as key (key)}
               <tr>
                 <td
                   class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
@@ -260,7 +260,7 @@
       <div class="mb-4 overflow-x-auto rounded-lg border border-base-300">
         <table class="table table-xs">
           <tbody>
-            {#each allKeys as key}
+            {#each allKeys as key (key)}
               <tr>
                 <td
                   class="w-1/3 font-mono text-xs font-semibold text-base-content/60"

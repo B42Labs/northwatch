@@ -115,7 +115,7 @@
           bind:value={table}
         >
           <option value="">-- select table --</option>
-          {#each writableTables as t}
+          {#each writableTables as t (t.ovsdbName)}
             <option value={t.ovsdbName}>{t.label} ({t.ovsdbName})</option>
           {/each}
         </select>

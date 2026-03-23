@@ -96,7 +96,7 @@
 
     <div class="mb-4 flex items-center gap-3">
       <div class="join">
-        {#each [['all', 'All'], ['mac_binding', 'MAC'], ['fdb', 'FDB'], ['port_binding', 'Ports']] as [val, label]}
+        {#each [['all', 'All'], ['mac_binding', 'MAC'], ['fdb', 'FDB'], ['port_binding', 'Ports']] as [val, label] (val)}
           <button
             class="btn join-item btn-xs {typeFilter === val
               ? 'btn-active'
@@ -122,7 +122,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each filtered as entry}
+          {#each filtered as entry (entry.uuid)}
             <tr>
               <td
                 ><span

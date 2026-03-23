@@ -96,7 +96,7 @@
       </div>
     {:else}
       <div class="flex flex-col gap-4">
-        {#each filteredTables as tableDiff}
+        {#each filteredTables as tableDiff (tableDiff.database + '.' + tableDiff.table)}
           <div class="rounded border border-base-300 p-3">
             <div class="mb-2 flex items-center gap-2 font-medium">
               <span class="badge badge-ghost badge-sm"
@@ -125,7 +125,7 @@
             {#if tableDiff.added?.length}
               <div class="mb-2">
                 <div class="mb-1 text-xs font-semibold text-success">Added</div>
-                {#each tableDiff.added as row, i}
+                {#each tableDiff.added as row, i (i)}
                   {#if tableDiff.added.length > 1}
                     <div class="mb-0.5 font-mono text-xs text-base-content/40">
                       {i + 1}.
@@ -144,7 +144,7 @@
             {#if tableDiff.removed?.length}
               <div class="mb-2">
                 <div class="mb-1 text-xs font-semibold text-error">Removed</div>
-                {#each tableDiff.removed as row, i}
+                {#each tableDiff.removed as row, i (i)}
                   {#if tableDiff.removed.length > 1}
                     <div class="mb-0.5 font-mono text-xs text-base-content/40">
                       {i + 1}.
@@ -165,7 +165,7 @@
                 <div class="mb-1 text-xs font-semibold text-warning">
                   Modified
                 </div>
-                {#each tableDiff.modified as mod, i}
+                {#each tableDiff.modified as mod, i (mod.uuid)}
                   {#if tableDiff.modified.length > 1}
                     <div class="mb-0.5 font-mono text-xs text-base-content/40">
                       {i + 1}.
@@ -203,7 +203,7 @@
                           </tr>
                         </thead>
                         <tbody>
-                          {#each mod.fields as field}
+                          {#each mod.fields as field (field.field)}
                             <tr>
                               <td class="font-mono font-semibold"
                                 >{field.field}</td

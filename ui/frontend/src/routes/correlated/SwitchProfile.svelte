@@ -102,7 +102,7 @@
       <div>
         <h2 class="mb-2 text-lg font-semibold">Ports ({ports.length})</h2>
         <div class="flex flex-col gap-3">
-          {#each ports as port}
+          {#each ports as port, i (i)}
             <details class="collapse collapse-arrow bg-base-100 shadow-sm">
               <summary class="collapse-title text-sm font-medium">
                 {#if port.logical_switch_port}

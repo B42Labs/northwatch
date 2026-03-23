@@ -105,7 +105,7 @@
       <div class="card-body p-4">
         <table class="table table-sm">
           <tbody>
-            {#each fields as [key, value]}
+            {#each fields as [key, value] (key)}
               <tr>
                 <td class="w-48 whitespace-nowrap text-sm font-semibold"
                   >{key}</td

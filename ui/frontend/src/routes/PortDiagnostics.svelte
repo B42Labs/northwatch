@@ -208,7 +208,7 @@
           {#if expandedPorts.has(port.port_uuid)}
             <div class="border-t border-base-300 px-4 py-3">
               <div class="space-y-1">
-                {#each port.checks as check}
+                {#each port.checks as check (check.name)}
                   <div class="flex items-start gap-2 text-sm">
                     <span
                       class="badge badge-xs mt-0.5 {checkStatusBadge(

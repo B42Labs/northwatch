@@ -150,7 +150,7 @@
     <table class="table table-pin-rows table-xs">
       <thead>
         <tr>
-          {#each displayColumns as col}
+          {#each displayColumns as col (col)}
             <th
               class="cursor-pointer select-none whitespace-nowrap bg-base-100 hover:bg-base-200"
               onclick={() => toggleSort(col)}
@@ -169,7 +169,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each displayedRows as row, i}
+        {#each displayedRows as row, i (row._uuid ?? i)}
           <tr
             class="{onRowClick
               ? 'hover cursor-pointer'
@@ -178,7 +178,7 @@
               : ''}"
             onclick={() => onRowClick?.(row)}
           >
-            {#each displayColumns as col}
+            {#each displayColumns as col (col)}
               <td
                 class="max-w-xs whitespace-nowrap"
                 style:background-color={i % 2 === 1
@@ -210,7 +210,7 @@
             disabled={currentPage === 1}
             onclick={() => currentPage--}>«</button
           >
-          {#each pageNumbers as p}
+          {#each pageNumbers as p, i (i)}
             {#if p === '...'}
               <button class="btn btn-disabled join-item btn-sm">…</button>
             {:else}

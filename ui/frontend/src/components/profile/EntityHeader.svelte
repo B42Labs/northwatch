@@ -24,7 +24,7 @@
   {#if breadcrumbs.length > 0}
     <div class="breadcrumbs mb-1 text-sm">
       <ul>
-        {#each breadcrumbs as crumb}
+        {#each breadcrumbs as crumb (crumb.label)}
           <li>
             {#if crumb.href}
               <a href={link(crumb.href)} class="link-hover link"

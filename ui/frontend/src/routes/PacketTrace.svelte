@@ -228,7 +228,7 @@
 
       <!-- Pipeline stepper -->
       <div class="flex flex-col gap-3">
-        {#each traceData.stages as stage, i}
+        {#each traceData.stages as stage, i (i)}
           <div class="flex items-start gap-3">
             <!-- Stage marker -->
             <div class="flex flex-col items-center">
@@ -269,7 +269,7 @@
               </div>
 
               <div class="max-h-[300px] overflow-y-auto">
-                {#each stage.flows as flow}
+                {#each stage.flows as flow (flow.uuid)}
                   <button
                     type="button"
                     class="block w-full cursor-pointer border-b border-l-4 border-base-300 px-3 py-1.5 text-left text-xs last:border-0 hover:bg-base-200 {hintColor(

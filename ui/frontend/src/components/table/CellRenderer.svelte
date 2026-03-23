@@ -52,7 +52,7 @@
     <span class="italic text-base-content/40">empty</span>
   {:else if value.length <= 3 && value.every(isUuid)}
     <div class="flex flex-col gap-0.5">
-      {#each value as item}
+      {#each value as item (item)}
         <UuidLink uuid={item} short={true} href={getHref(item)} />
       {/each}
     </div>
@@ -60,7 +60,7 @@
     <details class="text-xs">
       <summary class="cursor-pointer">{value.length} items</summary>
       <div class="mt-1 flex max-h-32 flex-col gap-0.5 overflow-y-auto">
-        {#each value as item}
+        {#each value as item, i (i)}
           {#if isUuid(item)}
             <UuidLink uuid={item} short={true} href={getHref(item)} />
           {:else}

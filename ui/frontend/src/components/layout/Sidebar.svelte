@@ -34,7 +34,7 @@
       </button>
       {#if !collapsedSections['correlated']}
         <ul>
-          {#each correlatedViews as view}
+          {#each correlatedViews as view (view.slug)}
             <li>
               <a
                 href={link(`/correlated/${view.slug}`)}
@@ -271,7 +271,7 @@
     <div class="divider my-1"></div>
 
     <!-- Database tables -->
-    {#each databases as db}
+    {#each databases as db (db.key)}
       <li>
         <button
           class="menu-title flex justify-between"
@@ -282,7 +282,7 @@
         </button>
         {#if !collapsedSections[db.key]}
           <ul>
-            {#each db.tables as table}
+            {#each db.tables as table (table.slug)}
               <li>
                 <a
                   href={link(`/${db.key}/${table.slug}`)}

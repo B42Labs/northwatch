@@ -299,7 +299,7 @@
                 All
               </button>
             </li>
-            {#each filteredNetworks as opt}
+            {#each filteredNetworks as opt (opt.id)}
               <li>
                 <button
                   class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-200 {opt.id ===
@@ -358,7 +358,7 @@
                 All
               </button>
             </li>
-            {#each filteredChassis as opt}
+            {#each filteredChassis as opt (opt.id)}
               <li>
                 <button
                   class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-200 {opt.id ===

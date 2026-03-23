@@ -104,7 +104,7 @@
 
     <div class="mb-4 flex items-center gap-3">
       <div class="join">
-        {#each ['all', 'shadow', 'conflict', 'redundant'] as t}
+        {#each ['all', 'shadow', 'conflict', 'redundant'] as t (t)}
           <button
             class="btn join-item btn-xs {typeFilter === t ? 'btn-active' : ''}"
             onclick={() => (typeFilter = t as typeof typeFilter)}
@@ -127,7 +127,7 @@
       </div>
     {:else}
       <div class="flex flex-col gap-2">
-        {#each filtered as finding}
+        {#each filtered as finding (finding.acl_uuid)}
           <div
             class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
           >

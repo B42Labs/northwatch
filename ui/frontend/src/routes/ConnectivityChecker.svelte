@@ -238,7 +238,7 @@
 
       <!-- Check results -->
       <div class="flex flex-col gap-2">
-        {#each result.checks as check}
+        {#each result.checks as check (check.name)}
           <div
             class="flex items-start gap-3 rounded-lg border-l-4 bg-base-100 px-4 py-2 shadow-sm {categoryColor(
               check.category,

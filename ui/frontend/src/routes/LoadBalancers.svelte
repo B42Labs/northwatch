@@ -90,7 +90,7 @@
     </div>
 
     <div class="flex flex-col gap-4">
-      {#each filtered as lb}
+      {#each filtered as lb (lb.uuid)}
         <div class="card border border-base-300 bg-base-100 shadow-sm">
           <div class="card-body p-4">
             <div class="flex items-center justify-between">
@@ -103,11 +103,11 @@
                     <span class="badge badge-ghost badge-xs">{lb.protocol}</span
                     >
                   {/if}
-                  {#each lb.routers as r}
+                  {#each lb.routers as r (r)}
                     <span class="badge badge-primary badge-xs">router: {r}</span
                     >
                   {/each}
-                  {#each lb.switches as s}
+                  {#each lb.switches as s (s)}
                     <span class="badge badge-secondary badge-xs"
                       >switch: {s}</span
                     >
@@ -121,13 +121,13 @@
 
             {#if lb.vips.length > 0}
               <div class="mt-3">
-                {#each lb.vips as vip}
+                {#each lb.vips as vip (vip.vip)}
                   <div class="mb-2 rounded bg-base-200 p-2">
                     <div class="mb-1 font-mono text-sm font-semibold">
                       {vip.vip}
                     </div>
                     <div class="flex flex-wrap gap-1">
-                      {#each vip.backends as backend}
+                      {#each vip.backends as backend (backend.address)}
                         <span
                           class="badge badge-sm {statusBadge(backend.status)}"
                         >

@@ -286,7 +286,7 @@
               Ingress Pipeline
             </h3>
             <div class="flex flex-col gap-3">
-              {#each visibleIngress as tbl}
+              {#each visibleIngress as tbl (tbl.table_id)}
                 <FlowTable
                   tableId={tbl.table_id}
                   tableName={tbl.table_name}
@@ -307,7 +307,7 @@
               Egress Pipeline
             </h3>
             <div class="flex flex-col gap-3">
-              {#each visibleEgress as tbl}
+              {#each visibleEgress as tbl (tbl.table_id)}
                 <FlowTable
                   tableId={tbl.table_id}
                   tableName={tbl.table_name}

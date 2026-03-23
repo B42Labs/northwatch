@@ -12,7 +12,7 @@
 {:else}
   <table class="table table-xs {compact ? '' : 'table-zebra'}">
     <tbody>
-      {#each entries as [key, value]}
+      {#each entries as [key, value] (key)}
         <tr>
           <td class="whitespace-nowrap font-mono text-xs font-semibold"
             >{key}</td

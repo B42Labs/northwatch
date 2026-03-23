@@ -32,6 +32,7 @@ func RegisterNB(mux *http.ServeMux, nbClient client.Client) {
 	registerTable[nb.DNS](mux, "/api/v1/nb/dns", nbClient)
 	registerTable[nb.GatewayChassis](mux, "/api/v1/nb/gateway-chassis", nbClient)
 	registerTable[nb.HAChassisGroup](mux, "/api/v1/nb/ha-chassis-groups", nbClient)
+	registerTable[nb.HAChassis](mux, "/api/v1/nb/ha-chassis", nbClient)
 	registerTable[nb.Meter](mux, "/api/v1/nb/meters", nbClient)
 	registerTable[nb.QoS](mux, "/api/v1/nb/qos", nbClient)
 	registerTable[nb.BFD](mux, "/api/v1/nb/bfd", nbClient)

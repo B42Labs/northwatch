@@ -120,7 +120,7 @@
           {/if}
         </div>
       {:else}
-        {#each filteredFlows as flow, i}
+        {#each filteredFlows as flow, i (flow.uuid)}
           <button
             type="button"
             class="block w-full cursor-pointer border-b border-base-300 px-3 py-2 text-left text-xs last:border-0 hover:bg-base-200 {i %
@@ -143,7 +143,7 @@
                 </div>
                 {#if !expandedFlows.has(flow.uuid)}
                   <div class="mt-1 flex flex-wrap gap-1">
-                    {#each actionBadges(flow.actions) as badge}
+                    {#each actionBadges(flow.actions) as badge, i (i)}
                       <span class="badge badge-xs {badge.cls}"
                         >{badge.label}</span
                       >
@@ -171,7 +171,7 @@
                     class="mb-0.5 flex items-center gap-2 font-semibold text-base-content/50"
                   >
                     Actions
-                    {#each actionBadges(flow.actions) as badge}
+                    {#each actionBadges(flow.actions) as badge, i (i)}
                       <span class="badge badge-xs {badge.cls}"
                         >{badge.label}</span
                       >
@@ -187,7 +187,7 @@
                       External IDs
                     </div>
                     <div class="flex flex-wrap gap-1">
-                      {#each Object.entries(flow.external_ids) as [key, value]}
+                      {#each Object.entries(flow.external_ids) as [key, value] (key)}
                         {#if key === 'source' && /^[0-9a-f-]{36}$/i.test(value)}
                           <a
                             href={link(`/nb/acls/${value}`)}

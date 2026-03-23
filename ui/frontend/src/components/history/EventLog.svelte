@@ -89,7 +89,7 @@
     </select>
 
     <div class="join">
-      {#each ['5m', '15m', '1h', '6h', '24h', 'all'] as range}
+      {#each ['5m', '15m', '1h', '6h', '24h', 'all'] as range (range)}
         <button
           class="btn join-item btn-xs {timeRange === range ? 'btn-active' : ''}"
           onclick={() => (timeRange = range)}

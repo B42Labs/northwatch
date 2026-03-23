@@ -13,7 +13,7 @@
       <div class="card-body">
         <h2 class="card-title text-sm">Active Capabilities</h2>
         <div class="flex flex-wrap gap-2">
-          {#each $capabilities as cap}
+          {#each $capabilities as cap (cap)}
             <Badge text={cap} variant="primary" />
           {/each}
         </div>

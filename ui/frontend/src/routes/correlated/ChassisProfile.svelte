@@ -99,7 +99,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each encaps as enc}
+                {#each encaps as enc (enc._uuid)}
                   <tr>
                     <td
                       ><span class="badge badge-ghost badge-sm"
@@ -135,7 +135,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each portBindings as pb}
+                {#each portBindings as pb (pb._uuid)}
                   <tr
                     class="hover cursor-pointer"
                     onclick={() => {

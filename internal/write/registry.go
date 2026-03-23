@@ -171,5 +171,7 @@ func DefaultRegistry() *Registry {
 	RegisterModel[nb.DHCPOptions](r, "DHCP_Options")
 	RegisterModel[nb.DNS](r, "DNS")
 	RegisterModel[nb.StaticMACBinding](r, "Static_MAC_Binding")
+	RegisterModel[nb.HAChassis](r, "HA_Chassis", "chassis_name", "external_ids")
+	RegisterModel[nb.GatewayChassis](r, "Gateway_Chassis", "chassis_name", "name", "external_ids", "options")
 	return r
 }
