@@ -403,7 +403,7 @@ func (e *Engine) buildOVSDBOps(ops []WriteOperation) ([]ovsdb.Operation, error) 
 		case "create":
 			row := make(map[string]interface{})
 			for k, v := range op.Fields {
-				row[k] = v
+				row[k] = toOVSDBValue(v)
 			}
 			ovsdbOps = append(ovsdbOps, ovsdb.Operation{
 				Op:    "insert",
@@ -414,7 +414,7 @@ func (e *Engine) buildOVSDBOps(ops []WriteOperation) ([]ovsdb.Operation, error) 
 		case "update":
 			row := make(map[string]interface{})
 			for k, v := range op.Fields {
-				row[k] = v
+				row[k] = toOVSDBValue(v)
 			}
 			ovsdbOps = append(ovsdbOps, ovsdb.Operation{
 				Op:    "update",
@@ -444,6 +444,22 @@ func (e *Engine) buildOVSDBOps(ops []WriteOperation) ([]ovsdb.Operation, error) 
 	}
 
 	return ovsdbOps, nil
+}
+
+// toOVSDBValue converts Go native types to OVSDB wire types where needed.
+// In particular, map[string]string must be converted to ovsdb.OvsMap for
+// the libovsdb server to accept it.
+func toOVSDBValue(v any) any {
+	switch m := v.(type) {
+	case map[string]string:
+		goMap := make(map[any]any, len(m))
+		for k, val := range m {
+			goMap[k] = val
+		}
+		return ovsdb.OvsMap{GoMap: goMap}
+	default:
+		return v
+	}
 }
 
 // recordAudit persists an audit entry (best-effort).

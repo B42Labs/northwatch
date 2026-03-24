@@ -1,6 +1,24 @@
 package write
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// InputError represents a user-facing validation or "not found" error, as
+// opposed to an internal/infrastructure error. Handlers use errors.As to
+// distinguish 400 (client) from 500 (server) responses.
+type InputError struct {
+	Message string
+}
+
+func (e *InputError) Error() string { return e.Message }
+
+// IsInputError reports whether err (or any error in its chain) is an InputError.
+func IsInputError(err error) bool {
+	var ie *InputError
+	return errors.As(err, &ie)
+}
 
 // WriteOperation describes a single intended mutation.
 type WriteOperation struct {

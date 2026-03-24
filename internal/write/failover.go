@@ -4,11 +4,17 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 )
+
+// drainPriorityKey is the external_ids key used to store the original priority
+// before draining a chassis. This allows Restore to return the chassis to its
+// original priority instead of a hardcoded value.
+const drainPriorityKey = "northwatch:pre-drain-priority"
 
 // chassisMember abstracts over NB HA_Chassis and Gateway_Chassis entries,
 // which both have UUID, ChassisName, and Priority.
@@ -17,6 +23,7 @@ type chassisMember struct {
 	Table       string // "HA_Chassis" or "Gateway_Chassis"
 	ChassisName string
 	Priority    int
+	ExternalIDs map[string]string
 }
 
 // resolvedGroup holds a group name and its chassis members.
@@ -37,7 +44,7 @@ func (e *Engine) Failover(ctx context.Context, groupName, targetChassisName stri
 
 	members := rg.Members
 	if len(members) < 2 {
-		return nil, fmt.Errorf("group %q has fewer than 2 chassis entries", rg.Name)
+		return nil, &InputError{Message: fmt.Sprintf("group %q has fewer than 2 chassis entries", rg.Name)}
 	}
 
 	// Sort descending by priority — first entry is the current NB leader.
@@ -55,7 +62,7 @@ func (e *Engine) Failover(ctx context.Context, groupName, targetChassisName stri
 		}
 	}
 	if target == nil {
-		return nil, fmt.Errorf("chassis %q not found in group %q", targetChassisName, rg.Name)
+		return nil, &InputError{Message: fmt.Sprintf("chassis %q not found in group %q", targetChassisName, rg.Name)}
 	}
 
 	if target.UUID == active.UUID {
@@ -86,96 +93,94 @@ func (e *Engine) Failover(ctx context.Context, groupName, targetChassisName stri
 	return e.Preview(ctx, ops)
 }
 
-// Evacuate generates a preview plan that fails over all HA groups where the
-// given chassis is currently active to the next-highest-priority standby
-// chassis. Searches both NB HA_Chassis_Groups and Gateway_Chassis (via LRPs).
-// When an SB client is available, the actual active chassis is determined from
-// SB Port_Binding state; otherwise it falls back to NB priority ordering.
-// Returns a single plan that applies all swaps atomically.
+// Evacuate generates a preview plan that drains a chassis from all HA groups
+// by setting its priority to 0. This follows the drain approach used by
+// ovn-route-agent: rather than swapping priorities with a standby, the chassis
+// priority is set to 0, letting OVN's native HA mechanism promote the
+// next-highest-priority chassis automatically.
+// Searches both NB HA_Chassis_Groups and Gateway_Chassis (via LRPs).
+// The drained chassis can later be restored to standby via Engine.Restore.
 func (e *Engine) Evacuate(ctx context.Context, chassisName string) (*Plan, error) {
 	allGroups, err := e.collectAllGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build SB active chassis map when SB client is available.
-	var sbActiveMap map[string]string // group key -> active chassis name
-	if e.sbClient != nil {
-		sbActive, sbErr := e.buildSBActiveMapUnified(ctx, allGroups)
-		if sbErr != nil {
-			return nil, fmt.Errorf("resolving SB active state: %w", sbErr)
+	var ops []WriteOperation
+
+	for _, rg := range allGroups {
+		for _, m := range rg.Members {
+			if m.ChassisName == chassisName && m.Priority != 0 {
+				// Merge the drain marker into existing external_ids.
+				extIDs := mergeExternalIDs(m.ExternalIDs, drainPriorityKey, strconv.Itoa(m.Priority))
+				ops = append(ops, WriteOperation{
+					Action: "update",
+					Table:  m.Table,
+					UUID:   m.UUID,
+					Fields: map[string]any{
+						"priority":     0,
+						"external_ids": extIDs,
+					},
+					Reason: fmt.Sprintf("Drain '%s': set priority to 0 in group '%s' (was %d)",
+						chassisName, rg.Name, m.Priority),
+				})
+			}
 		}
-		sbActiveMap = sbActive
+	}
+
+	if len(ops) == 0 {
+		return nil, &InputError{Message: fmt.Sprintf("chassis %q has no entries to drain (not found or already drained)", chassisName)}
+	}
+
+	sortOpsByUUID(ops)
+	return e.Preview(ctx, ops)
+}
+
+// Restore generates a preview plan that restores a previously drained chassis
+// by setting its priority back to 1 (standby). This is the counterpart to
+// Evacuate: after a chassis has been drained (priority 0), Restore brings it
+// back as a standby member without disrupting the current active chassis.
+// Follows the restore approach from ovn-route-agent's RestoreDrainedGateways.
+func (e *Engine) Restore(ctx context.Context, chassisName string) (*Plan, error) {
+	allGroups, err := e.collectAllGroups(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	var ops []WriteOperation
 
-	for groupKey, rg := range allGroups {
-		if len(rg.Members) < 2 {
-			continue
-		}
-
-		// Sort descending by priority.
-		sort.Slice(rg.Members, func(i, j int) bool {
-			return rg.Members[i].Priority > rg.Members[j].Priority
-		})
-
-		// Determine the actual active chassis for this group.
-		activeName := rg.Members[0].ChassisName // default: highest NB priority
-		if sbActiveMap != nil {
-			if name, ok := sbActiveMap[groupKey]; ok {
-				activeName = name
-			}
-		}
-		if activeName != chassisName {
-			// This chassis is not the SB-active chassis for this group.
-			// If it has the highest NB priority (NB/SB mismatch), bump its
-			// priority to trigger ovn-northd re-sync. Otherwise the chassis
-			// is simply not involved in this group — skip it.
-			if rg.Members[0].ChassisName == chassisName {
-				leader := rg.Members[0]
-				newPrio := leader.Priority + 1
-				if newPrio > 32767 {
-					newPrio = leader.Priority - 1
+	for _, rg := range allGroups {
+		for _, m := range rg.Members {
+			if m.ChassisName == chassisName && m.Priority == 0 {
+				// Restore to original priority from external_ids, defaulting to 1.
+				restorePrio := 1
+				if orig, ok := m.ExternalIDs[drainPriorityKey]; ok {
+					if parsed, err := strconv.Atoi(orig); err == nil && parsed > 0 {
+						restorePrio = parsed
+					}
 				}
+				// Remove the drain marker from external_ids.
+				extIDs := removeExternalID(m.ExternalIDs, drainPriorityKey)
 				ops = append(ops, WriteOperation{
 					Action: "update",
-					Table:  leader.Table,
-					UUID:   leader.UUID,
-					Fields: map[string]any{"priority": newPrio},
-					Reason: fmt.Sprintf("Evacuate '%s': bump priority in group '%s' to trigger ovn-northd re-sync",
-						chassisName, rg.Name),
+					Table:  m.Table,
+					UUID:   m.UUID,
+					Fields: map[string]any{
+						"priority":     restorePrio,
+						"external_ids": extIDs,
+					},
+					Reason: fmt.Sprintf("Restore '%s': set priority to %d in group '%s'",
+						chassisName, restorePrio, rg.Name),
 				})
 			}
-			continue
 		}
-
-		// Find the active member.
-		var active chassisMember
-		for _, m := range rg.Members {
-			if m.ChassisName == activeName {
-				active = m
-				break
-			}
-		}
-
-		// Find standby: highest-priority member that is not the active one.
-		var standby chassisMember
-		for _, m := range rg.Members {
-			if m.UUID != active.UUID {
-				standby = m
-				break
-			}
-		}
-
-		ops = append(ops, swapMemberPriorityOps(active, standby,
-			fmt.Sprintf("Evacuate '%s': group '%s' — %s → %s", chassisName, rg.Name, active.ChassisName, standby.ChassisName))...)
 	}
 
 	if len(ops) == 0 {
-		return nil, fmt.Errorf("chassis %q is not the active chassis in any HA group", chassisName)
+		return nil, &InputError{Message: fmt.Sprintf("chassis %q has no drained entries to restore", chassisName)}
 	}
 
+	sortOpsByUUID(ops)
 	return e.Preview(ctx, ops)
 }
 
@@ -183,6 +188,10 @@ func (e *Engine) Evacuate(ctx context.Context, chassisName string) (*Plan, error
 // Gateway_Chassis (via LRP references). The returned map is keyed by NB UUID
 // (group UUID or LRP UUID).
 func (e *Engine) collectAllGroups(ctx context.Context) (map[string]*resolvedGroup, error) {
+	if e.nbClient == nil {
+		return nil, fmt.Errorf("NB client not available")
+	}
+
 	result := make(map[string]*resolvedGroup)
 
 	// --- HA_Chassis_Groups ---
@@ -205,6 +214,7 @@ func (e *Engine) collectAllGroups(ctx context.Context) (map[string]*resolvedGrou
 				members = append(members, chassisMember{
 					UUID: hc.UUID, Table: "HA_Chassis",
 					ChassisName: hc.ChassisName, Priority: hc.Priority,
+					ExternalIDs: hc.ExternalIDs,
 				})
 			}
 		}
@@ -234,6 +244,7 @@ func (e *Engine) collectAllGroups(ctx context.Context) (map[string]*resolvedGrou
 				members = append(members, chassisMember{
 					UUID: gw.UUID, Table: "Gateway_Chassis",
 					ChassisName: gw.ChassisName, Priority: gw.Priority,
+					ExternalIDs: gw.ExternalIDs,
 				})
 			}
 		}
@@ -282,13 +293,13 @@ func (e *Engine) resolveGroupUnified(ctx context.Context, groupName, targetChass
 					return found, nil
 				}
 			}
-			return nil, fmt.Errorf(
+			return nil, &InputError{Message: fmt.Sprintf(
 				"HA_Chassis_Group %q not found; chassis %q appears in %d groups",
-				groupName, targetChassisName, len(candidates))
+				groupName, targetChassisName, len(candidates))}
 		}
 	}
 
-	return nil, fmt.Errorf("HA_Chassis_Group %q not found", groupName)
+	return nil, &InputError{Message: fmt.Sprintf("HA_Chassis_Group %q not found", groupName)}
 }
 
 // disambiguateViaSBUnified finds the candidate whose chassis membership
@@ -349,89 +360,6 @@ func (e *Engine) disambiguateViaSBUnified(ctx context.Context, sbGroupName strin
 	return nil
 }
 
-// buildSBActiveMapUnified queries the SB database to determine which chassis
-// is actually active for each group. It matches groups by chassis name
-// membership. Returns a map from group key to the active chassis name.
-func (e *Engine) buildSBActiveMapUnified(ctx context.Context, groups map[string]*resolvedGroup) (map[string]string, error) {
-	var sbPortBindings []sb.PortBinding
-	if err := e.sbClient.List(ctx, &sbPortBindings); err != nil {
-		return nil, fmt.Errorf("listing SB Port_Bindings: %w", err)
-	}
-
-	var sbChassisList []sb.Chassis
-	if err := e.sbClient.List(ctx, &sbChassisList); err != nil {
-		return nil, fmt.Errorf("listing SB Chassis: %w", err)
-	}
-
-	var sbGroups []sb.HAChassisGroup
-	if err := e.sbClient.List(ctx, &sbGroups); err != nil {
-		return nil, fmt.Errorf("listing SB HA_Chassis_Groups: %w", err)
-	}
-
-	var sbHAChassisList []sb.HAChassis
-	if err := e.sbClient.List(ctx, &sbHAChassisList); err != nil {
-		return nil, fmt.Errorf("listing SB HA_Chassis: %w", err)
-	}
-
-	// SB Chassis UUID -> name
-	sbChassisName := make(map[string]string, len(sbChassisList))
-	for _, c := range sbChassisList {
-		sbChassisName[c.UUID] = c.Name
-	}
-
-	// SB HA_Chassis UUID -> entry
-	sbHAChassisByUUID := make(map[string]sb.HAChassis, len(sbHAChassisList))
-	for _, hc := range sbHAChassisList {
-		sbHAChassisByUUID[hc.UUID] = hc
-	}
-
-	// SB group UUID -> active chassis name (from chassisredirect port bindings)
-	sbGroupActive := make(map[string]string)
-	for i := range sbPortBindings {
-		pb := &sbPortBindings[i]
-		if pb.Type != "chassisredirect" || pb.HaChassisGroup == nil || pb.Chassis == nil {
-			continue
-		}
-		if name, ok := sbChassisName[*pb.Chassis]; ok {
-			sbGroupActive[*pb.HaChassisGroup] = name
-		}
-	}
-
-	// SB group -> chassis name key
-	sbGroupKey := make(map[string]string, len(sbGroups))
-	for _, sg := range sbGroups {
-		sbGroupKey[sg.UUID] = chassisNameKey(sg.HaChassis, func(uuid string) string {
-			hc, ok := sbHAChassisByUUID[uuid]
-			if !ok || hc.Chassis == nil {
-				return ""
-			}
-			return sbChassisName[*hc.Chassis]
-		})
-	}
-
-	// chassis-name-key -> active chassis name
-	keyToActive := make(map[string]string)
-	for sgUUID, key := range sbGroupKey {
-		if active, ok := sbGroupActive[sgUUID]; ok && key != "" {
-			keyToActive[key] = active
-		}
-	}
-
-	// Match NB groups by chassis name membership
-	result := make(map[string]string, len(groups))
-	for groupKey, rg := range groups {
-		key := chassisNameKeyFromMembers(rg.Members)
-		if key == "" {
-			continue
-		}
-		if active, ok := keyToActive[key]; ok {
-			result[groupKey] = active
-		}
-	}
-
-	return result, nil
-}
-
 // chassisNameKey builds a stable key from a list of UUIDs by resolving each
 // to a chassis name, sorting, and joining with null bytes.
 func chassisNameKey(uuids []string, resolve func(string) string) string {
@@ -484,4 +412,35 @@ func swapMemberPriorityOps(a, b chassisMember, reason string) []WriteOperation {
 			Reason: reason,
 		},
 	}
+}
+
+// mergeExternalIDs returns a copy of the existing external_ids map with the
+// given key/value pair added. If existing is nil, a new map is created.
+func mergeExternalIDs(existing map[string]string, key, value string) map[string]string {
+	merged := make(map[string]string, len(existing)+1)
+	for k, v := range existing {
+		merged[k] = v
+	}
+	merged[key] = value
+	return merged
+}
+
+// removeExternalID returns a copy of the existing external_ids map with the
+// given key removed. Returns an empty map (not nil) if the result would be empty,
+// since OVSDB expects an empty map rather than nil for map columns.
+func removeExternalID(existing map[string]string, key string) map[string]string {
+	result := make(map[string]string, len(existing))
+	for k, v := range existing {
+		if k != key {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+// sortOpsByUUID sorts WriteOperations by UUID for deterministic plan output.
+func sortOpsByUUID(ops []WriteOperation) {
+	sort.Slice(ops, func(i, j int) bool {
+		return ops[i].UUID < ops[j].UUID
+	})
 }

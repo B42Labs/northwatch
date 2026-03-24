@@ -189,8 +189,8 @@ func DefaultRegistry() *Registry {
 	RegisterModel[nb.DHCPOptions](r, "DHCP_Options")
 	RegisterModel[nb.DNS](r, "DNS")
 	RegisterModel[nb.StaticMACBinding](r, "Static_MAC_Binding")
-	RegisterModel[nb.HAChassis](r, "HA_Chassis", "chassis_name", "external_ids")
-	RegisterModel[nb.GatewayChassis](r, "Gateway_Chassis", "chassis_name", "name", "external_ids", "options")
+	RegisterModel[nb.HAChassis](r, "HA_Chassis", "chassis_name")
+	RegisterModel[nb.GatewayChassis](r, "Gateway_Chassis", "chassis_name", "name", "options")
 
 	// SB tables — delete-only (for stale entry cleanup)
 	RegisterSBModel[sb.MACBinding](r, "MAC_Binding")
