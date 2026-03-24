@@ -6,6 +6,7 @@
   import {
     requestFailover,
     requestEvacuate,
+    requestRestore,
     applyPlan,
     cancelPlan,
     type Plan,
@@ -82,6 +83,7 @@
     hostname: string;
     priority: number;
     isActive: boolean;
+    isDrained: boolean;
   }
 
   interface ResolvedGroup {
@@ -119,7 +121,9 @@
     activeChassisName: string;
   } | null = $state(null);
   let evacuateTarget: string | null = $state(null);
+  let restoreTarget: string | null = $state(null);
   let showEvacuateDropdown = $state(false);
+  let showRestoreDropdown = $state(false);
   let pendingPlan: Plan | null = $state(null);
   let actionLoading = $state(false);
   let actionError = $state('');
@@ -132,6 +136,14 @@
     hostname: string;
     activeInGroups: string[];
   }
+
+  interface DrainedChassisInfo {
+    name: string;
+    hostname: string;
+    drainedInGroups: string[];
+  }
+
+  let drainedChassisInfo: DrainedChassisInfo[] = $state([]);
 
   let activeChassisInfo = $derived.by(() => {
     const map = new SvelteMap<string, ActiveChassisInfo>();
@@ -296,6 +308,55 @@
         }
       }
 
+      // --- Detect drained chassis from NB data ---
+      const chassisHostnameByName = new SvelteMap<string, string>();
+      for (const ch of sbChassisList) {
+        chassisHostnameByName.set(ch.name, ch.hostname);
+      }
+
+      const drainedMap = new SvelteMap<string, DrainedChassisInfo>();
+
+      function recordDrained(
+        chassisName: string,
+        groupName: string,
+        externalIds: Record<string, string> | undefined,
+      ) {
+        if (!externalIds?.['northwatch:pre-drain-priority']) return;
+        const existing = drainedMap.get(chassisName);
+        if (existing) {
+          existing.drainedInGroups.push(groupName);
+        } else {
+          drainedMap.set(chassisName, {
+            name: chassisName,
+            hostname: chassisHostnameByName.get(chassisName) || '',
+            drainedInGroups: [groupName],
+          });
+        }
+      }
+
+      for (const nbGroup of nbHaGroups) {
+        for (const hcUuid of nbGroup.ha_chassis) {
+          const hc = nbChassisMap.get(hcUuid);
+          if (hc && hc.priority === 0) {
+            recordDrained(hc.chassis_name, nbGroup.name, hc.external_ids);
+          }
+        }
+      }
+
+      for (const lrp of nbLrps) {
+        if (!lrp.gateway_chassis || lrp.gateway_chassis.length === 0) continue;
+        for (const gwUuid of lrp.gateway_chassis) {
+          const gw = nbGwChassisMap.get(gwUuid);
+          if (gw && gw.priority === 0) {
+            recordDrained(gw.chassis_name, lrp.name, gw.external_ids);
+          }
+        }
+      }
+
+      drainedChassisInfo = [...drainedMap.values()].sort(
+        (a, b) => b.drainedInGroups.length - a.drainedInGroups.length,
+      );
+
       hasNbGroups = nbKeyToGroupInfo.size > 0;
 
       // --- Resolve SB groups for display, with NB name mapping ---
@@ -324,13 +385,15 @@
               memberChassisNames.push(chassisRecord.name);
             }
 
+            const chassisName = chassisRecord?.name ?? hc.chassis ?? 'unknown';
             return {
               uuid: hc._uuid,
               chassisUuid: hc.chassis,
-              chassisName: chassisRecord?.name ?? hc.chassis ?? 'unknown',
+              chassisName,
               hostname: chassisRecord?.hostname ?? '',
               priority: hc.priority,
               isActive: hc.chassis === activeChassis && activeChassis !== null,
+              isDrained: drainedMap.has(chassisName),
             } satisfies ResolvedChassisEntry;
           })
           .filter((e): e is ResolvedChassisEntry => e !== null)
@@ -380,7 +443,9 @@
   function clearAction() {
     failoverTarget = null;
     evacuateTarget = null;
+    restoreTarget = null;
     showEvacuateDropdown = false;
+    showRestoreDropdown = false;
     pendingPlan = null;
     actionLoading = false;
     actionError = '';
@@ -424,6 +489,21 @@
     }
   }
 
+  async function startRestore(chassisName: string) {
+    clearAction();
+    restoreTarget = chassisName;
+    actionLoading = true;
+    actionError = '';
+    try {
+      pendingPlan = await requestRestore({ chassis_name: chassisName });
+    } catch (e) {
+      actionError =
+        e instanceof Error ? e.message : 'Failed to preview restore';
+    } finally {
+      actionLoading = false;
+    }
+  }
+
   async function confirmApply() {
     if (!pendingPlan) return;
     actionLoading = true;
@@ -432,7 +512,9 @@
       await applyPlan(pendingPlan.id, pendingPlan.apply_token, 'northwatch-ui');
       actionSuccess = failoverTarget
         ? `Failover completed: ${failoverTarget.activeChassisName} \u2192 ${failoverTarget.targetChassis}`
-        : `Evacuation of ${evacuateTarget} completed`;
+        : evacuateTarget
+          ? `Evacuation of ${evacuateTarget} completed`
+          : `Restore of chassis ${restoreTarget} completed`;
       pendingPlan = null;
       // Reload data after short delay to let OVN process
       setTimeout(() => {
@@ -488,10 +570,23 @@
           class="btn btn-outline btn-warning btn-sm"
           onclick={() => {
             showEvacuateDropdown = !showEvacuateDropdown;
+            showRestoreDropdown = false;
             if (!showEvacuateDropdown) clearAction();
           }}
         >
           Evacuate Chassis
+        </button>
+      {/if}
+      {#if $writeEnabled && drainedChassisInfo.length > 0}
+        <button
+          class="btn btn-outline btn-success btn-sm"
+          onclick={() => {
+            showRestoreDropdown = !showRestoreDropdown;
+            showEvacuateDropdown = false;
+            if (!showRestoreDropdown) clearAction();
+          }}
+        >
+          Restore Chassis
         </button>
       {/if}
 
@@ -518,8 +613,8 @@
           <div>
             <div class="text-sm font-semibold">Select chassis to evacuate</div>
             <div class="text-xs text-base-content/60">
-              Evacuating a chassis swaps priorities so it is no longer active in
-              any HA group.
+              Drains a chassis by setting its priority to 0 in all HA groups,
+              letting OVN promote the next-highest-priority chassis.
             </div>
           </div>
           <button
@@ -590,8 +685,87 @@
       </div>
     {/if}
 
-    <!-- Evacuate / Failover confirmation panel -->
-    {#if (failoverTarget || evacuateTarget) && (pendingPlan || actionLoading || actionError || actionSuccess)}
+    <!-- Restore chassis selection panel -->
+    {#if showRestoreDropdown && !restoreTarget}
+      <div
+        class="mb-4 rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <div class="text-sm font-semibold">Select chassis to restore</div>
+            <div class="text-xs text-base-content/60">
+              Restores a previously drained chassis to its original priority
+              (standby).
+            </div>
+          </div>
+          <button
+            class="btn btn-ghost btn-sm"
+            aria-label="Close"
+            onclick={() => {
+              showRestoreDropdown = false;
+              clearAction();
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Chassis</th>
+                <th>Hostname</th>
+                <th>Drained in</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each drainedChassisInfo as chassis (chassis.name)}
+                <tr class="hover">
+                  <td class="font-mono text-sm">{chassis.name}</td>
+                  <td class="text-sm text-base-content/70"
+                    >{chassis.hostname || '—'}</td
+                  >
+                  <td>
+                    <span class="badge badge-error badge-sm">
+                      {chassis.drainedInGroups.length} group{chassis
+                        .drainedInGroups.length !== 1
+                        ? 's'
+                        : ''}
+                    </span>
+                  </td>
+                  <td class="text-right">
+                    <button
+                      class="btn btn-outline btn-success btn-xs"
+                      onclick={() => startRestore(chassis.name)}
+                      disabled={actionLoading}
+                    >
+                      Restore
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Evacuate / Failover / Restore confirmation panel -->
+    {#if (failoverTarget || evacuateTarget || restoreTarget) && (pendingPlan || actionLoading || actionError || actionSuccess)}
       <div class="mb-4 rounded-lg border-2 border-warning bg-warning/5 p-4">
         {#if actionSuccess}
           <div class="flex items-center gap-2 text-sm text-success">
@@ -638,6 +812,13 @@
                 {:else if evacuateTarget}
                   <div class="text-sm font-semibold">
                     Evacuate: {evacuateTarget}
+                  </div>
+                  <div class="text-xs text-base-content/60">
+                    {pendingPlan.diffs.length} group(s) affected
+                  </div>
+                {:else if restoreTarget}
+                  <div class="text-sm font-semibold">
+                    Restore: {restoreTarget}
                   </div>
                   <div class="text-xs text-base-content/60">
                     {pendingPlan.diffs.length} group(s) affected
@@ -813,6 +994,9 @@
                         {#if entry.isActive}
                           <span class="badge badge-success badge-sm"
                             >ACTIVE</span
+                          >
+                        {:else if entry.isDrained}
+                          <span class="badge badge-error badge-sm">DRAINED</span
                           >
                         {:else if idx === 0 && !group.activeChassis}
                           <span class="badge badge-warning badge-sm"

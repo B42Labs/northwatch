@@ -138,3 +138,11 @@ export function requestFailover(req: FailoverRequest): Promise<Plan> {
 export function requestEvacuate(req: EvacuateRequest): Promise<Plan> {
   return post('/api/v1/write/evacuate', req);
 }
+
+export interface RestoreRequest {
+  chassis_name: string;
+}
+
+export function requestRestore(req: RestoreRequest): Promise<Plan> {
+  return post('/api/v1/write/restore', req);
+}
