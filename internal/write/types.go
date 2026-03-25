@@ -3,6 +3,8 @@ package write
 import (
 	"errors"
 	"time"
+
+	"github.com/b42labs/northwatch/internal/impact"
 )
 
 // InputError represents a user-facing validation or "not found" error, as
@@ -39,6 +41,13 @@ type Plan struct {
 	SnapshotID int64            `json:"snapshot_id"`
 	Status     string           `json:"status"` // "pending", "applied", "expired", "failed", "dry-run"
 	ApplyToken string           `json:"apply_token"`
+	Impact     []ImpactEntry    `json:"impact,omitempty"`
+}
+
+// ImpactEntry holds the impact analysis for a single delete operation within a plan.
+type ImpactEntry struct {
+	OperationIndex int                  `json:"operation_index"`
+	Result         *impact.ImpactResult `json:"result"`
 }
 
 // PlanDiff shows what one operation will change.

@@ -25,6 +25,34 @@ export interface PlanDiff {
   fields: FieldChange[];
 }
 
+export interface ImpactNode {
+  database: string;
+  table: string;
+  uuid: string;
+  name?: string;
+  ref_type: 'root' | 'strong' | 'weak' | 'reverse' | 'correlation';
+  column?: string;
+  children?: ImpactNode[];
+}
+
+export interface ImpactSummary {
+  total_affected: number;
+  by_table: Record<string, number>;
+  by_ref_type: Record<string, number>;
+  max_depth: number;
+  truncated: boolean;
+}
+
+export interface ImpactResult {
+  root: ImpactNode;
+  summary: ImpactSummary;
+}
+
+export interface ImpactEntry {
+  operation_index: number;
+  result: ImpactResult;
+}
+
 export interface Plan {
   id: string;
   created_at: string;
@@ -34,6 +62,7 @@ export interface Plan {
   snapshot_id: number;
   status: 'pending' | 'applied' | 'expired' | 'failed' | 'dry-run';
   apply_token: string;
+  impact?: ImpactEntry[];
 }
 
 export interface AuditEntry {
@@ -118,6 +147,16 @@ export function listAuditEntries(limit?: number): Promise<AuditEntry[]> {
 
 export function getAuditEntry(id: number): Promise<AuditEntry> {
   return get(`/api/v1/write/audit/${id}`);
+}
+
+// --- Impact API ---
+
+export function getImpact(
+  db: string,
+  table: string,
+  uuid: string,
+): Promise<ImpactResult> {
+  return get(`/api/v1/impact/${db}/${table}/${uuid}`);
 }
 
 // --- Failover API ---

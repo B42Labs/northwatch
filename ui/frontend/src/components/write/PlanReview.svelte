@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Plan } from '../../lib/writeApi';
   import Badge from '../ui/Badge.svelte';
+  import ImpactWarning from './ImpactWarning.svelte';
   import PlanDiffView from './PlanDiffView.svelte';
 
   let {
@@ -75,6 +76,11 @@
       </div>
     </div>
   </div>
+
+  <!-- Impact warning -->
+  {#if plan.impact && plan.impact.length > 0}
+    <ImpactWarning entries={plan.impact} />
+  {/if}
 
   <!-- Diffs -->
   <div>

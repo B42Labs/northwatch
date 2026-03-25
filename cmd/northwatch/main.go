@@ -24,6 +24,7 @@ import (
 	"github.com/b42labs/northwatch/internal/events"
 	"github.com/b42labs/northwatch/internal/flowdiff"
 	"github.com/b42labs/northwatch/internal/history"
+	"github.com/b42labs/northwatch/internal/impact"
 	"github.com/b42labs/northwatch/internal/openapi"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
@@ -196,9 +197,12 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("creating audit store: %w", err)
 		}
+		impactResolver := impact.NewResolver(def.DBs.NB, def.DBs.SB)
 		writeEngine := write.NewEngine(def.DBs.NB, def.DBs.SB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
+		writeEngine.SetResolver(impactResolver)
 		handler.RegisterWrite(mux, writeEngine)
 		handler.RegisterFailover(mux, writeEngine)
+		handler.RegisterImpact(mux, impactResolver)
 		fmt.Println("Write operations enabled")
 	}
 

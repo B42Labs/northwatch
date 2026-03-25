@@ -16,6 +16,7 @@ import (
 
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/history"
+	"github.com/b42labs/northwatch/internal/impact"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
 )
@@ -31,6 +32,7 @@ type Engine struct {
 	secret      []byte
 	mu          sync.Mutex
 	rateLimiter *rateLimiter
+	resolver    *impact.Resolver // optional, enables impact analysis on delete operations
 }
 
 // NewEngine creates a new write Engine with the given rate limit (operations per minute, 0 = unlimited).
@@ -55,6 +57,11 @@ func NewEngine(nbClient, sbClient client.Client, registry *Registry, collector *
 	}
 	go cache.StartCleanup(planTTL)
 	return e
+}
+
+// SetResolver sets the impact resolver for computing dependency analysis on delete operations.
+func (e *Engine) SetResolver(r *impact.Resolver) {
+	e.resolver = r
 }
 
 // Schema returns the schema for all writable tables.
@@ -93,6 +100,7 @@ func (e *Engine) Preview(ctx context.Context, ops []WriteOperation) (*Plan, erro
 		SnapshotID: snap.ID,
 		Status:     "pending",
 		ApplyToken: token,
+		Impact:     e.computeImpact(ctx, ops),
 	}
 
 	e.plans.Store(plan)
@@ -159,6 +167,7 @@ func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error
 		Operations: ops,
 		Diffs:      diffs,
 		Status:     "dry-run",
+		Impact:     e.computeImpact(ctx, ops),
 	}
 	return plan, nil
 }
@@ -548,6 +557,33 @@ func (e *Engine) transactOps(ctx context.Context, c client.Client, ops []WriteOp
 		return fmt.Errorf("operation failed: %w", err)
 	}
 	return nil
+}
+
+// computeImpact runs impact analysis for delete operations if a resolver is configured.
+func (e *Engine) computeImpact(ctx context.Context, ops []WriteOperation) []ImpactEntry {
+	if e.resolver == nil {
+		return nil
+	}
+
+	var entries []ImpactEntry
+	for i, op := range ops {
+		if op.Action != "delete" || op.UUID == "" {
+			continue
+		}
+		spec, err := e.registry.Get(op.Table)
+		if err != nil {
+			continue
+		}
+		result, err := e.resolver.Resolve(ctx, spec.Database, op.Table, op.UUID)
+		if err != nil || result.Summary.TotalAffected == 0 {
+			continue
+		}
+		entries = append(entries, ImpactEntry{
+			OperationIndex: i,
+			Result:         result,
+		})
+	}
+	return entries
 }
 
 // generateID creates a short random hex ID.
