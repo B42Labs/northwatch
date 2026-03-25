@@ -103,6 +103,12 @@ func run() error {
 		// Telemetry querier
 		telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
 
+		// Propagation tracker
+		propStore := telemetry.NewPropagationStore(50000, 24*time.Hour)
+		propTracker := telemetry.NewPropagationTracker(eventHub, propStore, dbs.NB, dbs.SB)
+		stopPropTracker := propTracker.Start(context.Background())
+		stopFuncs = append(stopFuncs, stopPropTracker)
+
 		// Alert engine
 		alertEngine := alert.NewEngine(eventHub, 30*time.Second)
 		alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
@@ -143,6 +149,7 @@ func run() error {
 			PortDiagnoser:       diagnoser,
 			ACLAuditor:          aclAuditor,
 			StaleDetector:       staleDetector,
+			PropagationStore:    propStore,
 		}
 		reg.Register(cc.Name, c)
 	}
@@ -215,7 +222,7 @@ func run() error {
 	handler.RegisterFlowDiff(mux, def.FlowDiff)
 	handler.RegisterHistory(mux, historyStore, historyCollector)
 	handler.RegisterSearch(mux, def.SearchEngine)
-	handler.RegisterTelemetry(mux, def.Telemetry, promRegistry)
+	handler.RegisterTelemetry(mux, def.Telemetry, promRegistry, def.PropagationStore)
 	handler.RegisterAlerts(mux, def.AlertEngine)
 	handler.RegisterClusters(mux, reg)
 	handler.RegisterOpenAPI(mux, openapi.BuildSpec())
@@ -233,7 +240,7 @@ func run() error {
 			handler.RegisterSearch(subMux, c.SearchEngine)
 			handler.RegisterFlowDiff(subMux, c.FlowDiff)
 			handler.RegisterAlerts(subMux, c.AlertEngine)
-			handler.RegisterTelemetry(subMux, c.Telemetry, nil)
+			handler.RegisterTelemetry(subMux, c.Telemetry, nil, c.PropagationStore)
 			handler.RegisterWS(subMux, c.EventHub)
 			handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser, c.ACLAuditor, c.StaleDetector)
 			handler.RegisterTrace(subMux, c.DBs.SB, traceStore)

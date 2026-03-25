@@ -33,6 +33,7 @@
   import StaleEntries from './routes/StaleEntries.svelte';
   import LoadBalancers from './routes/LoadBalancers.svelte';
   import RaftHealth from './routes/RaftHealth.svelte';
+  import PropagationTimeline from './routes/PropagationTimeline.svelte';
   let route = $derived(resolveRoute($location));
 </script>
 
@@ -105,6 +106,8 @@
     <LoadBalancers />
   {:else if route.component === 'raft-health'}
     <RaftHealth />
+  {:else if route.component === 'propagation-timeline'}
+    <PropagationTimeline />
   {:else}
     <NotFound />
   {/if}

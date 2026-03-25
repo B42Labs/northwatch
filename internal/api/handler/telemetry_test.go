@@ -22,7 +22,7 @@ func TestTelemetrySummary(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	mux := http.NewServeMux()
-	RegisterTelemetry(mux, querier, registry)
+	RegisterTelemetry(mux, querier, registry, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/telemetry/summary", nil)
 	w := httptest.NewRecorder()
@@ -46,7 +46,7 @@ func TestTelemetryFlows(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	mux := http.NewServeMux()
-	RegisterTelemetry(mux, querier, registry)
+	RegisterTelemetry(mux, querier, registry, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/telemetry/flows", nil)
 	w := httptest.NewRecorder()
@@ -67,7 +67,7 @@ func TestTelemetryPropagation(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	mux := http.NewServeMux()
-	RegisterTelemetry(mux, querier, registry)
+	RegisterTelemetry(mux, querier, registry, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/telemetry/propagation", nil)
 	w := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestTelemetryCluster(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	mux := http.NewServeMux()
-	RegisterTelemetry(mux, querier, registry)
+	RegisterTelemetry(mux, querier, registry, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/telemetry/cluster", nil)
 	w := httptest.NewRecorder()
@@ -109,7 +109,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	registry.MustRegister(collector)
 
 	mux := http.NewServeMux()
-	RegisterTelemetry(mux, querier, registry)
+	RegisterTelemetry(mux, querier, registry, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/metrics", nil)
 	w := httptest.NewRecorder()

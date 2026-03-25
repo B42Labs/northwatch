@@ -230,6 +230,14 @@
               Raft Health
             </a>
           </li>
+          <li>
+            <a
+              href={link('/propagation-timeline')}
+              class:active={isActive($location, '/propagation-timeline')}
+            >
+              Propagation Timeline
+            </a>
+          </li>
         </ul>
       {/if}
     </li>

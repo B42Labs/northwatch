@@ -176,6 +176,12 @@
               >Raft Health</a
             >
           </li>
+          <li>
+            <a
+              href={link('/propagation-timeline')}
+              class="link-hover link text-sm">Propagation Timeline</a
+            >
+          </li>
         </ul>
       </div>
     </div>

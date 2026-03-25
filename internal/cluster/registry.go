@@ -30,6 +30,7 @@ type Cluster struct {
 	PortDiagnoser        *debug.PortDiagnoser
 	ACLAuditor           *debug.ACLAuditor
 	StaleDetector        *debug.StaleDetector
+	PropagationStore     *telemetry.PropagationStore
 }
 
 // Registry manages multiple named clusters.

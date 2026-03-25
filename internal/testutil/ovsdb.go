@@ -240,6 +240,88 @@ func InsertPortBindingWithUp(t *testing.T, c client.Client, logicalPort, pbType 
 	return uuid
 }
 
+// InsertChassisPrivate inserts a Chassis_Private row.
+func InsertChassisPrivate(t *testing.T, c client.Client, name string, chassisUUID *string, nbCfg, nbCfgTimestamp int) string {
+	t.Helper()
+	cp := &sb.ChassisPrivate{
+		Name:           name,
+		Chassis:        chassisUUID,
+		NbCfg:          nbCfg,
+		NbCfgTimestamp: nbCfgTimestamp,
+		ExternalIDs:    map[string]string{},
+	}
+	ops, err := c.Create(cp)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	uuid := reply[0].UUID.GoUUID
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &sb.ChassisPrivate{UUID: uuid}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+	return uuid
+}
+
+// UpdateNBGlobal updates the NB_Global row's nb_cfg and nb_cfg_timestamp fields.
+func UpdateNBGlobal(t *testing.T, c client.Client, nbCfg, nbCfgTimestamp int) {
+	t.Helper()
+	var globals []nb.NBGlobal
+	require.NoError(t, c.List(context.Background(), &globals))
+	require.NotEmpty(t, globals)
+	g := &globals[0]
+	g.NbCfg = nbCfg
+	g.NbCfgTimestamp = nbCfgTimestamp
+	ops, err := c.Where(g).Update(g, &g.NbCfg, &g.NbCfgTimestamp)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var gs []nb.NBGlobal
+		if err := c.List(context.Background(), &gs); err != nil || len(gs) == 0 {
+			return false
+		}
+		return gs[0].NbCfg == nbCfg
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// UpdateChassisPrivate updates a Chassis_Private row's nb_cfg and nb_cfg_timestamp.
+func UpdateChassisPrivate(t *testing.T, c client.Client, name string, nbCfg, nbCfgTimestamp int) {
+	t.Helper()
+	var privates []sb.ChassisPrivate
+	require.NoError(t, c.List(context.Background(), &privates))
+	var target *sb.ChassisPrivate
+	for i := range privates {
+		if privates[i].Name == name {
+			target = &privates[i]
+			break
+		}
+	}
+	require.NotNil(t, target, "Chassis_Private %q not found", name)
+	target.NbCfg = nbCfg
+	target.NbCfgTimestamp = nbCfgTimestamp
+	ops, err := c.Where(target).Update(target, &target.NbCfg, &target.NbCfgTimestamp)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var ps []sb.ChassisPrivate
+		if err := c.List(context.Background(), &ps); err != nil {
+			return false
+		}
+		for _, p := range ps {
+			if p.Name == name && p.NbCfg == nbCfg {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 // HAChassisEntry describes a single HA_Chassis member for InsertHAChassisGroup.
 type HAChassisEntry struct {
 	ChassisUUID string

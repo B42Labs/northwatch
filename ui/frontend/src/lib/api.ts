@@ -471,3 +471,61 @@ export function queryEvents(opts?: {
   const qs = params.toString();
   return get(`/api/v1/events${qs ? '?' + qs : ''}`);
 }
+
+// --- Propagation Timeline ---
+
+export interface PropagationEvent {
+  generation: number;
+  nb_timestamp_ms: number;
+  chassis: string;
+  hostname: string;
+  chassis_timestamp_ms: number;
+  latency_ms: number;
+  recorded_at: number;
+}
+
+export interface PropagationTimelineResponse {
+  events: PropagationEvent[];
+  current_generation: number;
+  count: number;
+}
+
+export interface ChassisPropSummary {
+  chassis: string;
+  hostname: string;
+  count: number;
+  avg_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  p99_ms: number;
+  max_ms: number;
+  min_ms: number;
+}
+
+export interface PropagationHeatmapResponse {
+  chassis: ChassisPropSummary[];
+  current_generation: number;
+  since: number;
+}
+
+export function getPropagationTimeline(opts?: {
+  chassis?: string;
+  since?: number;
+  limit?: number;
+}): Promise<PropagationTimelineResponse> {
+  const params = new URLSearchParams();
+  if (opts?.chassis) params.set('chassis', opts.chassis);
+  if (opts?.since) params.set('since', String(opts.since));
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return get(`/api/v1/telemetry/propagation/timeline${qs ? '?' + qs : ''}`);
+}
+
+export function getPropagationHeatmap(opts?: {
+  since?: number;
+}): Promise<PropagationHeatmapResponse> {
+  const params = new URLSearchParams();
+  if (opts?.since) params.set('since', String(opts.since));
+  const qs = params.toString();
+  return get(`/api/v1/telemetry/propagation/heatmap${qs ? '?' + qs : ''}`);
+}
