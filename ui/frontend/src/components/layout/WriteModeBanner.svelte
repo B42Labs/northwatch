@@ -23,7 +23,7 @@
       />
     </svg>
     <span class="text-sm font-semibold">
-      Write Mode aktiv — Änderungen an OVN sind freigeschaltet
+      Write mode active — changes to OVN are enabled
     </span>
   </div>
 {/if}
