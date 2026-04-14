@@ -40,10 +40,11 @@ type Engine struct {
 // After construction, callers should invoke Start to begin background plan cache cleanup
 // and call the returned stop function during shutdown.
 // sbClient is optional (may be nil) and enables SB-aware active chassis detection for failover/evacuate.
-func NewEngine(nbClient, sbClient client.Client, registry *Registry, collector *history.Collector, auditStore *AuditStore, planTTL time.Duration, rateLimit int) *Engine {
+// Returns an error only if crypto/rand fails to seed the apply-token secret.
+func NewEngine(nbClient, sbClient client.Client, registry *Registry, collector *history.Collector, auditStore *AuditStore, planTTL time.Duration, rateLimit int) (*Engine, error) {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
-		panic(fmt.Sprintf("crypto/rand.Read failed: %v", err))
+		return nil, fmt.Errorf("seeding write engine secret: %w", err)
 	}
 	e := &Engine{
 		nbClient:   nbClient,
@@ -58,7 +59,7 @@ func NewEngine(nbClient, sbClient client.Client, registry *Registry, collector *
 	if rateLimit > 0 {
 		e.rateLimiter = newRateLimiter(rateLimit)
 	}
-	return e
+	return e, nil
 }
 
 // Start launches the background plan cache cleanup goroutine.
@@ -604,6 +605,10 @@ func (e *Engine) computeImpact(ctx context.Context, ops []WriteOperation) []Impa
 }
 
 // generateID creates a short random hex ID.
+// crypto/rand.Read failure indicates an unrecoverable system state
+// (e.g. exhausted entropy on an init-system-misconfigured host) and
+// nothing meaningful can be done with the error this deep in the call
+// chain, so we panic.
 func generateID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

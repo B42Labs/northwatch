@@ -83,7 +83,9 @@ func setupTestEngine(t *testing.T, nbClient client.Client) *Engine {
 	require.NoError(t, err)
 
 	registry := DefaultRegistry()
-	return NewEngine(nbClient, nil, registry, collector, auditStore, 5*time.Minute, 0)
+	engine, err := NewEngine(nbClient, nil, registry, collector, auditStore, 5*time.Minute, 0)
+	require.NoError(t, err)
+	return engine
 }
 
 // haChassisSpec describes an HA_Chassis entry to create.

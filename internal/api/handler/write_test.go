@@ -29,7 +29,9 @@ func setupTestWriteEngine(t *testing.T) *write.Engine {
 
 	registry := write.DefaultRegistry()
 	// Pass nil nbClient and nil collector — tests that need them will fail gracefully.
-	return write.NewEngine(nil, nil, registry, nil, auditStore, 5*time.Minute, 0)
+	engine, err := write.NewEngine(nil, nil, registry, nil, auditStore, 5*time.Minute, 0)
+	require.NoError(t, err)
+	return engine
 }
 
 func TestWritePreview_EmptyBody(t *testing.T) {

@@ -28,7 +28,8 @@ func setupFailoverMux(t *testing.T) *http.ServeMux {
 	require.NoError(t, err)
 
 	// nil nbClient is fine — validation tests never reach the engine's OVSDB calls.
-	engine := write.NewEngine(nil, nil, write.DefaultRegistry(), nil, auditStore, 5*time.Minute, 0)
+	engine, err := write.NewEngine(nil, nil, write.DefaultRegistry(), nil, auditStore, 5*time.Minute, 0)
+	require.NoError(t, err)
 
 	mux := http.NewServeMux()
 	RegisterFailover(mux, engine)

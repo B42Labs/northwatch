@@ -202,7 +202,10 @@ func run() error {
 			return fmt.Errorf("creating audit store: %w", err)
 		}
 		impactResolver := impact.NewResolver(def.DBs.NB, def.DBs.SB)
-		writeEngine := write.NewEngine(def.DBs.NB, def.DBs.SB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
+		writeEngine, err := write.NewEngine(def.DBs.NB, def.DBs.SB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
+		if err != nil {
+			return fmt.Errorf("creating write engine: %w", err)
+		}
 		writeEngine.SetResolver(impactResolver)
 		stopWriteEngine := writeEngine.Start(context.Background())
 		stopFuncs = append(stopFuncs, stopWriteEngine)
