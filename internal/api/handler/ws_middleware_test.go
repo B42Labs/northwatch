@@ -19,7 +19,7 @@ import (
 func TestWebSocket_ThroughMiddleware(t *testing.T) {
 	hub := events.NewHub()
 	mux := http.NewServeMux()
-	RegisterWS(mux, hub)
+	RegisterWS(mux, hub, nil)
 
 	registry := prometheus.NewRegistry()
 	m := telemetry.NewMiddleware(registry)
@@ -43,7 +43,7 @@ func TestWebSocket_ThroughMiddleware(t *testing.T) {
 func TestWebSocket_ThroughMiddleware_RealServer(t *testing.T) {
 	hub := events.NewHub()
 	mux := http.NewServeMux()
-	RegisterWS(mux, hub)
+	RegisterWS(mux, hub, nil)
 
 	registry := prometheus.NewRegistry()
 	m := telemetry.NewMiddleware(registry)

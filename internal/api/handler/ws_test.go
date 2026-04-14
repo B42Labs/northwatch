@@ -17,7 +17,7 @@ import (
 func TestWebSocket_FullLifecycle(t *testing.T) {
 	hub := events.NewHub()
 	mux := http.NewServeMux()
-	RegisterWS(mux, hub)
+	RegisterWS(mux, hub, nil)
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -98,7 +98,7 @@ func TestWebSocket_FullLifecycle(t *testing.T) {
 func TestWebSocket_UpdateEvent(t *testing.T) {
 	hub := events.NewHub()
 	mux := http.NewServeMux()
-	RegisterWS(mux, hub)
+	RegisterWS(mux, hub, nil)
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

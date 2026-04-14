@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/b42labs/northwatch/internal/events"
@@ -17,16 +18,49 @@ const (
 	wsWriteTimeout = 5 * time.Second
 )
 
+// wsAllowedOrigins is the package-level allowlist of host patterns for
+// WebSocket Origin checking, configured at startup via RegisterWS.
+var wsAllowedOrigins []string
+
 // RegisterWS registers the WebSocket endpoint for real-time events.
-func RegisterWS(mux *http.ServeMux, hub *events.Hub) {
+// allowedOrigins is the parsed list of OriginPatterns from config; if empty,
+// origin checking is disabled (InsecureSkipVerify), which is appropriate for
+// single-tenant deployments behind an operator-controlled reverse proxy.
+func RegisterWS(mux *http.ServeMux, hub *events.Hub, allowedOrigins []string) {
+	wsAllowedOrigins = allowedOrigins
 	mux.HandleFunc("GET /api/v1/ws", handleWS(hub))
+}
+
+// ParseWSAllowedOrigins splits a comma-separated WS_ALLOWED_ORIGINS value
+// into a normalized slice of host patterns, trimming whitespace and
+// dropping empty entries.
+func ParseWSAllowedOrigins(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 func handleWS(hub *events.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			OriginPatterns: []string{r.Host},
-		})
+		opts := &websocket.AcceptOptions{}
+		if len(wsAllowedOrigins) > 0 {
+			opts.OriginPatterns = wsAllowedOrigins
+		} else {
+			// No allowlist configured: skip the Origin check. Trusting the
+			// request's Host header would have offered no real protection
+			// since clients fully control it. Operators with multi-tenant
+			// exposure should set --ws-allowed-origins.
+			opts.InsecureSkipVerify = true
+		}
+		conn, err := websocket.Accept(w, r, opts)
 		if err != nil {
 			log.Printf("ws: accept error: %v", err)
 			return

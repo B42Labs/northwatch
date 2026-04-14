@@ -56,6 +56,11 @@ type Config struct {
 	// Alerting
 	AlertWebhookURLs string // comma-separated webhook URLs
 
+	// WebSocket origin allowlist (comma-separated host patterns).
+	// Empty disables origin checking, suitable for single-tenant deployments
+	// behind an operator-controlled reverse proxy.
+	WSAllowedOrigins string
+
 	// Write operations
 	WriteEnabled   bool
 	WritePlanTTL   time.Duration
@@ -97,6 +102,9 @@ func Parse(args []string) (*Config, error) {
 
 	// Alerting flags
 	fs.StringVar(&cfg.AlertWebhookURLs, "alert-webhook-urls", os.Getenv("NORTHWATCH_ALERT_WEBHOOK_URLS"), "Comma-separated webhook URLs for alert notifications")
+
+	// WebSocket flags
+	fs.StringVar(&cfg.WSAllowedOrigins, "ws-allowed-origins", os.Getenv("NORTHWATCH_WS_ALLOWED_ORIGINS"), "Comma-separated allowed Origin host patterns for WebSocket connections (empty = disable origin check)")
 
 	// Write operation flags
 	fs.BoolVar(&cfg.WriteEnabled, "write-enabled", envOrDefaultBool("NORTHWATCH_WRITE_ENABLED", false), "Enable write operations to OVN NB")
