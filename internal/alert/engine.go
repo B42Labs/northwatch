@@ -164,18 +164,18 @@ func (e *Engine) evaluate(ctx context.Context) {
 			fp := a.fingerprint()
 			seen[fp] = true
 
-			e.mu.RLock()
+			// Hold the write lock for the entire check-and-insert so two
+			// concurrent evaluations cannot both insert the same alert.
+			e.mu.Lock()
 			_, exists := e.active[fp]
-			e.mu.RUnlock()
-
 			if !exists {
 				a.State = StateFiring
 				a.FiredAt = now
-
-				e.mu.Lock()
 				e.active[fp] = a
-				e.mu.Unlock()
+			}
+			e.mu.Unlock()
 
+			if !exists {
 				e.publishEvent(a, events.EventInsert)
 				notifications = append(notifications, a)
 			}
