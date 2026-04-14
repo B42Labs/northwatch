@@ -627,6 +627,39 @@ events:
 
 Also configurable via environment variables: `NORTHWATCH_CLUSTERS_0_OVN_NB_ADDRESSES`, etc.
 
+### CLI Flags & Environment Variables
+
+The current binary is configured via command-line flags. Every flag has an
+equivalent environment variable; flags take precedence over env vars.
+
+| Flag                       | Env var                              | Default                      | Description                                                                                                       |
+|----------------------------|--------------------------------------|------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `--listen`                 | `NORTHWATCH_LISTEN`                  | `:8080`                      | HTTP listen address.                                                                                              |
+| `--ovn-nb-addr`            | `NORTHWATCH_OVN_NB_ADDR`             | (required)                   | OVN Northbound DB address. Comma-separated for failover.                                                          |
+| `--ovn-sb-addr`            | `NORTHWATCH_OVN_SB_ADDR`             | (required)                   | OVN Southbound DB address. Comma-separated for failover.                                                          |
+| `--config-file`            | `NORTHWATCH_CONFIG_FILE`             | (none)                       | Path to JSON multi-cluster config file. When set, `--ovn-nb-addr` / `--ovn-sb-addr` are ignored.                  |
+| `--os-auth-url`            | `OS_AUTH_URL`                        | (none)                       | OpenStack Keystone auth URL (enables OpenStack enrichment when set).                                              |
+| `--os-username`            | `OS_USERNAME`                        | (none)                       | OpenStack username.                                                                                               |
+| `--os-password`            | `OS_PASSWORD`                        | (none)                       | OpenStack password.                                                                                               |
+| `--os-project-name`        | `OS_PROJECT_NAME`                    | (none)                       | OpenStack project name.                                                                                           |
+| `--os-domain-name`         | `OS_USER_DOMAIN_NAME`                | (none)                       | OpenStack user domain name.                                                                                       |
+| `--os-region-name`         | `OS_REGION_NAME`                     | (none)                       | OpenStack region name.                                                                                            |
+| `--kube-enrichment`        | `NORTHWATCH_KUBE_ENRICHMENT`         | `false`                      | Enable Kubernetes enrichment.                                                                                     |
+| `--kubeconfig`             | `KUBECONFIG`                         | (none)                       | Path to kubeconfig file.                                                                                          |
+| `--kube-context`           | `NORTHWATCH_KUBE_CONTEXT`            | (none)                       | Kubeconfig context to use.                                                                                        |
+| `--enrichment-cache-ttl`   | `NORTHWATCH_ENRICHMENT_CACHE_TTL`    | `5m`                         | Enrichment cache TTL (Go duration).                                                                               |
+| `--alert-webhook-urls`     | `NORTHWATCH_ALERT_WEBHOOK_URLS`      | (none)                       | Comma-separated webhook URLs for alert notifications.                                                             |
+| `--ws-allowed-origins`     | `NORTHWATCH_WS_ALLOWED_ORIGINS`      | (none)                       | Comma-separated allowed Origin host patterns for WebSocket connections. Empty disables origin checking.           |
+| `--write-enabled`          | `NORTHWATCH_WRITE_ENABLED`           | `false`                      | Enable write operations against OVN NB.                                                                           |
+| `--write-plan-ttl`         | `NORTHWATCH_WRITE_PLAN_TTL`          | `10m`                        | TTL for write operation plans (Go duration).                                                                      |
+| `--write-rate-limit`       | `NORTHWATCH_WRITE_RATE_LIMIT`        | `30`                         | Maximum write operations per minute (0 = unlimited).                                                              |
+| `--history-db-path`        | `NORTHWATCH_HISTORY_DB_PATH`         | `northwatch-history.db`      | Path to SQLite history database.                                                                                  |
+| `--snapshot-interval`      | `NORTHWATCH_SNAPSHOT_INTERVAL`       | `5m`                         | Automatic snapshot interval (Go duration).                                                                        |
+| `--event-retention`        | `NORTHWATCH_EVENT_RETENTION`         | `24h`                        | Event log retention duration.                                                                                     |
+| `--event-max-count`        | `NORTHWATCH_EVENT_MAX_COUNT`         | `0`                          | Maximum number of events to retain (0 = unlimited).                                                               |
+
+Run `./bin/northwatch --help` to see the same list at runtime.
+
 ## Project Structure
 
 ```
