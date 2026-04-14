@@ -106,6 +106,9 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
+	// The prometheus.Collector interface does not provide a request context, so
+	// per-scrape cancellation cannot be propagated. All operations below are
+	// fast in-memory libovsdb cache reads, so context.Background() is acceptable.
 	ctx := context.Background()
 
 	// Connection status
