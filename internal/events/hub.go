@@ -11,7 +11,7 @@ const subscriberBufferSize = 256
 type Subscriber struct {
 	C       chan Event
 	id      uint64
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	filters []Filter
 }
 
@@ -56,8 +56,8 @@ func matchesTables(a []string, b map[string]bool) bool {
 
 // matches returns true if any filter matches the event.
 func (s *Subscriber) matches(e Event) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, f := range s.filters {
 		if f.Matches(e) {
 			return true
