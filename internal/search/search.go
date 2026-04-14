@@ -12,8 +12,10 @@ import (
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
+// QueryType identifies the inferred kind of a search query string.
 type QueryType string
 
+// Recognized query types returned by ClassifyQuery.
 const (
 	QueryIPv4     QueryType = "ipv4"
 	QueryIPv6     QueryType = "ipv6"
@@ -22,18 +24,21 @@ const (
 	QueryFreeText QueryType = "text"
 )
 
+// Result is the per-table search result returned to API clients.
 type Result struct {
 	Database string           `json:"database"`
 	Table    string           `json:"table"`
 	Matches  []map[string]any `json:"matches"`
 }
 
+// TableDef registers a single OVSDB table for searching.
 type TableDef struct {
 	Name      string
 	ListFunc  func(ctx context.Context) (any, error)
 	ModelType reflect.Type
 }
 
+// Engine performs cross-database searches over a fixed set of tables.
 type Engine struct {
 	nbTables []TableDef
 	sbTables []TableDef
@@ -42,6 +47,7 @@ type Engine struct {
 var uuidRegexp = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 var macRegexp = regexp.MustCompile(`^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$`)
 
+// ClassifyQuery infers the kind of a query string (IP, MAC, UUID, text).
 func ClassifyQuery(q string) QueryType {
 	q = strings.TrimSpace(q)
 	if uuidRegexp.MatchString(q) {
@@ -82,10 +88,14 @@ func RegisterTable[T any](name string, c client.Client) TableDef {
 	}
 }
 
+// NewEngine creates a search Engine over the provided NB and SB tables.
 func NewEngine(nbTables, sbTables []TableDef) *Engine {
 	return &Engine{nbTables: nbTables, sbTables: sbTables}
 }
 
+// Search executes a query against all registered tables and returns the
+// per-table matches. The query is classified internally and matched as a
+// case-insensitive substring against every string-like field.
 func (e *Engine) Search(ctx context.Context, query string) ([]Result, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {

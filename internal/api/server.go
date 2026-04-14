@@ -10,6 +10,8 @@ import (
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 )
 
+// Server is the Northwatch HTTP server. It owns the http.ServeMux that
+// individual handler packages register routes against.
 type Server struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
@@ -36,14 +38,18 @@ func NewServer(addr string, dbs *ovndb.OVNDatabases, wrappers ...func(http.Handl
 	return s
 }
 
+// Mux returns the underlying http.ServeMux so route handlers can register on it.
 func (s *Server) Mux() *http.ServeMux {
 	return s.mux
 }
 
+// Databases returns the OVN database client bundle the server was created with.
 func (s *Server) Databases() *ovndb.OVNDatabases {
 	return s.dbs
 }
 
+// ListenAndServe binds the listener using ctx for control of the bind itself
+// and then begins serving HTTP requests. Use Shutdown to stop the server.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	lc := net.ListenConfig{}
 	ln, err := lc.Listen(ctx, "tcp", s.httpServer.Addr)
@@ -54,6 +60,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	return s.httpServer.Serve(ln)
 }
 
+// Shutdown gracefully stops the HTTP server, waiting up to ctx's deadline.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }

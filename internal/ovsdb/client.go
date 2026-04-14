@@ -12,6 +12,8 @@ import (
 	"github.com/ovn-kubernetes/libovsdb/model"
 )
 
+// OVNDatabases bundles the Northbound and Southbound libovsdb client
+// connections used by Northwatch's handlers and subsystems.
 type OVNDatabases struct {
 	NB client.Client
 	SB client.Client
@@ -37,6 +39,9 @@ func splitEndpoints(addr string) []client.Option {
 	return opts
 }
 
+// Connect dials both the Northbound and Southbound OVSDB servers, populates
+// the libovsdb monitor cache, and returns a ready-to-use OVNDatabases handle.
+// On any failure, it closes the partially-opened clients before returning.
 func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.ClientDBModel) (*OVNDatabases, error) {
 	// Create clients sequentially to avoid race in libovsdb's stdr.SetVerbosity.
 	// Each client gets its own backoff instance since ExponentialBackOff is stateful.
@@ -95,10 +100,13 @@ func connectAndMonitor(ctx context.Context, c client.Client, addr string) error 
 	return nil
 }
 
+// Ready reports whether both NB and SB clients currently have an active
+// connection to their OVSDB servers.
 func (d *OVNDatabases) Ready() bool {
 	return d.NB.Connected() && d.SB.Connected()
 }
 
+// Close shuts down both NB and SB OVSDB clients.
 func (d *OVNDatabases) Close() {
 	d.NB.Close()
 	d.SB.Close()
