@@ -5,11 +5,17 @@ import (
 	"time"
 )
 
+// cleanupEvery determines how often Store sweeps expired traces.
+// One sweep per N stores keeps the work amortized so individual writes
+// remain O(1) on average instead of O(n) per call.
+const cleanupEvery = 64
+
 // TraceStore stores packet traces for later retrieval and export.
 type TraceStore struct {
-	mu     sync.RWMutex
-	traces map[string]StoredTrace
-	maxAge time.Duration
+	mu          sync.RWMutex
+	traces      map[string]StoredTrace
+	maxAge      time.Duration
+	storesSince int
 }
 
 // StoredTrace wraps a TraceResponse with metadata.
@@ -33,9 +39,13 @@ func (s *TraceStore) Store(id string, trace TraceResponse) {
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	for k, v := range s.traces {
-		if now.Sub(v.CreatedAt) > s.maxAge {
-			delete(s.traces, k)
+	s.storesSince++
+	if s.storesSince >= cleanupEvery {
+		s.storesSince = 0
+		for k, v := range s.traces {
+			if now.Sub(v.CreatedAt) > s.maxAge {
+				delete(s.traces, k)
+			}
 		}
 	}
 

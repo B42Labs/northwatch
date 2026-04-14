@@ -77,13 +77,16 @@ func TestTraceStore_StoreCleanupExpired(t *testing.T) {
 
 	time.Sleep(5 * time.Millisecond)
 
-	// Storing a new trace triggers cleanup of expired entries
-	store.Store("new", TraceResponse{PortName: "new"})
+	// Cleanup is amortized over cleanupEvery stores. Drive enough writes
+	// to guarantee one sweep occurs and removes the expired entry.
+	for i := 0; i < cleanupEvery; i++ {
+		store.Store("filler", TraceResponse{PortName: "filler"})
+	}
 
 	store.mu.RLock()
 	_, hasOld := store.traces["old"]
 	store.mu.RUnlock()
-	assert.False(t, hasOld, "expired trace should be cleaned up on Store")
+	assert.False(t, hasOld, "expired trace should be cleaned up after amortized sweep")
 }
 
 func TestTraceStore_Overwrite(t *testing.T) {
