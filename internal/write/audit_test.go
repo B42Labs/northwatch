@@ -18,7 +18,7 @@ func setupTestAuditStore(t *testing.T) *AuditStore {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	store, err := NewAuditStore(db)
+	store, err := NewAuditStore(context.Background(), db)
 	require.NoError(t, err)
 	return store
 }

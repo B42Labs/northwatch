@@ -197,7 +197,7 @@ func run() error {
 
 	// Write operations (optional, uses default cluster)
 	if cfg.WriteEnabled {
-		auditStore, err := write.NewAuditStore(historyStore.DB())
+		auditStore, err := write.NewAuditStore(ctx, historyStore.DB())
 		if err != nil {
 			return fmt.Errorf("creating audit store: %w", err)
 		}

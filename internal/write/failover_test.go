@@ -79,7 +79,7 @@ func setupTestEngine(t *testing.T, nbClient client.Client) *Engine {
 
 	collector := history.NewCollector(historyStore, nil, nil, time.Hour, time.Hour)
 
-	auditStore, err := NewAuditStore(historyStore.DB())
+	auditStore, err := NewAuditStore(context.Background(), historyStore.DB())
 	require.NoError(t, err)
 
 	registry := DefaultRegistry()

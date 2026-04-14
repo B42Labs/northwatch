@@ -24,7 +24,7 @@ func setupTestWriteEngine(t *testing.T) *write.Engine {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	auditStore, err := write.NewAuditStore(db)
+	auditStore, err := write.NewAuditStore(context.Background(), db)
 	require.NoError(t, err)
 
 	registry := write.DefaultRegistry()

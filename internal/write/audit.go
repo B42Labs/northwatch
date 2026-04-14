@@ -21,7 +21,7 @@ type AuditStore struct {
 }
 
 // NewAuditStore creates a new AuditStore, creating the table if it does not exist.
-func NewAuditStore(db *sql.DB) (*AuditStore, error) {
+func NewAuditStore(ctx context.Context, db *sql.DB) (*AuditStore, error) {
 	stmt := `CREATE TABLE IF NOT EXISTS write_audit (
 		id          INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp   DATETIME NOT NULL,
@@ -33,7 +33,7 @@ func NewAuditStore(db *sql.DB) (*AuditStore, error) {
 		result      TEXT NOT NULL DEFAULT '',
 		error_msg   TEXT NOT NULL DEFAULT ''
 	)`
-	if _, err := db.ExecContext(context.Background(), stmt); err != nil {
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
 		return nil, fmt.Errorf("creating write_audit table: %w", err)
 	}
 	return &AuditStore{db: db}, nil

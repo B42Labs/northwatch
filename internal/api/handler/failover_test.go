@@ -24,7 +24,7 @@ func setupFailoverMux(t *testing.T) *http.ServeMux {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	auditStore, err := write.NewAuditStore(db)
+	auditStore, err := write.NewAuditStore(context.Background(), db)
 	require.NoError(t, err)
 
 	// nil nbClient is fine — validation tests never reach the engine's OVSDB calls.
