@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/write"
@@ -91,6 +92,20 @@ func handleDryRun(engine *write.Engine) http.HandlerFunc {
 	}
 }
 
+// planView is the JSON shape returned by handleGetPlan. It mirrors write.Plan
+// but omits ApplyToken so that retrieving an existing plan never re-exposes
+// the apply credential — the token is only handed out by Preview.
+type planView struct {
+	ID         string                 `json:"id"`
+	CreatedAt  time.Time              `json:"created_at"`
+	ExpiresAt  time.Time              `json:"expires_at"`
+	Operations []write.WriteOperation `json:"operations"`
+	Diffs      []write.PlanDiff       `json:"diffs"`
+	SnapshotID int64                  `json:"snapshot_id"`
+	Status     string                 `json:"status"`
+	Impact     []write.ImpactEntry    `json:"impact,omitempty"`
+}
+
 func handleGetPlan(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -105,7 +120,16 @@ func handleGetPlan(engine *write.Engine) http.HandlerFunc {
 			return
 		}
 
-		api.WriteJSON(w, http.StatusOK, plan)
+		api.WriteJSON(w, http.StatusOK, planView{
+			ID:         plan.ID,
+			CreatedAt:  plan.CreatedAt,
+			ExpiresAt:  plan.ExpiresAt,
+			Operations: plan.Operations,
+			Diffs:      plan.Diffs,
+			SnapshotID: plan.SnapshotID,
+			Status:     plan.Status,
+			Impact:     plan.Impact,
+		})
 	}
 }
 
