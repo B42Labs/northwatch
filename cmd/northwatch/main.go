@@ -56,102 +56,12 @@ func run() error {
 	var stopFuncs []func()
 
 	for _, cc := range cfg.Clusters {
-		fmt.Printf("Connecting to OVN databases for cluster %q...\n", cc.Name)
-
-		nbModel, err := nb.FullDatabaseModel()
+		c, clusterStops, err := buildCluster(ctx, cfg, cc)
 		if err != nil {
-			return fmt.Errorf("cluster %q: creating NB model: %w", cc.Name, err)
-		}
-		sbModel, err := sb.FullDatabaseModel()
-		if err != nil {
-			return fmt.Errorf("cluster %q: creating SB model: %w", cc.Name, err)
-		}
-
-		dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel)
-		if err != nil {
-			reg.Close() // close any already-connected clusters
-			return fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
-		}
-		fmt.Printf("Connected to OVN databases for cluster %q\n", cc.Name)
-
-		// Correlation engine
-		cor := &correlate.Correlator{NB: dbs.NB, SB: dbs.SB}
-
-		// Enrichment provider (optional)
-		enricher, err := buildEnricher(ctx, cfg, cc)
-		if err != nil {
-			dbs.Close()
 			reg.Close()
-			return fmt.Errorf("cluster %q: %w", cc.Name, err)
+			return err
 		}
-
-		// Real-time event hub
-		eventHub := events.NewHub()
-		dbs.NB.Cache().AddEventHandler(events.NewBridge(eventHub, "nb"))
-		dbs.SB.Cache().AddEventHandler(events.NewBridge(eventHub, "sb"))
-
-		// Debug tools
-		diagnoser := &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB}
-		connectivityChecker := &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB}
-		aclAuditor := &debug.ACLAuditor{NB: dbs.NB}
-		staleDetector := &debug.StaleDetector{NB: dbs.NB, SB: dbs.SB}
-
-		// Flow diff tracking
-		flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
-		stopCollector := flowdiff.StartCollector(eventHub, flowDiffStore)
-		stopFuncs = append(stopFuncs, stopCollector)
-
-		// Telemetry querier
-		telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
-
-		// Propagation tracker
-		propStore := telemetry.NewPropagationStore(50000, 24*time.Hour)
-		propTracker := telemetry.NewPropagationTracker(eventHub, propStore, dbs.NB, dbs.SB)
-		stopPropTracker := propTracker.Start(context.Background())
-		stopFuncs = append(stopFuncs, stopPropTracker)
-
-		// Alert engine
-		alertEngine := alert.NewEngine(eventHub, 30*time.Second)
-		alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
-		alertEngine.RegisterRule(alert.PortDown(dbs.SB))
-		alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
-		alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
-		alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
-		alertEngine.RegisterRule(alert.HAFailover(dbs.SB))
-
-		// Webhook notifications (optional)
-		if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
-			notifier := alert.NewWebhookNotifier(urls)
-			alertEngine.SetNotifier(notifier.Notifier())
-			fmt.Printf("Cluster %q: alert webhook notifications enabled (%d endpoints)\n", cc.Name, len(urls))
-		}
-
-		stopAlerts := alertEngine.Start(context.Background())
-		stopFuncs = append(stopFuncs, stopAlerts)
-
-		// Search engine
-		searchEngine := search.NewEngine(
-			buildNBSearchTables(dbs),
-			buildSBSearchTables(dbs),
-		)
-
-		c := &cluster.Cluster{
-			Name:                cc.Name,
-			Label:               cc.Label,
-			DBs:                 dbs,
-			Correlator:          cor,
-			Enricher:            enricher,
-			EventHub:            eventHub,
-			SearchEngine:        searchEngine,
-			FlowDiff:            flowDiffStore,
-			AlertEngine:         alertEngine,
-			Telemetry:           telemetryQuerier,
-			ConnectivityChecker: connectivityChecker,
-			PortDiagnoser:       diagnoser,
-			ACLAuditor:          aclAuditor,
-			StaleDetector:       staleDetector,
-			PropagationStore:    propStore,
-		}
+		stopFuncs = append(stopFuncs, clusterStops...)
 		reg.Register(cc.Name, c)
 	}
 	defer reg.Close()
@@ -218,47 +128,13 @@ func run() error {
 	// Trace store (shared)
 	traceStore := handler.NewTraceStore(1 * time.Hour)
 
-	// Register default (non-prefixed) routes using the default cluster
-	handler.RegisterHealth(mux, def.DBs)
-	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster)
-	handler.RegisterNB(mux, def.DBs.NB)
-	handler.RegisterSB(mux, def.DBs.SB)
-	handler.RegisterCorrelated(mux, def.Correlator, def.Enricher)
 	wsOrigins := handler.ParseWSAllowedOrigins(cfg.WSAllowedOrigins)
-	handler.RegisterWS(mux, def.EventHub, wsOrigins)
-	handler.RegisterTopology(mux, def.DBs.NB, def.DBs.SB)
-	handler.RegisterNATTopology(mux, def.DBs.NB)
-	handler.RegisterLBTopology(mux, def.DBs.NB, def.DBs.SB)
-	handler.RegisterFlows(mux, def.DBs.SB)
-	handler.RegisterDebug(mux, def.ConnectivityChecker, def.PortDiagnoser, def.ACLAuditor, def.StaleDetector)
-	handler.RegisterTrace(mux, def.DBs.SB, traceStore)
-	handler.RegisterExport(mux, def.DBs.NB, def.DBs.SB, traceStore)
-	handler.RegisterFlowDiff(mux, def.FlowDiff)
-	handler.RegisterHistory(mux, historyStore, historyCollector)
-	handler.RegisterSearch(mux, def.SearchEngine)
-	handler.RegisterTelemetry(mux, def.Telemetry, promRegistry, def.PropagationStore)
-	handler.RegisterAlerts(mux, def.AlertEngine)
-	handler.RegisterClusters(mux, reg)
-	handler.RegisterOpenAPI(mux, openapi.BuildSpec())
+	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster)
 
 	// Multi-cluster: register cluster-prefixed routes
 	if multiCluster {
 		handler.RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
-			handler.RegisterNB(subMux, c.DBs.NB)
-			handler.RegisterSB(subMux, c.DBs.SB)
-			handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
-			handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
-			handler.RegisterNATTopology(subMux, c.DBs.NB)
-			handler.RegisterLBTopology(subMux, c.DBs.NB, c.DBs.SB)
-			handler.RegisterFlows(subMux, c.DBs.SB)
-			handler.RegisterSearch(subMux, c.SearchEngine)
-			handler.RegisterFlowDiff(subMux, c.FlowDiff)
-			handler.RegisterAlerts(subMux, c.AlertEngine)
-			handler.RegisterTelemetry(subMux, c.Telemetry, nil, c.PropagationStore)
-			handler.RegisterWS(subMux, c.EventHub, wsOrigins)
-			handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser, c.ACLAuditor, c.StaleDetector)
-			handler.RegisterTrace(subMux, c.DBs.SB, traceStore)
-			handler.RegisterExport(subMux, c.DBs.NB, c.DBs.SB, traceStore)
+			registerClusterRoutes(subMux, c, traceStore, wsOrigins)
 		})
 		fmt.Printf("Multi-cluster mode enabled with %d clusters\n", reg.Len())
 	}
@@ -284,6 +160,145 @@ func run() error {
 		defer shutdownCancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// buildCluster initializes all subsystems for a single OVN cluster and
+// returns the populated *cluster.Cluster along with the cleanup functions
+// that should run on shutdown.
+func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConfig) (*cluster.Cluster, []func(), error) {
+	fmt.Printf("Connecting to OVN databases for cluster %q...\n", cc.Name)
+
+	nbModel, err := nb.FullDatabaseModel()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cluster %q: creating NB model: %w", cc.Name, err)
+	}
+	sbModel, err := sb.FullDatabaseModel()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cluster %q: creating SB model: %w", cc.Name, err)
+	}
+
+	dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
+	}
+	fmt.Printf("Connected to OVN databases for cluster %q\n", cc.Name)
+
+	enricher, err := buildEnricher(ctx, cfg, cc)
+	if err != nil {
+		dbs.Close()
+		return nil, nil, fmt.Errorf("cluster %q: %w", cc.Name, err)
+	}
+
+	eventHub := events.NewHub()
+	dbs.NB.Cache().AddEventHandler(events.NewBridge(eventHub, "nb"))
+	dbs.SB.Cache().AddEventHandler(events.NewBridge(eventHub, "sb"))
+
+	diagnoser := &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB}
+	connectivityChecker := &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB}
+	aclAuditor := &debug.ACLAuditor{NB: dbs.NB}
+	staleDetector := &debug.StaleDetector{NB: dbs.NB, SB: dbs.SB}
+
+	flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
+	telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
+	propStore := telemetry.NewPropagationStore(50000, 24*time.Hour)
+	propTracker := telemetry.NewPropagationTracker(eventHub, propStore, dbs.NB, dbs.SB)
+
+	alertEngine := alert.NewEngine(eventHub, 30*time.Second)
+	alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
+	alertEngine.RegisterRule(alert.PortDown(dbs.SB))
+	alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
+	alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
+	alertEngine.RegisterRule(alert.FlowCountAnomaly(dbs.SB, 20.0))
+	alertEngine.RegisterRule(alert.HAFailover(dbs.SB))
+
+	if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
+		notifier := alert.NewWebhookNotifier(urls)
+		alertEngine.SetNotifier(notifier.Notifier())
+		fmt.Printf("Cluster %q: alert webhook notifications enabled (%d endpoints)\n", cc.Name, len(urls))
+	}
+
+	stopFuncs := []func(){
+		flowdiff.StartCollector(eventHub, flowDiffStore),
+		propTracker.Start(context.Background()),
+		alertEngine.Start(context.Background()),
+	}
+
+	searchEngine := search.NewEngine(buildNBSearchTables(dbs), buildSBSearchTables(dbs))
+
+	c := &cluster.Cluster{
+		Name:                cc.Name,
+		Label:               cc.Label,
+		DBs:                 dbs,
+		Correlator:          &correlate.Correlator{NB: dbs.NB, SB: dbs.SB},
+		Enricher:            enricher,
+		EventHub:            eventHub,
+		SearchEngine:        searchEngine,
+		FlowDiff:            flowDiffStore,
+		AlertEngine:         alertEngine,
+		Telemetry:           telemetryQuerier,
+		ConnectivityChecker: connectivityChecker,
+		PortDiagnoser:       diagnoser,
+		ACLAuditor:          aclAuditor,
+		StaleDetector:       staleDetector,
+		PropagationStore:    propStore,
+	}
+	return c, stopFuncs, nil
+}
+
+// registerDefaultRoutes wires up all non-prefixed (single-cluster) routes on mux.
+func registerDefaultRoutes(
+	mux *http.ServeMux,
+	reg *cluster.Registry,
+	def *cluster.Cluster,
+	cfg *config.Config,
+	historyStore *history.Store,
+	historyCollector *history.Collector,
+	promRegistry *prometheus.Registry,
+	traceStore *handler.TraceStore,
+	wsOrigins []string,
+	multiCluster bool,
+) {
+	handler.RegisterHealth(mux, def.DBs)
+	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster)
+	handler.RegisterNB(mux, def.DBs.NB)
+	handler.RegisterSB(mux, def.DBs.SB)
+	handler.RegisterCorrelated(mux, def.Correlator, def.Enricher)
+	handler.RegisterWS(mux, def.EventHub, wsOrigins)
+	handler.RegisterTopology(mux, def.DBs.NB, def.DBs.SB)
+	handler.RegisterNATTopology(mux, def.DBs.NB)
+	handler.RegisterLBTopology(mux, def.DBs.NB, def.DBs.SB)
+	handler.RegisterFlows(mux, def.DBs.SB)
+	handler.RegisterDebug(mux, def.ConnectivityChecker, def.PortDiagnoser, def.ACLAuditor, def.StaleDetector)
+	handler.RegisterTrace(mux, def.DBs.SB, traceStore)
+	handler.RegisterExport(mux, def.DBs.NB, def.DBs.SB, traceStore)
+	handler.RegisterFlowDiff(mux, def.FlowDiff)
+	handler.RegisterHistory(mux, historyStore, historyCollector)
+	handler.RegisterSearch(mux, def.SearchEngine)
+	handler.RegisterTelemetry(mux, def.Telemetry, promRegistry, def.PropagationStore)
+	handler.RegisterAlerts(mux, def.AlertEngine)
+	handler.RegisterClusters(mux, reg)
+	handler.RegisterOpenAPI(mux, openapi.BuildSpec())
+}
+
+// registerClusterRoutes wires up the per-cluster routes on a sub-mux used by
+// the cluster proxy. Telemetry is registered without a Prometheus registry
+// because metrics are only exposed at the top level.
+func registerClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore *handler.TraceStore, wsOrigins []string) {
+	handler.RegisterNB(subMux, c.DBs.NB)
+	handler.RegisterSB(subMux, c.DBs.SB)
+	handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
+	handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterNATTopology(subMux, c.DBs.NB)
+	handler.RegisterLBTopology(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterFlows(subMux, c.DBs.SB)
+	handler.RegisterSearch(subMux, c.SearchEngine)
+	handler.RegisterFlowDiff(subMux, c.FlowDiff)
+	handler.RegisterAlerts(subMux, c.AlertEngine)
+	handler.RegisterTelemetry(subMux, c.Telemetry, nil, c.PropagationStore)
+	handler.RegisterWS(subMux, c.EventHub, wsOrigins)
+	handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser, c.ACLAuditor, c.StaleDetector)
+	handler.RegisterTrace(subMux, c.DBs.SB, traceStore)
+	handler.RegisterExport(subMux, c.DBs.NB, c.DBs.SB, traceStore)
 }
 
 // buildEnricher creates an enricher for a cluster based on its config.
