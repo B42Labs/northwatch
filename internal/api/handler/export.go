@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/b42labs/northwatch/internal/api"
-	"github.com/b42labs/northwatch/internal/ovsdb/nb"
-	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
@@ -21,7 +19,6 @@ func RegisterExport(mux *http.ServeMux, nbClient, sbClient client.Client, traceS
 
 func handleExportTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
 		format := r.URL.Query().Get("format")
 		if format == "" {
 			format = "svg"
@@ -31,43 +28,13 @@ func handleExportTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 			return
 		}
 
-		var switches []nb.LogicalSwitch
-		if err := nbClient.List(ctx, &switches); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical switches")
-			return
-		}
-		var routers []nb.LogicalRouter
-		if err := nbClient.List(ctx, &routers); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical routers")
-			return
-		}
-		var lsps []nb.LogicalSwitchPort
-		if err := nbClient.List(ctx, &lsps); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical switch ports")
-			return
-		}
-		var lrps []nb.LogicalRouterPort
-		if err := nbClient.List(ctx, &lrps); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical router ports")
-			return
-		}
-		var chassisList []sb.Chassis
-		if err := sbClient.List(ctx, &chassisList); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list chassis")
-			return
-		}
-		var portBindings []sb.PortBinding
-		if err := sbClient.List(ctx, &portBindings); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list port bindings")
-			return
-		}
-		var datapaths []sb.DatapathBinding
-		if err := sbClient.List(ctx, &datapaths); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list datapath bindings")
+		data, err := fetchTopologyData(r.Context(), nbClient, sbClient)
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, "failed to fetch topology data: "+err.Error())
 			return
 		}
 
-		topo := buildTopology(switches, routers, lsps, lrps, chassisList, portBindings, datapaths, false)
+		topo := buildTopology(data.switches, data.routers, data.lsps, data.lrps, data.chassisList, data.portBindings, data.datapaths, false)
 
 		if format == "json" {
 			w.Header().Set("Content-Disposition", "attachment; filename=topology.json")

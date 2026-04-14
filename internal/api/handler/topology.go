@@ -1,7 +1,11 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
@@ -36,62 +40,82 @@ func RegisterTopology(mux *http.ServeMux, nbClient, sbClient client.Client) {
 	mux.HandleFunc("GET /api/v1/topology", handleTopology(nbClient, sbClient))
 }
 
+// topologyData holds the raw OVSDB rows needed to build a topology graph.
+type topologyData struct {
+	switches     []nb.LogicalSwitch
+	routers      []nb.LogicalRouter
+	lsps         []nb.LogicalSwitchPort
+	lrps         []nb.LogicalRouterPort
+	chassisList  []sb.Chassis
+	portBindings []sb.PortBinding
+	datapaths    []sb.DatapathBinding
+}
+
+// fetchTopologyData fetches all NB and SB tables needed for buildTopology in
+// parallel and returns them grouped together. If any List call fails the
+// returned error names the failing source.
+func fetchTopologyData(ctx context.Context, nbClient, sbClient client.Client) (*topologyData, error) {
+	var data topologyData
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := nbClient.List(gctx, &data.switches); err != nil {
+			return fmt.Errorf("logical switches: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := nbClient.List(gctx, &data.routers); err != nil {
+			return fmt.Errorf("logical routers: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := nbClient.List(gctx, &data.lsps); err != nil {
+			return fmt.Errorf("logical switch ports: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := nbClient.List(gctx, &data.lrps); err != nil {
+			return fmt.Errorf("logical router ports: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := sbClient.List(gctx, &data.chassisList); err != nil {
+			return fmt.Errorf("chassis: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := sbClient.List(gctx, &data.portBindings); err != nil {
+			return fmt.Errorf("port bindings: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := sbClient.List(gctx, &data.datapaths); err != nil {
+			return fmt.Errorf("datapath bindings: %w", err)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
 func handleTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		// 1. Fetch all logical switches → switch nodes
-		var switches []nb.LogicalSwitch
-		if err := nbClient.List(ctx, &switches); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical switches")
-			return
-		}
-
-		// 2. Fetch all logical routers → router nodes
-		var routers []nb.LogicalRouter
-		if err := nbClient.List(ctx, &routers); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical routers")
-			return
-		}
-
-		// 3. Fetch all logical switch ports
-		var lsps []nb.LogicalSwitchPort
-		if err := nbClient.List(ctx, &lsps); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical switch ports")
-			return
-		}
-
-		// 4. Fetch all logical router ports
-		var lrps []nb.LogicalRouterPort
-		if err := nbClient.List(ctx, &lrps); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical router ports")
-			return
-		}
-
-		// 5. Fetch chassis → group nodes
-		var chassisList []sb.Chassis
-		if err := sbClient.List(ctx, &chassisList); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list chassis")
-			return
-		}
-
-		// 6. Fetch port bindings for chassis assignment
-		var portBindings []sb.PortBinding
-		if err := sbClient.List(ctx, &portBindings); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list port bindings")
-			return
-		}
-
-		// 7. Fetch datapath bindings to map datapath → switch/router
-		var datapaths []sb.DatapathBinding
-		if err := sbClient.List(ctx, &datapaths); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list datapath bindings")
+		data, err := fetchTopologyData(r.Context(), nbClient, sbClient)
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, "failed to fetch topology data: "+err.Error())
 			return
 		}
 
 		// Build topology
 		includeVMs := r.URL.Query().Get("vms") == "true"
-		resp := buildTopology(switches, routers, lsps, lrps, chassisList, portBindings, datapaths, includeVMs)
+		resp := buildTopology(data.switches, data.routers, data.lsps, data.lrps, data.chassisList, data.portBindings, data.datapaths, includeVMs)
 
 		if r.URL.Query().Get("format") == "download" {
 			w.Header().Set("Content-Disposition", "attachment; filename=topology.json")
