@@ -115,6 +115,10 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- gauge(descConnected, boolToFloat(c.NB.Connected()), "nb")
 	ch <- gauge(descConnected, boolToFloat(c.SB.Connected()), "sb")
 
+	// Fetch the chassis list once and reuse it for lag and per-chassis port counts.
+	var chassisList []sb.Chassis
+	chassisListErr := c.SB.List(ctx, &chassisList)
+
 	// NB_Global metrics
 	var nbGlobals []nb.NBGlobal
 	if err := c.NB.List(ctx, &nbGlobals); err == nil && len(nbGlobals) > 0 {
@@ -127,8 +131,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		c.collectNBTableRows(ctx, ch)
 
 		// Per-chassis NbCfg and lag
-		var chassisList []sb.Chassis
-		if err := c.SB.List(ctx, &chassisList); err == nil {
+		if chassisListErr == nil {
 			for _, ch2 := range chassisList {
 				ch <- gauge(descChassisNbCfg, float64(ch2.NbCfg), ch2.Name, ch2.Hostname)
 				ch <- gauge(descChassisNbCfgLag, float64(g.NbCfg-ch2.NbCfg), ch2.Name, ch2.Hostname)
@@ -160,12 +163,12 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	// Port bindings by type
 	var ports []sb.PortBinding
 	if err := c.SB.List(ctx, &ports); err == nil {
-		// Build a chassis UUID-to-info map to avoid N+1 lookups
-		var allChassis []sb.Chassis
+		// Build a chassis UUID-to-info map to avoid N+1 lookups, reusing
+		// the chassis list fetched at the top of Collect.
 		chassisMap := map[string]*sb.Chassis{}
-		if err := c.SB.List(ctx, &allChassis); err == nil {
-			for i := range allChassis {
-				chassisMap[allChassis[i].UUID] = &allChassis[i]
+		if chassisListErr == nil {
+			for i := range chassisList {
+				chassisMap[chassisList[i].UUID] = &chassisList[i]
 			}
 		}
 
