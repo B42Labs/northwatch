@@ -200,6 +200,8 @@ func run() error {
 		impactResolver := impact.NewResolver(def.DBs.NB, def.DBs.SB)
 		writeEngine := write.NewEngine(def.DBs.NB, def.DBs.SB, write.DefaultRegistry(), historyCollector, auditStore, cfg.WritePlanTTL, cfg.WriteRateLimit)
 		writeEngine.SetResolver(impactResolver)
+		stopWriteEngine := writeEngine.Start(context.Background())
+		stopFuncs = append(stopFuncs, stopWriteEngine)
 		handler.RegisterWrite(mux, writeEngine)
 		handler.RegisterFailover(mux, writeEngine)
 		handler.RegisterImpact(mux, impactResolver)

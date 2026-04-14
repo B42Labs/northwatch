@@ -29,6 +29,7 @@ type Engine struct {
 	collector   *history.Collector
 	auditStore  *AuditStore
 	plans       *PlanCache
+	planTTL     time.Duration
 	secret      []byte
 	mu          sync.Mutex
 	rateLimiter *rateLimiter
@@ -36,27 +37,43 @@ type Engine struct {
 }
 
 // NewEngine creates a new write Engine with the given rate limit (operations per minute, 0 = unlimited).
+// After construction, callers should invoke Start to begin background plan cache cleanup
+// and call the returned stop function during shutdown.
 // sbClient is optional (may be nil) and enables SB-aware active chassis detection for failover/evacuate.
 func NewEngine(nbClient, sbClient client.Client, registry *Registry, collector *history.Collector, auditStore *AuditStore, planTTL time.Duration, rateLimit int) *Engine {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		panic(fmt.Sprintf("crypto/rand.Read failed: %v", err))
 	}
-	cache := NewPlanCache(planTTL)
 	e := &Engine{
 		nbClient:   nbClient,
 		sbClient:   sbClient,
 		registry:   registry,
 		collector:  collector,
 		auditStore: auditStore,
-		plans:      cache,
+		plans:      NewPlanCache(planTTL),
+		planTTL:    planTTL,
 		secret:     secret,
 	}
 	if rateLimit > 0 {
 		e.rateLimiter = newRateLimiter(rateLimit)
 	}
-	go cache.StartCleanup(planTTL)
 	return e
+}
+
+// Start launches the background plan cache cleanup goroutine.
+// The returned function stops the goroutine; call it during shutdown.
+func (e *Engine) Start(ctx context.Context) func() {
+	cleanupCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		e.plans.StartCleanup(cleanupCtx, e.planTTL)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 // SetResolver sets the impact resolver for computing dependency analysis on delete operations.

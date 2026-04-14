@@ -1,6 +1,7 @@
 package write
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -63,12 +64,17 @@ func (c *PlanCache) Cleanup() {
 	}
 }
 
-// StartCleanup runs periodic cleanup at the given interval.
-// It blocks forever and should be called in a goroutine.
-func (c *PlanCache) StartCleanup(interval time.Duration) {
+// StartCleanup runs periodic cleanup at the given interval until ctx is cancelled.
+// It blocks and should be called in a goroutine.
+func (c *PlanCache) StartCleanup(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	for range ticker.C {
-		c.Cleanup()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.Cleanup()
+		}
 	}
 }
