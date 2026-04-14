@@ -170,7 +170,11 @@ func run() error {
 	}
 	defer func() { _ = historyStore.Close() }()
 
-	snapshotSources := append(buildNBSnapshotSources(def.DBs), buildSBSnapshotSources(def.DBs)...)
+	nbSources := buildNBSnapshotSources(def.DBs)
+	sbSources := buildSBSnapshotSources(def.DBs)
+	snapshotSources := make([]history.TableSource, 0, len(nbSources)+len(sbSources))
+	snapshotSources = append(snapshotSources, nbSources...)
+	snapshotSources = append(snapshotSources, sbSources...)
 	historyCollector := history.NewCollector(historyStore, def.EventHub, snapshotSources, cfg.SnapshotInterval, cfg.EventRetention)
 	if cfg.EventMaxCount > 0 {
 		historyCollector.SetEventMaxCount(cfg.EventMaxCount)
