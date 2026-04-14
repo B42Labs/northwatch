@@ -23,7 +23,7 @@ func TestNATTopology(t *testing.T) {
 	RegisterNATTopology(mux, nbClient)
 
 	t.Run("empty", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/nat", nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/topology/nat", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -60,7 +60,7 @@ func TestNATTopology(t *testing.T) {
 		_, err = ovsdb.CheckOperationResults(reply, allOps)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/nat", nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/topology/nat", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 

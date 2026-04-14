@@ -24,7 +24,7 @@ func TestLBTopology(t *testing.T) {
 	RegisterLBTopology(mux, nbClient, sbClient)
 
 	t.Run("empty", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/load-balancers", nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/topology/load-balancers", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -90,7 +90,7 @@ func TestLBTopology(t *testing.T) {
 		_, err = ovsdb.CheckOperationResults(mReply, mOps)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/load-balancers", nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/topology/load-balancers", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 

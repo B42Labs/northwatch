@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,7 @@ func setupImpactMux(t *testing.T) (*http.ServeMux, string) {
 func TestHandleImpact_ValidLookup(t *testing.T) {
 	mux, switchUUID := setupImpactMux(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/impact/nb/Logical_Switch/"+switchUUID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/impact/nb/Logical_Switch/"+switchUUID, nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -45,7 +46,7 @@ func TestHandleImpact_UnknownDB(t *testing.T) {
 	mux, switchUUID := setupImpactMux(t)
 
 	// "sb" is not supported by the resolver.
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/impact/sb/Chassis/"+switchUUID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/impact/sb/Chassis/"+switchUUID, nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -55,7 +56,7 @@ func TestHandleImpact_UnknownDB(t *testing.T) {
 func TestHandleImpact_UnknownTable(t *testing.T) {
 	mux, switchUUID := setupImpactMux(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/impact/nb/Bogus_Table/"+switchUUID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/impact/nb/Bogus_Table/"+switchUUID, nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -65,7 +66,7 @@ func TestHandleImpact_UnknownTable(t *testing.T) {
 func TestHandleImpact_MissingEntity(t *testing.T) {
 	mux, _ := setupImpactMux(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/impact/nb/Logical_Switch/00000000-0000-0000-0000-000000000000", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/impact/nb/Logical_Switch/00000000-0000-0000-0000-000000000000", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
