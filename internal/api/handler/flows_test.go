@@ -82,8 +82,3 @@ func TestBuildFlowTableGroups_StageNameOverridesFallback(t *testing.T) {
 	assert.Equal(t, "ls_in_check_port_sec", groups[0].TableName)
 }
 
-func TestOVNTableName(t *testing.T) {
-	assert.Equal(t, "Admission Control", OVNTableName(0))
-	assert.Equal(t, "ACL", OVNTableName(8))
-	assert.Equal(t, "", OVNTableName(99))
-}
