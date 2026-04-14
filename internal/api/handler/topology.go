@@ -51,6 +51,22 @@ type topologyData struct {
 	datapaths    []sb.DatapathBinding
 }
 
+// topologyIndex bundles the lookup maps derived from a topologyData snapshot
+// so that node and edge construction share a single computation.
+type topologyIndex struct {
+	switchByUUID         map[string]nb.LogicalSwitch
+	routerByUUID         map[string]nb.LogicalRouter
+	lspToSwitch          map[string]string
+	lspNameToUUID        map[string]string
+	lrpByName            map[string]nb.LogicalRouterPort
+	lrpToRouter          map[string]string
+	datapathToEntityUUID map[string]string
+	entityChassisCounts  map[string]map[string]int
+	entityChassisGroup   map[string]string
+	boundChassis         map[string]bool
+	gatewayChassis       map[string]bool
+}
+
 // fetchTopologyData fetches all NB and SB tables needed for buildTopology in
 // parallel and returns them grouped together. If any List call fails the
 // returned error names the failing source.
@@ -135,83 +151,98 @@ func buildTopology(
 	datapaths []sb.DatapathBinding,
 	includeVMs bool,
 ) TopologyResponse {
-	var nodes []TopologyNode
-	var edges []TopologyEdge
+	input := topologyData{
+		switches:     switches,
+		routers:      routers,
+		lsps:         lsps,
+		lrps:         lrps,
+		chassisList:  chassisList,
+		portBindings: portBindings,
+		datapaths:    datapaths,
+	}
+	idx := buildTopologyIndex(input)
+	nodes := buildTopologyNodes(input, idx)
+	edges := buildTopologyEdges(input, idx)
+	if includeVMs {
+		nodes, edges = addVMPorts(input, idx, nodes, edges)
+	}
+	return TopologyResponse{Nodes: nodes, Edges: edges}
+}
 
-	// Build lookup maps
-	switchByUUID := make(map[string]nb.LogicalSwitch, len(switches))
-	for _, s := range switches {
-		switchByUUID[s.UUID] = s
+// buildTopologyIndex computes the lookup maps shared by node and edge construction.
+func buildTopologyIndex(input topologyData) topologyIndex {
+	idx := topologyIndex{
+		switchByUUID:         make(map[string]nb.LogicalSwitch, len(input.switches)),
+		routerByUUID:         make(map[string]nb.LogicalRouter, len(input.routers)),
+		lspToSwitch:          make(map[string]string),
+		lspNameToUUID:        make(map[string]string, len(input.lsps)),
+		lrpByName:            make(map[string]nb.LogicalRouterPort, len(input.lrps)),
+		lrpToRouter:          make(map[string]string),
+		datapathToEntityUUID: make(map[string]string, len(input.datapaths)),
+		entityChassisCounts:  make(map[string]map[string]int),
+		entityChassisGroup:   make(map[string]string),
+		boundChassis:         make(map[string]bool),
+		gatewayChassis:       make(map[string]bool),
 	}
 
-	routerByUUID := make(map[string]nb.LogicalRouter, len(routers))
-	for _, r := range routers {
-		routerByUUID[r.UUID] = r
-	}
-
-	// Map LSP UUID → parent switch UUID
-	lspToSwitch := make(map[string]string)
-	for _, s := range switches {
+	for _, s := range input.switches {
+		idx.switchByUUID[s.UUID] = s
 		for _, portUUID := range s.Ports {
-			lspToSwitch[portUUID] = s.UUID
+			idx.lspToSwitch[portUUID] = s.UUID
 		}
 	}
-
-	// Map LSP name → UUID for O(1) lookup
-	lspNameToUUID := make(map[string]string, len(lsps))
-	for _, lsp := range lsps {
-		lspNameToUUID[lsp.Name] = lsp.UUID
-	}
-
-	// Map LRP name → LRP and LRP UUID → parent router UUID
-	lrpByName := make(map[string]nb.LogicalRouterPort, len(lrps))
-	lrpToRouter := make(map[string]string)
-	for _, r := range routers {
+	for _, r := range input.routers {
+		idx.routerByUUID[r.UUID] = r
 		for _, portUUID := range r.Ports {
-			lrpToRouter[portUUID] = r.UUID
+			idx.lrpToRouter[portUUID] = r.UUID
 		}
 	}
-	for _, p := range lrps {
-		lrpByName[p.Name] = p
+	for _, lsp := range input.lsps {
+		idx.lspNameToUUID[lsp.Name] = lsp.UUID
+	}
+	for _, p := range input.lrps {
+		idx.lrpByName[p.Name] = p
 	}
 
-	// Map datapath UUID → entity UUID via external_ids
-	// In OVN, external_ids["logical-switch"] and ["logical-router"] contain the NB entity UUID
-	datapathToEntityUUID := make(map[string]string, len(datapaths))
-	for _, dp := range datapaths {
+	// In OVN, datapath external_ids["logical-switch"] / ["logical-router"]
+	// contain the NB entity UUID.
+	for _, dp := range input.datapaths {
 		if entityUUID, ok := dp.ExternalIDs["logical-switch"]; ok {
-			datapathToEntityUUID[dp.UUID] = entityUUID
+			idx.datapathToEntityUUID[dp.UUID] = entityUUID
 		} else if entityUUID, ok := dp.ExternalIDs["logical-router"]; ok {
-			datapathToEntityUUID[dp.UUID] = entityUUID
+			idx.datapathToEntityUUID[dp.UUID] = entityUUID
 		}
 	}
 
-	// Track all chassis bindings per entity via datapath mapping (covers both switches and routers)
-	entityChassisCounts := make(map[string]map[string]int) // entity UUID → chassis UUID → port count
-	for _, pb := range portBindings {
+	for _, pb := range input.portBindings {
 		if pb.Chassis == nil {
 			continue
 		}
-		chassisUUID := *pb.Chassis
-		entityUUID := datapathToEntityUUID[pb.Datapath]
+		// Gateway chassis detection is independent of whether the port
+		// binding's entity is known to the topology.
+		if pb.Type == "chassisredirect" {
+			idx.gatewayChassis[*pb.Chassis] = true
+		}
+
+		entityUUID := idx.datapathToEntityUUID[pb.Datapath]
 		if entityUUID == "" {
 			continue
 		}
-		// Verify entity exists in our topology
-		_, isSwitch := switchByUUID[entityUUID]
-		_, isRouter := routerByUUID[entityUUID]
+		_, isSwitch := idx.switchByUUID[entityUUID]
+		_, isRouter := idx.routerByUUID[entityUUID]
 		if !isSwitch && !isRouter {
 			continue
 		}
-		if entityChassisCounts[entityUUID] == nil {
-			entityChassisCounts[entityUUID] = make(map[string]int)
+		chassisUUID := *pb.Chassis
+		if idx.entityChassisCounts[entityUUID] == nil {
+			idx.entityChassisCounts[entityUUID] = make(map[string]int)
 		}
-		entityChassisCounts[entityUUID][chassisUUID]++
+		idx.entityChassisCounts[entityUUID][chassisUUID]++
+		idx.boundChassis[chassisUUID] = true
 	}
 
-	// Primary chassis (most port bindings) for convex hull grouping
-	entityChassisGroup := make(map[string]string)
-	for entityUUID, chassisCounts := range entityChassisCounts {
+	// Primary chassis (most port bindings) for convex hull grouping.
+	for entityUUID, chassisCounts := range idx.entityChassisCounts {
 		var bestChassis string
 		var bestCount int
 		for chassisUUID, count := range chassisCounts {
@@ -220,11 +251,17 @@ func buildTopology(
 				bestCount = count
 			}
 		}
-		entityChassisGroup[entityUUID] = bestChassis
+		idx.entityChassisGroup[entityUUID] = bestChassis
 	}
 
-	// Switch nodes
-	for _, s := range switches {
+	return idx
+}
+
+// buildTopologyNodes builds the node list (switches, routers, chassis).
+func buildTopologyNodes(input topologyData, idx topologyIndex) []TopologyNode {
+	var nodes []TopologyNode
+
+	for _, s := range input.switches {
 		label := s.Name
 		if label == "" {
 			label = s.UUID[:8]
@@ -233,12 +270,11 @@ func buildTopology(
 			ID:    s.UUID,
 			Type:  "switch",
 			Label: label,
-			Group: entityChassisGroup[s.UUID],
+			Group: idx.entityChassisGroup[s.UUID],
 		})
 	}
 
-	// Router nodes
-	for _, r := range routers {
+	for _, r := range input.routers {
 		label := r.Name
 		if label == "" {
 			label = r.UUID[:8]
@@ -247,28 +283,13 @@ func buildTopology(
 			ID:    r.UUID,
 			Type:  "router",
 			Label: label,
-			Group: entityChassisGroup[r.UUID],
+			Group: idx.entityChassisGroup[r.UUID],
 		})
 	}
 
-	// Chassis nodes — only include chassis that have port bindings to avoid clutter
-	boundChassis := make(map[string]bool)
-	for _, counts := range entityChassisCounts {
-		for chassisUUID := range counts {
-			boundChassis[chassisUUID] = true
-		}
-	}
-
-	// Detect gateway chassis (those hosting chassisredirect port bindings)
-	gatewayChassis := make(map[string]bool)
-	for _, pb := range portBindings {
-		if pb.Type == "chassisredirect" && pb.Chassis != nil {
-			gatewayChassis[*pb.Chassis] = true
-		}
-	}
-
-	for _, c := range chassisList {
-		if !boundChassis[c.UUID] {
+	// Only include chassis that have port bindings to avoid clutter.
+	for _, c := range input.chassisList {
+		if !idx.boundChassis[c.UUID] {
 			continue
 		}
 		label := c.Name
@@ -279,7 +300,7 @@ func buildTopology(
 			label = c.UUID[:8]
 		}
 		var meta map[string]string
-		if gatewayChassis[c.UUID] {
+		if idx.gatewayChassis[c.UUID] {
 			meta = map[string]string{"role": "gateway"}
 		}
 		nodes = append(nodes, TopologyNode{
@@ -290,12 +311,16 @@ func buildTopology(
 		})
 	}
 
-	// Track edges to avoid duplicates
+	return nodes
+}
+
+// buildTopologyEdges builds the edge list (router-port, patch, binding).
+func buildTopologyEdges(input topologyData, idx topologyIndex) []TopologyEdge {
+	var edges []TopologyEdge
 	edgeSet := make(map[string]bool)
 
-	// Edges from LSPs
-	for _, lsp := range lsps {
-		switchUUID := lspToSwitch[lsp.UUID]
+	for _, lsp := range input.lsps {
+		switchUUID := idx.lspToSwitch[lsp.UUID]
 		if switchUUID == "" {
 			continue
 		}
@@ -307,11 +332,11 @@ func buildTopology(
 			if routerPortName == "" {
 				continue
 			}
-			lrp, ok := lrpByName[routerPortName]
+			lrp, ok := idx.lrpByName[routerPortName]
 			if !ok {
 				continue
 			}
-			routerUUID := lrpToRouter[lrp.UUID]
+			routerUUID := idx.lrpToRouter[lrp.UUID]
 			if routerUUID == "" {
 				continue
 			}
@@ -331,7 +356,7 @@ func buildTopology(
 			if peerName == "" {
 				continue
 			}
-			peerSwitchUUID := lspToSwitch[lspNameToUUID[peerName]]
+			peerSwitchUUID := idx.lspToSwitch[idx.lspNameToUUID[peerName]]
 			if peerSwitchUUID == "" {
 				continue
 			}
@@ -347,8 +372,8 @@ func buildTopology(
 		}
 	}
 
-	// Binding edges: show which chassis hosts each switch/router
-	for entityUUID, chassisCounts := range entityChassisCounts {
+	// Binding edges: show which chassis hosts each switch/router.
+	for entityUUID, chassisCounts := range idx.entityChassisCounts {
 		for chassisUUID := range chassisCounts {
 			key := edgeKey(entityUUID, chassisUUID)
 			if !edgeSet[key] {
@@ -362,65 +387,66 @@ func buildTopology(
 		}
 	}
 
-	// VM port nodes: VIF ports (type="") bound to a chassis
-	if includeVMs {
-		for _, pb := range portBindings {
-			if pb.Type != "" || pb.Chassis == nil {
-				continue
-			}
-			chassisUUID := *pb.Chassis
-			if !boundChassis[chassisUUID] {
-				continue
-			}
+	return edges
+}
 
-			// Label: prefer IP from neutron:cidrs, else short port name
-			label := pb.LogicalPort
-			if len(label) > 8 {
-				label = label[:8]
-			}
-			if cidrs, ok := pb.ExternalIDs["neutron:cidrs"]; ok && cidrs != "" {
-				label = cidrs
-			}
-
-			// Extract neutron metadata
-			meta := make(map[string]string)
-			for _, key := range []string{
-				"neutron:device_id", "neutron:device_owner",
-				"neutron:host_id", "neutron:cidrs",
-				"neutron:port_fip", "neutron:network_name",
-			} {
-				if v, ok := pb.ExternalIDs[key]; ok {
-					meta[key[len("neutron:"):]] = v
-				}
-			}
-			if len(pb.MAC) > 0 {
-				meta["mac"] = pb.MAC[0]
-			}
-			if pb.Up != nil {
-				if *pb.Up {
-					meta["up"] = "true"
-				} else {
-					meta["up"] = "false"
-				}
-			}
-
-			nodes = append(nodes, TopologyNode{
-				ID:       pb.UUID,
-				Type:     "vm-port",
-				Label:    label,
-				Group:    chassisUUID,
-				Metadata: meta,
-			})
-
-			edges = append(edges, TopologyEdge{
-				Source: pb.UUID,
-				Target: chassisUUID,
-				Type:   "vm-binding",
-			})
+// addVMPorts appends VM port nodes and binding edges for VIF port bindings.
+func addVMPorts(input topologyData, idx topologyIndex, nodes []TopologyNode, edges []TopologyEdge) ([]TopologyNode, []TopologyEdge) {
+	for _, pb := range input.portBindings {
+		if pb.Type != "" || pb.Chassis == nil {
+			continue
 		}
+		chassisUUID := *pb.Chassis
+		if !idx.boundChassis[chassisUUID] {
+			continue
+		}
+
+		// Label: prefer IP from neutron:cidrs, else short port name.
+		label := pb.LogicalPort
+		if len(label) > 8 {
+			label = label[:8]
+		}
+		if cidrs, ok := pb.ExternalIDs["neutron:cidrs"]; ok && cidrs != "" {
+			label = cidrs
+		}
+
+		meta := make(map[string]string)
+		for _, key := range []string{
+			"neutron:device_id", "neutron:device_owner",
+			"neutron:host_id", "neutron:cidrs",
+			"neutron:port_fip", "neutron:network_name",
+		} {
+			if v, ok := pb.ExternalIDs[key]; ok {
+				meta[key[len("neutron:"):]] = v
+			}
+		}
+		if len(pb.MAC) > 0 {
+			meta["mac"] = pb.MAC[0]
+		}
+		if pb.Up != nil {
+			if *pb.Up {
+				meta["up"] = "true"
+			} else {
+				meta["up"] = "false"
+			}
+		}
+
+		nodes = append(nodes, TopologyNode{
+			ID:       pb.UUID,
+			Type:     "vm-port",
+			Label:    label,
+			Group:    chassisUUID,
+			Metadata: meta,
+		})
+
+		edges = append(edges, TopologyEdge{
+			Source: pb.UUID,
+			Target: chassisUUID,
+			Type:   "vm-binding",
+		})
 	}
 
-	return TopologyResponse{Nodes: nodes, Edges: edges}
+	return nodes, edges
 }
 
 func edgeKey(a, b string) string {
