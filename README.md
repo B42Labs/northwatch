@@ -815,28 +815,28 @@ make build     # embeds them via go:embed
 ```bash
 # Minimal (single cluster, no enrichment)
 ./northwatch \
-  --ovn-nb-address tcp:10.0.0.1:6641 \
-  --ovn-sb-address tcp:10.0.0.1:6642
+  --ovn-nb-addr tcp:10.0.0.1:6641 \
+  --ovn-sb-addr tcp:10.0.0.1:6642
 
 # With Raft cluster endpoints
 ./northwatch \
-  --ovn-nb-address tcp:10.0.0.1:6641,tcp:10.0.0.2:6641,tcp:10.0.0.3:6641 \
-  --ovn-sb-address tcp:10.0.0.1:6642,tcp:10.0.0.2:6642,tcp:10.0.0.3:6642
+  --ovn-nb-addr tcp:10.0.0.1:6641,tcp:10.0.0.2:6641,tcp:10.0.0.3:6641 \
+  --ovn-sb-addr tcp:10.0.0.1:6642,tcp:10.0.0.2:6642,tcp:10.0.0.3:6642
 
 # With OpenStack enrichment
 ./northwatch \
-  --ovn-nb-address tcp:10.0.0.1:6641 \
-  --ovn-sb-address tcp:10.0.0.1:6642 \
-  --openstack-auth-url https://keystone.example.com:5000/v3 \
-  --openstack-username northwatch \
-  --openstack-password secret \
-  --openstack-project-name admin
+  --ovn-nb-addr tcp:10.0.0.1:6641 \
+  --ovn-sb-addr tcp:10.0.0.1:6642 \
+  --os-auth-url https://keystone.example.com:5000/v3 \
+  --os-username northwatch \
+  --os-password secret \
+  --os-project-name admin
 
 # With config file (recommended for multi-cluster)
-./northwatch --config /etc/northwatch/northwatch.yaml
+./northwatch --config-file /etc/northwatch/northwatch.json
 
 # Enable write capability
-./northwatch --config northwatch.yaml --enable-write
+./northwatch --config-file northwatch.json --write-enabled
 ```
 
 Access the UI at `http://localhost:8080` and the API at `http://localhost:8080/api/v1`.
