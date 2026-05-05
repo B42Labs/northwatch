@@ -843,84 +843,26 @@ Access the UI at `http://localhost:8080` and the API at `http://localhost:8080/a
 
 ## Roadmap
 
-### Phase 1 -- Foundation: Useful Database Browser
+### Phase 1 -- Feature Completion
 
-Goal: Replace `ovn-nbctl` / `ovn-sbctl` for daily inspection tasks.
+Goal: Round out the UX and debugging surface.
 
-- [ ] Project scaffolding, Go module, libovsdb model generation
-- [ ] OVSDB client: connect to NB + SB (single endpoint), monitor all tables, populate cache
-- [ ] Basic REST API: list/get for all NB and SB tables with filtering
-- [ ] Capability system (`read` + `debug`)
-- [ ] Minimal embedded UI: table browser with search/filter
-- [ ] Omnisearch (cross-table, cross-database)
-
-### Phase 2 -- Correlation & Enrichment
-
-Goal: Make OVN data understandable by humans.
-
-- [ ] Cross-DB correlation engine (NB <-> SB mapping)
-- [ ] Enrichment provider interface + OpenStack provider (Gophercloud, name resolution, caching)
-- [ ] Binding chain view (NB -> SB -> Chassis, enriched)
 - [ ] Entity profile pages in UI
-
-### Phase 3 -- Real-time & Visualization
-
-Goal: Live operational dashboard.
-
-- [ ] WebSocket event stream
-- [ ] Real-time event feed in UI
-- [ ] Topology API (logical, physical, combined)
-- [ ] Interactive topology visualization (Svelte)
-- [ ] Config propagation tracking
-
-### Phase 4 -- Debugging
-
-Goal: Replace SSH + CLI debugging workflow.
-
 - [ ] Packet path tracer (simplified subset first, see Technical Risks)
-- [ ] Flow pipeline visualization
-- [ ] Flow diff (real-time change tracking)
-- [ ] Connectivity checker
-- [ ] Port binding diagnostics
-
-### Phase 5 -- Telemetry & Monitoring
-
-Goal: Always-on health monitoring.
-
-- [ ] Prometheus metrics endpoint
-- [ ] Alerting (chassis health, port status, BFD, flow count anomalies)
-- [ ] OVSDB Raft cluster health monitoring
-- [ ] Multiple OVSDB endpoints with failover
-
-### Phase 6 -- History & Snapshots
-
-Goal: Answer "what changed and when?"
-
-- [ ] SQLite snapshot store
-- [ ] Automatic and on-demand snapshots
-- [ ] Snapshot diff
-- [ ] Timeline UI
-- [ ] Persistent event log with retention
-
-### Phase 7 -- Configurator & Advanced
-
-Goal: Safe write access and multi-environment support.
-
-- [ ] Write capability with audit logging and safeguards
-- [ ] Preview mode (terraform plan-style)
-- [ ] Snapshot-before-write and rollback
-- [ ] Multi-cluster support
 - [ ] Export (SVG/PNG/JSON)
-- [ ] Kubernetes enrichment provider
-- [ ] OpenAPI spec generation and documentation
 
-### Phase 8 -- Production Hardening
+### Phase 2 -- Scale & Resilience
 
-Goal: Ready for large-scale production deployments.
+Goal: Hold up under large deployments and clustered OVSDB.
 
+- [ ] Multiple OVSDB endpoints with failover
 - [ ] Performance optimization for large deployments (100k+ ports)
 - [ ] `monitor_cond` for selective table monitoring
-- [ ] Comprehensive test suite (unit + integration with libovsdb test server)
+
+### Phase 3 -- Production Hardening
+
+Goal: Ready for operational rollout.
+
 - [ ] Security hardening (TLS everywhere, input validation)
 - [ ] Packaging (systemd unit, container image)
 
