@@ -143,7 +143,7 @@ func searchTable(ctx context.Context, td TableDef, queryLower string) ([]map[str
 	}
 
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -158,7 +158,7 @@ func searchTable(ctx context.Context, td TableDef, queryLower string) ([]map[str
 }
 
 func matchesQuery(v reflect.Value, queryLower string) bool {
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return false
 		}
@@ -179,7 +179,7 @@ func matchFieldValue(v reflect.Value, queryLower string) bool {
 	switch v.Kind() {
 	case reflect.String:
 		return strings.Contains(strings.ToLower(v.String()), queryLower)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if !v.IsNil() {
 			return matchFieldValue(v.Elem(), queryLower)
 		}

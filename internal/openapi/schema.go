@@ -10,7 +10,7 @@ import (
 // used by api.ModelToMap.
 func SchemaFromModel(model any) *Schema {
 	t := reflect.TypeOf(model)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
@@ -38,7 +38,7 @@ func SchemaFromModel(model any) *Schema {
 
 func goTypeToSchema(t reflect.Type, tagName string) *Schema {
 	// Handle pointer types
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		inner := goTypeToSchema(t.Elem(), tagName)
 		inner.Nullable = true
 		return inner

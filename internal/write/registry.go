@@ -109,7 +109,7 @@ func (r *Registry) Schema() []TableSchema {
 
 func tableSchema(spec TableSpec) TableSchema {
 	t := spec.ModelType
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	var fields []FieldInfo
@@ -125,7 +125,7 @@ func tableSchema(spec TableSpec) TableSchema {
 		fi := FieldInfo{
 			Name:     tag,
 			Type:     goTypeToOVSDB(sf.Type),
-			Optional: sf.Type.Kind() == reflect.Ptr,
+			Optional: sf.Type.Kind() == reflect.Pointer,
 			ReadOnly: spec.ReadOnlyFields[tag],
 		}
 		fields = append(fields, fi)
@@ -134,7 +134,7 @@ func tableSchema(spec TableSpec) TableSchema {
 }
 
 func goTypeToOVSDB(t reflect.Type) string {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		return goTypeToOVSDB(t.Elem())
 	}
 	switch t.Kind() {
@@ -155,7 +155,7 @@ func goTypeToOVSDB(t reflect.Type) string {
 
 // OVSDBFieldNames returns all ovsdb tag names for a model type.
 func OVSDBFieldNames(t reflect.Type) []string {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	var names []string

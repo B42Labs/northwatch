@@ -9,7 +9,7 @@ import (
 // MapToModel converts a JSON map (keyed by ovsdb tag names) into a Go model struct.
 // It is the inverse of api.ModelToMap.
 func MapToModel(fields map[string]any, modelType reflect.Type) (any, error) {
-	if modelType.Kind() == reflect.Ptr {
+	if modelType.Kind() == reflect.Pointer {
 		modelType = modelType.Elem()
 	}
 
@@ -52,7 +52,7 @@ func setField(field reflect.Value, rawVal any) error {
 	fieldType := field.Type()
 
 	// Handle pointer types: *string, *int, *bool
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		elemType := fieldType.Elem()
 		ptrVal := reflect.New(elemType)
 		if err := setField(ptrVal.Elem(), rawVal); err != nil {

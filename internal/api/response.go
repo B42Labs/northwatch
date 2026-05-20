@@ -24,7 +24,7 @@ func WriteError(w http.ResponseWriter, status int, msg string) {
 func ModelToMap(model any) map[string]any {
 	result := make(map[string]any)
 	v := reflect.ValueOf(model)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	t := v.Type()
@@ -47,7 +47,7 @@ func ModelToMap(model any) map[string]any {
 // ModelsToMaps converts a slice of OVSDB model structs to a slice of maps.
 func ModelsToMaps(models any) []map[string]any {
 	v := reflect.ValueOf(models)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	result := make([]map[string]any, v.Len())

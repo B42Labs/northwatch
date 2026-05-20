@@ -6,7 +6,7 @@ import "reflect"
 // All generated models have a UUID string field tagged `ovsdb:"_uuid"`.
 func getUUID(model any) string {
 	v := reflect.ValueOf(model)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	f := v.FieldByName("UUID")
