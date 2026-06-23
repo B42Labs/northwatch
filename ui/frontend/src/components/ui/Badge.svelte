@@ -19,5 +19,6 @@
     ? 'badge-outline'
     : ''}"
 >
-  {#if glyph}<span class="font-bold" aria-hidden="true">{glyph}</span>{/if}{text}
+  {#if glyph}<span class="font-bold" aria-hidden="true">{glyph}</span
+    >{/if}{text}
 </span>

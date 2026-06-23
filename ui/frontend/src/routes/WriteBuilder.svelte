@@ -200,8 +200,10 @@
     <div class="rounded border border-base-300 bg-base-100 p-6 text-center">
       {#if applyResult?.success}
         <div class="mb-2 text-4xl text-success">&#10003;</div>
-        <h2 class="font-mono text-lg font-bold text-success">Changes Applied</h2>
-        <p class="mt-1 font-prose text-sm text-base-content/60">
+        <h2 class="font-mono text-lg font-bold text-success">
+          Changes Applied
+        </h2>
+        <p class="font-prose mt-1 text-sm text-base-content/60">
           All operations were applied successfully.
         </p>
         {#if applyResult.auditId}
@@ -215,7 +217,7 @@
       {:else}
         <div class="mb-2 text-4xl text-error">&#10007;</div>
         <h2 class="font-mono text-lg font-bold text-error">Apply Failed</h2>
-        <p class="mt-1 font-prose text-sm text-base-content/60">
+        <p class="font-prose mt-1 text-sm text-base-content/60">
           {applyResult?.error || 'Unknown error'}
         </p>
       {/if}

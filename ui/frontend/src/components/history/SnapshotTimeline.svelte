@@ -78,9 +78,6 @@
   {/each}
 
   {#if snapshots.length === 0}
-    <EmptyState
-      message="no snapshots yet"
-      hint="Take one to get started."
-    />
+    <EmptyState message="no snapshots yet" hint="Take one to get started." />
   {/if}
 </div>

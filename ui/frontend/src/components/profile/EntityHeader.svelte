@@ -30,7 +30,7 @@
     {#if enrichment}
       <EnrichmentBadge data={enrichment} />
     {/if}
-    <span class="font-mono text-xs text-base-content/50 break-all">{uuid}</span>
+    <span class="break-all font-mono text-xs text-base-content/50">{uuid}</span>
   {/snippet}
   {#snippet actions()}
     {#if rawHref}

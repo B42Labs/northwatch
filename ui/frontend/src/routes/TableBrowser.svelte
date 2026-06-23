@@ -100,7 +100,10 @@
 >
   {#snippet actions()}
     {#if correlatedRoute}
-      <a href={link(correlatedRoute)} class="btn btn-outline btn-primary btn-sm">
+      <a
+        href={link(correlatedRoute)}
+        class="btn btn-outline btn-primary btn-sm"
+      >
         Correlated view
       </a>
     {/if}

@@ -207,7 +207,10 @@
       {#each datapathGroups as group (group.datapath._uuid)}
         <Card title={group.name} subtitle={group.datapath._uuid.slice(0, 8)}>
           {#snippet actions()}
-            <Badge text={typeBadgeLabel(group.type)} variant={typeVariant(group.type)} />
+            <Badge
+              text={typeBadgeLabel(group.type)}
+              variant={typeVariant(group.type)}
+            />
             <Badge
               text="{group.entries.length} {group.entries.length === 1
                 ? 'entry'
@@ -222,9 +225,18 @@
             <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">IP Address</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">MAC Address</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical Port</th>
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >IP Address</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >MAC Address</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Logical Port</th
+                  >
                 </tr>
               </thead>
               <tbody>
@@ -232,7 +244,9 @@
                   <tr class="border-base-300/60">
                     <td class="text-xs">{entry.ip}</td>
                     <td class="text-xs">{entry.mac}</td>
-                    <td class="text-xs text-base-content/70">{entry.logical_port || '-'}</td>
+                    <td class="text-xs text-base-content/70"
+                      >{entry.logical_port || '-'}</td
+                    >
                   </tr>
                 {/each}
               </tbody>

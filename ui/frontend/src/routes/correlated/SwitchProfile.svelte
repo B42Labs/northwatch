@@ -82,7 +82,11 @@
       />
 
       {#if dp}
-        <PropertyCard title="Datapath Binding · SB" data={dp} exclude={['_uuid']} />
+        <PropertyCard
+          title="Datapath Binding · SB"
+          data={dp}
+          exclude={['_uuid']}
+        />
       {/if}
 
       {#if enrichment}
@@ -99,11 +103,16 @@
             >
               Ports
             </h2>
-            <span class="font-mono text-2xs text-base-content/40">{ports.length}</span>
+            <span class="font-mono text-2xs text-base-content/40"
+              >{ports.length}</span
+            >
           </div>
           <div class="flex flex-col gap-2">
             {#each ports as port, i (i)}
-              {@const lsp = (port.logical_switch_port ?? {}) as Record<string, unknown>}
+              {@const lsp = (port.logical_switch_port ?? {}) as Record<
+                string,
+                unknown
+              >}
               <details class="group rounded border border-base-300 bg-base-100">
                 <summary
                   class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-mono text-sm marker:content-none hover:bg-base-300/30"
@@ -112,10 +121,16 @@
                     class="select-none text-primary transition-transform group-open:rotate-90"
                     aria-hidden="true">▸</span
                   >
-                  <span class="truncate">{lsp.name || lsp._uuid || 'Port'}</span>
-                  {#if lsp.type}<Badge text={String(lsp.type)} variant="ghost" />{/if}
+                  <span class="truncate">{lsp.name || lsp._uuid || 'Port'}</span
+                  >
+                  {#if lsp.type}<Badge
+                      text={String(lsp.type)}
+                      variant="ghost"
+                    />{/if}
                   {#if lsp.enrichment}
-                    <EnrichmentBadge data={lsp.enrichment as Record<string, unknown>} />
+                    <EnrichmentBadge
+                      data={lsp.enrichment as Record<string, unknown>}
+                    />
                   {/if}
                 </summary>
                 <div class="border-t border-base-300 p-3">

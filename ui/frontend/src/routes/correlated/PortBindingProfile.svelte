@@ -33,7 +33,12 @@
   let pb = $derived((data?.port_binding ?? {}) as Record<string, unknown>);
 </script>
 
-<DataState {loading} {error} empty={!data} emptyMessage="port binding not found">
+<DataState
+  {loading}
+  {error}
+  empty={!data}
+  emptyMessage="port binding not found"
+>
   {#if data}
     <EntityHeader
       title={String(pb.logical_port || 'Port Binding')}

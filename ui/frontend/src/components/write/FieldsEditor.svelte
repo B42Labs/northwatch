@@ -262,7 +262,8 @@
   </div>
 
   {#if loadingEntity}
-    <span class="font-mono text-xs text-base-content/50">Loading entity...</span>
+    <span class="font-mono text-xs text-base-content/50">Loading entity...</span
+    >
   {/if}
 
   {#if mode === 'form'}
@@ -319,7 +320,9 @@
                 >
               {/if}
               {#if row.type}
-                <span class="font-mono text-xs text-base-content/30">{row.type}</span>
+                <span class="font-mono text-xs text-base-content/30"
+                  >{row.type}</span
+                >
               {/if}
             </td>
             <td class="pl-0.5 align-top">
@@ -336,7 +339,10 @@
       </tbody>
     </table>
 
-    <button class="btn btn-ghost btn-xs self-start border-base-300 font-mono" onclick={addRow}>
+    <button
+      class="btn btn-ghost btn-xs self-start border-base-300 font-mono"
+      onclick={addRow}
+    >
       + Add Field
     </button>
 

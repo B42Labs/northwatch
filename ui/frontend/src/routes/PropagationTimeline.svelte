@@ -342,7 +342,8 @@
             {#each summaries as s (s.chassis)}
               <tr class="border-base-300/60">
                 <td class="text-xs">{s.chassis}</td>
-                <td class="text-xs text-base-content/60">{s.hostname || '-'}</td>
+                <td class="text-xs text-base-content/60">{s.hostname || '-'}</td
+                >
                 <td class="text-right text-xs">{s.count}</td>
                 <td class="text-right">
                   <span

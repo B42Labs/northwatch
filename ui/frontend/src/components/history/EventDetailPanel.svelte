@@ -141,7 +141,9 @@
         <div class="mb-4 space-y-2">
           {#each allKeys.filter((k) => diffKeys.has(k)) as key (key)}
             <div class="rounded border border-base-300 p-2">
-              <div class="mb-1 font-mono text-xs font-semibold text-base-content/60">
+              <div
+                class="mb-1 font-mono text-xs font-semibold text-base-content/60"
+              >
                 {key}
               </div>
               <div class="grid grid-cols-2 gap-2">

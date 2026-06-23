@@ -84,8 +84,9 @@
       <option value={250}>250 entries</option>
     </select>
 
-    <button class="btn btn-ghost btn-xs border-base-300 font-mono" onclick={load}
-      >&#x21bb; Refresh</button
+    <button
+      class="btn btn-ghost btn-xs border-base-300 font-mono"
+      onclick={load}>&#x21bb; Refresh</button
     >
   </Toolbar>
 

@@ -296,7 +296,8 @@
       </div>
     {:else if !selectedDatapath}
       <div class="py-4 text-center font-mono text-sm text-base-content/40">
-        <span class="text-base-content/30">//</span> select a datapath above to view its flow pipeline
+        <span class="text-base-content/30">//</span> select a datapath above to view
+        its flow pipeline
       </div>
     {/if}
   </DataState>

@@ -122,9 +122,7 @@
             >
               <td>{row.database}</td>
               <td>{row.table}</td>
-              <td class="text-xs"
-                >{row.uuid ? row.uuid.slice(0, 12) : '—'}</td
-              >
+              <td class="text-xs">{row.uuid ? row.uuid.slice(0, 12) : '—'}</td>
             </tr>
             {#if expandedRow === rowKey}
               <tr>
