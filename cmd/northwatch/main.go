@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,22 +32,103 @@ import (
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/search"
+	"github.com/b42labs/northwatch/internal/snapshot"
 	"github.com/b42labs/northwatch/internal/telemetry"
 	"github.com/b42labs/northwatch/internal/write"
 	northwatchUI "github.com/b42labs/northwatch/ui"
 )
 
 func main() {
+	// Stage 1 of the offline workflow: "northwatch snapshot" captures the live
+	// NB/SB databases to a file. Without the subcommand we run the server.
+	if len(os.Args) > 1 && os.Args[1] == "snapshot" {
+		if err := runSnapshot(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
+// runSnapshot implements the "northwatch snapshot" subcommand: it connects once
+// to the live OVN NB/SB databases and writes their full contents to a file that
+// can later be served offline via "northwatch --snapshot <file>".
+func runSnapshot(args []string) error {
+	fs := flag.NewFlagSet("northwatch snapshot", flag.ContinueOnError)
+	nbAddr := fs.String("ovn-nb-addr", os.Getenv("NORTHWATCH_OVN_NB_ADDR"), "OVN Northbound DB address, comma-separated for failover")
+	sbAddr := fs.String("ovn-sb-addr", os.Getenv("NORTHWATCH_OVN_SB_ADDR"), "OVN Southbound DB address, comma-separated for failover")
+	out := "northwatch-snapshot.json"
+	fs.StringVar(&out, "output", out, "Output file path for the snapshot")
+	fs.StringVar(&out, "o", out, "Output file path for the snapshot (shorthand)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *nbAddr == "" {
+		return fmt.Errorf("--ovn-nb-addr is required (or set NORTHWATCH_OVN_NB_ADDR)")
+	}
+	if *sbAddr == "" {
+		return fmt.Errorf("--ovn-sb-addr is required (or set NORTHWATCH_OVN_SB_ADDR)")
+	}
+
+	nbModel, err := nb.FullDatabaseModel()
+	if err != nil {
+		return fmt.Errorf("creating NB model: %w", err)
+	}
+	sbModel, err := sb.FullDatabaseModel()
+	if err != nil {
+		return fmt.Errorf("creating SB model: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	fmt.Println("Connecting to OVN databases...")
+	dbs, err := ovndb.Connect(ctx, *nbAddr, *sbAddr, nbModel, sbModel)
+	if err != nil {
+		return fmt.Errorf("connecting to OVN: %w", err)
+	}
+	defer dbs.Close()
+
+	fmt.Println("Connected; capturing snapshot...")
+	snap, err := snapshot.Capture(dbs.NB, dbs.SB, nb.Schema().Name, sb.Schema().Name)
+	if err != nil {
+		return fmt.Errorf("capturing snapshot: %w", err)
+	}
+	snap.Source = &snapshot.Source{NBAddr: *nbAddr, SBAddr: *sbAddr}
+
+	f, err := os.Create(out)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", out, err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := snapshot.Save(snap, f); err != nil {
+		return fmt.Errorf("writing snapshot: %w", err)
+	}
+
+	fmt.Printf("Snapshot written to %s (NB: %d rows, SB: %d rows)\n", out, snap.NB.RowCount(), snap.SB.RowCount())
+	return nil
+}
+
 func run() error {
 	cfg, err := config.Parse(os.Args[1:])
 	if err != nil {
 		return err
+	}
+
+	// Stage 2 of the offline workflow: when --snapshot is set, spin up local
+	// in-memory OVSDB servers from the file and point the cluster at them, so
+	// every downstream subsystem runs unchanged against the offline copy.
+	if cfg.SnapshotFile != "" {
+		closeSnapshot, err := setupSnapshotMode(cfg)
+		if err != nil {
+			return err
+		}
+		defer closeSnapshot()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -160,6 +243,48 @@ func run() error {
 		defer shutdownCancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// setupSnapshotMode loads the snapshot file referenced by cfg.SnapshotFile,
+// starts in-memory OVSDB servers backing it, and rewrites cfg.Clusters to a
+// single cluster pointing at those local sockets. The returned function shuts
+// the servers down and must be called on exit.
+func setupSnapshotMode(cfg *config.Config) (func(), error) {
+	fmt.Printf("Loading snapshot from %s...\n", cfg.SnapshotFile)
+	// The snapshot path is an operator-provided CLI argument (like --config-file),
+	// not untrusted input, so reading it directly is intentional.
+	data, err := os.ReadFile(cfg.SnapshotFile) // #nosec G703
+	if err != nil {
+		return nil, fmt.Errorf("opening snapshot: %w", err)
+	}
+	snap, err := snapshot.Load(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("reading snapshot: %w", err)
+	}
+
+	nbModel, err := nb.FullDatabaseModel()
+	if err != nil {
+		return nil, fmt.Errorf("creating NB model: %w", err)
+	}
+	sbModel, err := sb.FullDatabaseModel()
+	if err != nil {
+		return nil, fmt.Errorf("creating SB model: %w", err)
+	}
+
+	servers, err := snapshot.Serve(snap, nbModel, sbModel, nb.Schema(), sb.Schema())
+	if err != nil {
+		return nil, fmt.Errorf("serving snapshot: %w", err)
+	}
+
+	cfg.Clusters = []config.ClusterConfig{{
+		Name:      "default",
+		Label:     "Snapshot",
+		OVNNBAddr: servers.NBAddr,
+		OVNSBAddr: servers.SBAddr,
+	}}
+
+	fmt.Printf("Snapshot loaded (NB: %d rows, SB: %d rows); serving offline copy\n", snap.NB.RowCount(), snap.SB.RowCount())
+	return servers.Close, nil
 }
 
 // buildCluster initializes all subsystems for a single OVN cluster and
