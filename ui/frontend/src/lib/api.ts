@@ -52,9 +52,25 @@ export function search(query: string): Promise<SearchResponse> {
 }
 
 // Capabilities
-export async function getCapabilities(): Promise<string[]> {
-  const data = await get<{ capabilities: string[] }>('/api/v1/capabilities');
-  return data.capabilities;
+export interface SnapshotInfo {
+  createdAt?: string;
+  nbAddr?: string;
+  sbAddr?: string;
+}
+
+export interface CapabilitiesResponse {
+  capabilities: string[];
+  mode: 'live' | 'snapshot';
+  snapshot?: SnapshotInfo;
+}
+
+export async function getCapabilities(): Promise<CapabilitiesResponse> {
+  const data = await get<Partial<CapabilitiesResponse>>('/api/v1/capabilities');
+  return {
+    capabilities: data.capabilities ?? [],
+    mode: data.mode ?? 'live',
+    snapshot: data.snapshot,
+  };
 }
 
 // Correlated response types
