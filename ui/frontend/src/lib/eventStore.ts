@@ -20,6 +20,12 @@ function getWsInstance(): NorthwatchWebSocket {
   return wsInstance;
 }
 
+// Eagerly open the WebSocket so the connection-status badge reflects real
+// backend connectivity from app start, not just after the first subscription.
+export function ensureWsConnected(): void {
+  getWsInstance();
+}
+
 // Track changed UUIDs with auto-expiry
 function markChanged(uuid: string): void {
   changedUuids.update((map) => {

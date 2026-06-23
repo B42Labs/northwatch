@@ -7,12 +7,14 @@
   import { sidebarOpen } from '../../lib/sidebarStore';
   import { loadClusters } from '../../lib/clusterStore';
   import { loadCapabilities } from '../../lib/capabilitiesStore';
+  import { ensureWsConnected } from '../../lib/eventStore';
 
   let { children }: { children: Snippet } = $props();
 
   onMount(() => {
     loadClusters();
     loadCapabilities();
+    ensureWsConnected();
   });
 </script>
 
