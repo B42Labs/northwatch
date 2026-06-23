@@ -358,6 +358,10 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 
 	flowDiffStore := flowdiff.NewStore(10000, 30*time.Minute)
 	telemetryQuerier := telemetry.NewQuerier(dbs.NB, dbs.SB)
+	// Per-endpoint "_Server" monitors feed real Raft cluster state (the member
+	// list) into RaftHealth; the slices are empty in e.g. offline snapshot mode.
+	telemetryQuerier.NBServers = dbs.NBServers
+	telemetryQuerier.SBServers = dbs.SBServers
 	propStore := telemetry.NewPropagationStore(50000, 24*time.Hour)
 	propTracker := telemetry.NewPropagationTracker(eventHub, propStore, dbs.NB, dbs.SB)
 

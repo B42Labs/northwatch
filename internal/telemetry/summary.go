@@ -2,17 +2,35 @@ package telemetry
 
 import (
 	"context"
+	"sort"
+	"strings"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
+	"github.com/ovn-kubernetes/libovsdb/ovsdb/serverdb"
 
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+)
+
+// OVSDB database names as they appear in the "_Server" Database table's name
+// column. Used to pick the relevant Raft row out of the server's databases.
+const (
+	nbDatabaseName = "OVN_Northbound"
+	sbDatabaseName = "OVN_Southbound"
 )
 
 // Querier provides telemetry data by querying libovsdb caches.
 type Querier struct {
 	NB client.Client
 	SB client.Client
+
+	// NBServers and SBServers are optional per-endpoint "_Server" monitors (see
+	// ovsdb.OVNDatabases). Each reports one cluster member's Raft view;
+	// RaftHealth aggregates them into a member list. Empty slices mean Raft state
+	// is unavailable.
+	NBServers []ovndb.ServerMonitor
+	SBServers []ovndb.ServerMonitor
 }
 
 // NewQuerier creates a new telemetry querier.
@@ -236,21 +254,79 @@ func (q *Querier) Cluster(ctx context.Context) (*ClusterResult, error) {
 	return result, nil
 }
 
-// RaftHealthResult provides detailed Raft cluster health information.
+// RaftHealthResult reports Raft cluster health plus Northwatch's own client
+// connection state for both the Northbound and Southbound databases.
 type RaftHealthResult struct {
 	NB RaftDBHealth `json:"nb"`
 	SB RaftDBHealth `json:"sb"`
 }
 
-// RaftDBHealth describes the health of one OVSDB database's cluster.
+// RaftDBHealth describes one OVSDB database from two angles: whether
+// Northwatch's client is connected to it, and the real Raft cluster state
+// aggregated from the "_Server" database of each configured endpoint.
 type RaftDBHealth struct {
-	Connected      bool               `json:"connected"`
-	Endpoints      int                `json:"endpoints"`
-	ActiveEndpoint string             `json:"active_endpoint,omitempty"`
-	Connections    []ConnectionDetail `json:"connections"`
+	// ClientConnected reports whether Northwatch's libovsdb client currently has
+	// a live connection to this database. This is independent of Raft state — it
+	// answers "can Northwatch reach OVN?", not "is the cluster healthy?".
+	ClientConnected bool `json:"client_connected"`
+
+	// Cluster is the Raft cluster state aggregated across the configured
+	// endpoints. Cluster.Available is false when no member could be read.
+	Cluster RaftCluster `json:"cluster"`
+
+	// Listeners are the rows of this database's Connection table — the
+	// configured connection methods (e.g. passive ptcp:/pssl: listeners). For a
+	// passive listener IsConnected is typically false; the meaningful liveness
+	// lives in Status (bound_port, n_connections), not IsConnected.
+	Listeners []ConnectionDetail `json:"listeners"`
 }
 
-// ConnectionDetail describes a single OVSDB connection entry.
+// RaftCluster is the aggregated Raft view of one database, built from the
+// per-endpoint "_Server" Database rows.
+type RaftCluster struct {
+	// Available is true when at least one member's "_Server" row was read. When
+	// false the UI should show the cluster view as "unavailable" rather than
+	// "unhealthy" (e.g. standalone server or offline snapshot).
+	Available bool `json:"available"`
+	// Model is the OVSDB service model reported by members: "standalone",
+	// "clustered", or "relay". Only "clustered" databases run Raft.
+	Model string `json:"model,omitempty"`
+	// ClusterID (cid) identifies the Raft cluster. All members should agree;
+	// SplitBrain is set if reachable members report differing cluster IDs.
+	ClusterID  string `json:"cluster_id,omitempty"`
+	SplitBrain bool   `json:"split_brain,omitempty"`
+	// Total is the number of configured endpoints; Reachable is how many
+	// reported a "_Server" row. These reflect the endpoints Northwatch was
+	// configured with, which may be a subset of the real cluster.
+	Total     int `json:"total"`
+	Reachable int `json:"reachable"`
+	// HasLeader is true when exactly one reachable member reports itself leader;
+	// LeaderID is that member's server ID.
+	HasLeader bool   `json:"has_leader"`
+	LeaderID  string `json:"leader_id,omitempty"`
+	// Members is one entry per configured endpoint, reachable or not.
+	Members []RaftMember `json:"members"`
+}
+
+// RaftMember is one cluster member's self-reported Raft state, read from the
+// "_Server" Database row on its endpoint.
+type RaftMember struct {
+	// Endpoint is the configured address of this member.
+	Endpoint string `json:"endpoint"`
+	// Reachable is true when this member's "_Server" row was read.
+	Reachable bool `json:"reachable"`
+	// ServerID (sid) identifies this member within the cluster.
+	ServerID string `json:"server_id,omitempty"`
+	// Leader is true when this member reports itself as the current Raft leader.
+	Leader bool `json:"leader"`
+	// Connected reports whether this member is in contact with the cluster
+	// (part of the quorum). False means partitioned or still catching up.
+	Connected bool `json:"connected"`
+	// Index is this member's Raft log index — its position in the replicated log.
+	Index int `json:"index,omitempty"`
+}
+
+// ConnectionDetail describes a single OVSDB Connection table row.
 type ConnectionDetail struct {
 	UUID        string `json:"uuid"`
 	Target      string `json:"target"`
@@ -258,59 +334,131 @@ type ConnectionDetail struct {
 	Status      string `json:"status,omitempty"`
 }
 
-// RaftHealth returns detailed Raft cluster health for NB and SB.
+// RaftHealth returns Raft cluster health plus client-connection state for NB and SB.
 func (q *Querier) RaftHealth(ctx context.Context) (*RaftHealthResult, error) {
 	result := &RaftHealthResult{}
 
-	// NB connections
+	result.NB.ClientConnected = q.NB.Connected()
 	var nbConns []nb.Connection
 	if err := q.NB.List(ctx, &nbConns); err == nil {
-		result.NB.Connected = q.NB.Connected()
-		result.NB.Endpoints = len(nbConns)
 		for _, c := range nbConns {
-			detail := ConnectionDetail{
+			result.NB.Listeners = append(result.NB.Listeners, ConnectionDetail{
 				UUID:        c.UUID,
 				Target:      c.Target,
 				IsConnected: c.IsConnected,
-			}
-			if c.Status != nil {
-				// Status is a map
-				for k, v := range c.Status {
-					detail.Status = k + "=" + v
-					break
-				}
-			}
-			result.NB.Connections = append(result.NB.Connections, detail)
+				Status:      formatStatus(c.Status),
+			})
 		}
 	}
+	result.NB.Cluster = clusterStatus(ctx, q.NBServers, nbDatabaseName)
 
-	// SB connections
+	result.SB.ClientConnected = q.SB.Connected()
 	var sbConns []sb.Connection
 	if err := q.SB.List(ctx, &sbConns); err == nil {
-		result.SB.Connected = q.SB.Connected()
-		result.SB.Endpoints = len(sbConns)
 		for _, c := range sbConns {
-			detail := ConnectionDetail{
+			result.SB.Listeners = append(result.SB.Listeners, ConnectionDetail{
 				UUID:        c.UUID,
 				Target:      c.Target,
 				IsConnected: c.IsConnected,
-			}
-			if c.Status != nil {
-				for k, v := range c.Status {
-					detail.Status = k + "=" + v
-					break
-				}
-			}
-			result.SB.Connections = append(result.SB.Connections, detail)
+				Status:      formatStatus(c.Status),
+			})
 		}
 	}
+	result.SB.Cluster = clusterStatus(ctx, q.SBServers, sbDatabaseName)
 
-	if result.NB.Connections == nil {
-		result.NB.Connections = []ConnectionDetail{}
+	if result.NB.Listeners == nil {
+		result.NB.Listeners = []ConnectionDetail{}
 	}
-	if result.SB.Connections == nil {
-		result.SB.Connections = []ConnectionDetail{}
+	if result.SB.Listeners == nil {
+		result.SB.Listeners = []ConnectionDetail{}
 	}
 
 	return result, nil
+}
+
+// clusterStatus aggregates the per-endpoint "_Server" monitors into a cluster
+// view for dbName. Each monitor reports only its own server's Raft row, so the
+// member list is reconstructed by reading dbName's row from every endpoint.
+// Unreachable endpoints are still listed (Reachable=false).
+func clusterStatus(ctx context.Context, monitors []ovndb.ServerMonitor, dbName string) RaftCluster {
+	c := RaftCluster{Members: []RaftMember{}, Total: len(monitors)}
+	leaders := 0
+	for _, mon := range monitors {
+		member := RaftMember{Endpoint: mon.Endpoint}
+		if d, ok := readDatabaseRow(ctx, mon.Client, dbName); ok {
+			member.Reachable = true
+			member.Leader = d.Leader
+			member.Connected = d.Connected
+			if d.Sid != nil {
+				member.ServerID = *d.Sid
+			}
+			if d.Index != nil {
+				member.Index = *d.Index
+			}
+
+			c.Available = true
+			c.Reachable++
+			if c.Model == "" {
+				c.Model = d.Model
+			}
+			if d.Cid != nil {
+				if c.ClusterID == "" {
+					c.ClusterID = *d.Cid
+				} else if c.ClusterID != *d.Cid {
+					c.SplitBrain = true
+				}
+			}
+			if d.Leader {
+				leaders++
+				c.LeaderID = member.ServerID
+			}
+		}
+		c.Members = append(c.Members, member)
+	}
+	// Only claim a leader when exactly one member reports leadership; two
+	// leaders means a split we should surface, not paper over.
+	c.HasLeader = leaders == 1
+	if leaders > 1 {
+		c.SplitBrain = true
+		c.LeaderID = ""
+	}
+	return c
+}
+
+// readDatabaseRow reads the "_Server" Database row for dbName from a single
+// member monitor. It returns ok=false when the client is nil, disconnected,
+// errors, or has no matching row.
+func readDatabaseRow(ctx context.Context, server client.Client, dbName string) (serverdb.Database, bool) {
+	if server == nil || !server.Connected() {
+		return serverdb.Database{}, false
+	}
+	var dbs []serverdb.Database
+	if err := server.List(ctx, &dbs); err != nil {
+		return serverdb.Database{}, false
+	}
+	for _, d := range dbs {
+		if d.Name == dbName {
+			return d, true
+		}
+	}
+	return serverdb.Database{}, false
+}
+
+// formatStatus renders an OVSDB status map as a stable, comma-separated
+// "key=value" string with keys sorted, so the full status (e.g. bound_port,
+// n_connections, sec_since_connect) is shown rather than a single arbitrary key.
+func formatStatus(status map[string]string) string {
+	if len(status) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(status))
+	for k := range status {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+status[k])
+	}
+	return strings.Join(parts, ", ")
 }

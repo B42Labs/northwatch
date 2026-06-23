@@ -11,13 +11,39 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/model"
+	"github.com/ovn-kubernetes/libovsdb/ovsdb/serverdb"
 )
+
+// ServerMonitor is a best-effort connection to the special "_Server" database
+// on a single OVSDB endpoint. Its Database table exposes that one server's view
+// of Raft cluster state (its server ID, whether it is the leader, its log index,
+// and whether it is in contact with the cluster). One ServerMonitor is created
+// per configured endpoint so the members can be aggregated into a cluster view.
+type ServerMonitor struct {
+	// Endpoint is the individual address this monitor targets (e.g.
+	// "tcp:10.0.0.1:6641"). It is always set, even when Client is nil, so an
+	// unreachable member is still listed.
+	Endpoint string
+	// Client is the connected "_Server" monitor, or nil when the endpoint could
+	// not be reached or does not expose "_Server" (standalone server, offline
+	// snapshot, or down at startup).
+	Client client.Client
+}
 
 // OVNDatabases bundles the Northbound and Southbound libovsdb client
 // connections used by Northwatch's handlers and subsystems.
 type OVNDatabases struct {
 	NB client.Client
 	SB client.Client
+
+	// NBServers and SBServers hold one best-effort "_Server" monitor per
+	// configured NB/SB endpoint. Each server's "_Server" Database table reports
+	// only its own Raft view, so aggregating across endpoints reconstructs the
+	// member list. The slices are empty when no endpoint exposes "_Server"
+	// (standalone ovsdb-server, offline snapshot replay), in which case the Raft
+	// health view degrades to "unavailable" rather than failing.
+	NBServers []ServerMonitor
+	SBServers []ServerMonitor
 }
 
 // MonitorOptions tunes how the initial libovsdb monitor is built when
@@ -50,16 +76,28 @@ func newBackoff() *backoff.ExponentialBackOff {
 	return bo
 }
 
-// splitEndpoints parses a comma-separated list of OVSDB addresses into
-// individual WithEndpoint options. This enables libovsdb's native failover
-// when multiple endpoints are provided (e.g. "tcp:10.0.0.1:6641,tcp:10.0.0.2:6641").
-func splitEndpoints(addr string) []client.Option {
+// endpointList splits a comma-separated OVSDB address into individual,
+// trimmed endpoint strings (e.g. "tcp:10.0.0.1:6641,tcp:10.0.0.2:6641" →
+// ["tcp:10.0.0.1:6641", "tcp:10.0.0.2:6641"]).
+func endpointList(addr string) []string {
 	parts := strings.Split(addr, ",")
-	opts := make([]client.Option, 0, len(parts))
+	eps := make([]string, 0, len(parts))
 	for _, p := range parts {
 		if p = strings.TrimSpace(p); p != "" {
-			opts = append(opts, client.WithEndpoint(p))
+			eps = append(eps, p)
 		}
+	}
+	return eps
+}
+
+// splitEndpoints turns a comma-separated list of OVSDB addresses into
+// individual WithEndpoint options. This enables libovsdb's native failover
+// when multiple endpoints are provided.
+func splitEndpoints(addr string) []client.Option {
+	eps := endpointList(addr)
+	opts := make([]client.Option, 0, len(eps))
+	for _, ep := range eps {
+		opts = append(opts, client.WithEndpoint(ep))
 	}
 	return opts
 }
@@ -111,7 +149,82 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 		return nil, fmt.Errorf("connecting to SB: %w", sbErr)
 	}
 
-	return &OVNDatabases{NB: nbClient, SB: sbClient}, nil
+	dbs := &OVNDatabases{NB: nbClient, SB: sbClient}
+
+	// Best-effort: monitor the special "_Server" database on every configured
+	// endpoint so the Raft health view can report the full member list. Done
+	// after the primary clients connect and never fatal — see
+	// connectServerMonitors.
+	dbs.NBServers = connectServerMonitors(ctx, nbAddr)
+	dbs.SBServers = connectServerMonitors(ctx, sbAddr)
+
+	return dbs, nil
+}
+
+// connectServerMonitors opens one best-effort "_Server" monitor per endpoint in
+// addr. Each server's "_Server" Database table reports only its own Raft view,
+// so a separate connection per endpoint is needed to enumerate cluster members.
+//
+// It returns one ServerMonitor per endpoint (Client nil when that endpoint is
+// unreachable or does not expose "_Server"). This is intentionally non-fatal:
+// standalone servers and offline snapshots simply yield monitors with nil
+// Clients and the Raft view reports "unavailable" instead of failing startup.
+//
+// Clients are created sequentially (matching the note in Connect about
+// libovsdb's global logger) but connected concurrently with a per-endpoint
+// timeout, so a slow or down endpoint does not serialize startup. Once
+// connected, WithReconnect keeps each monitor healthy across drops.
+func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
+	eps := endpointList(addr)
+	if len(eps) == 0 {
+		return nil
+	}
+
+	sm, err := serverdb.FullDatabaseModel()
+	if err != nil {
+		fmt.Printf("warning: building _Server model (Raft health unavailable): %v\n", err)
+		return nil
+	}
+
+	monitors := make([]ServerMonitor, len(eps))
+	clients := make([]client.Client, len(eps))
+	for i, ep := range eps {
+		monitors[i].Endpoint = ep
+		c, err := client.NewOVSDBClient(sm, client.WithEndpoint(ep), client.WithReconnect(10*time.Second, newBackoff()))
+		if err != nil {
+			fmt.Printf("warning: creating _Server client for %s: %v\n", ep, err)
+			continue
+		}
+		clients[i] = c
+	}
+
+	var wg sync.WaitGroup
+	for i := range clients {
+		if clients[i] == nil {
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			c := clients[i]
+			connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			if err := c.Connect(connCtx); err != nil {
+				fmt.Printf("warning: connecting _Server on %s (member unreachable): %v\n", monitors[i].Endpoint, err)
+				c.Close()
+				return
+			}
+			if _, err := c.MonitorAll(connCtx); err != nil {
+				fmt.Printf("warning: monitoring _Server on %s (member unreachable): %v\n", monitors[i].Endpoint, err)
+				c.Close()
+				return
+			}
+			monitors[i].Client = c
+		}(i)
+	}
+	wg.Wait()
+
+	return monitors
 }
 
 func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbModel model.ClientDBModel, mon MonitorOptions) error {
@@ -212,8 +325,19 @@ func (d *OVNDatabases) Ready() bool {
 	return d.NB.Connected() && d.SB.Connected()
 }
 
-// Close shuts down both NB and SB OVSDB clients.
+// Close shuts down the NB and SB OVSDB clients along with every best-effort
+// "_Server" member monitor that connected.
 func (d *OVNDatabases) Close() {
 	d.NB.Close()
 	d.SB.Close()
+	for _, m := range d.NBServers {
+		if m.Client != nil {
+			m.Client.Close()
+		}
+	}
+	for _, m := range d.SBServers {
+		if m.Client != nil {
+			m.Client.Close()
+		}
+	}
 }
