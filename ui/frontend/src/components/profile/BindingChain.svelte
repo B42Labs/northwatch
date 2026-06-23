@@ -30,20 +30,21 @@
 </script>
 
 {#snippet connector()}
-  <div
-    class="ml-3 h-3 w-px bg-base-300"
-    aria-hidden="true"
-  ></div>
+  <div class="ml-3 h-3 w-px bg-base-300" aria-hidden="true"></div>
 {/snippet}
 
 <div class="flex flex-col gap-0">
   <!-- NB: Logical Switch Port -->
   {#if lsp}
-    <div class="rounded border border-base-300 border-l-2 border-l-primary bg-base-100 p-3">
+    <div
+      class="rounded border border-l-2 border-base-300 border-l-primary bg-base-100 p-3"
+    >
       <div class="flex flex-wrap items-center gap-2">
         <Badge text="NB" variant="primary" />
         <span class="font-mono text-sm font-semibold">Logical Switch Port</span>
-        {#if lsp.name}<span class="font-mono text-sm text-base-content/80">{lsp.name}</span>{/if}
+        {#if lsp.name}<span class="font-mono text-sm text-base-content/80"
+            >{lsp.name}</span
+          >{/if}
         {#if enrichment}<EnrichmentBadge data={enrichment} />{/if}
       </div>
       {#if lsp._uuid}
@@ -66,11 +67,15 @@
 
   <!-- NB: Logical Router Port -->
   {#if lrp}
-    <div class="rounded border border-base-300 border-l-2 border-l-primary bg-base-100 p-3">
+    <div
+      class="rounded border border-l-2 border-base-300 border-l-primary bg-base-100 p-3"
+    >
       <div class="flex flex-wrap items-center gap-2">
         <Badge text="NB" variant="primary" />
         <span class="font-mono text-sm font-semibold">Logical Router Port</span>
-        {#if lrp.name}<span class="font-mono text-sm text-base-content/80">{lrp.name}</span>{/if}
+        {#if lrp.name}<span class="font-mono text-sm text-base-content/80"
+            >{lrp.name}</span
+          >{/if}
       </div>
       {#if lrp._uuid}
         <a
@@ -92,11 +97,16 @@
 
   <!-- SB: Port Binding -->
   {#if portBinding}
-    <div class="rounded border border-base-300 border-l-2 border-l-secondary bg-base-100 p-3">
+    <div
+      class="rounded border border-l-2 border-base-300 border-l-secondary bg-base-100 p-3"
+    >
       <div class="flex flex-wrap items-center gap-2">
         <Badge text="SB" variant="secondary" />
         <span class="font-mono text-sm font-semibold">Port Binding</span>
-        {#if portBinding.type}<Badge text={String(portBinding.type)} variant="ghost" />{/if}
+        {#if portBinding.type}<Badge
+            text={String(portBinding.type)}
+            variant="ghost"
+          />{/if}
       </div>
       <div class="mt-1 font-mono text-xs text-base-content/55">
         {portBinding.logical_port || ''} · key: {portBinding.tunnel_key || '-'}
@@ -104,14 +114,20 @@
     </div>
     {@render connector()}
   {:else}
-    <div class="rounded border border-base-300 border-l-2 border-l-warning bg-base-100 p-3">
-      <span class="font-mono text-sm text-warning">! no port binding (unbound)</span>
+    <div
+      class="rounded border border-l-2 border-base-300 border-l-warning bg-base-100 p-3"
+    >
+      <span class="font-mono text-sm text-warning"
+        >! no port binding (unbound)</span
+      >
     </div>
   {/if}
 
   <!-- SB: Chassis -->
   {#if chassis}
-    <div class="rounded border border-base-300 border-l-2 border-l-accent bg-base-100 p-3">
+    <div
+      class="rounded border border-l-2 border-base-300 border-l-accent bg-base-100 p-3"
+    >
       <div class="flex flex-wrap items-center gap-2">
         <Badge text="SB" variant="accent" />
         <span class="font-mono text-sm font-semibold">Chassis</span>
@@ -127,11 +143,15 @@
 
   <!-- SB: Datapath -->
   {#if datapath}
-    <div class="rounded border border-base-300 border-l-2 border-l-info bg-base-100 p-3">
+    <div
+      class="rounded border border-l-2 border-base-300 border-l-info bg-base-100 p-3"
+    >
       <div class="flex flex-wrap items-center gap-2">
         <Badge text="SB" variant="info" />
         <span class="font-mono text-sm font-semibold">Datapath Binding</span>
-        <span class="font-mono text-xs text-base-content/55">key: {datapath.tunnel_key || '-'}</span>
+        <span class="font-mono text-xs text-base-content/55"
+          >key: {datapath.tunnel_key || '-'}</span
+        >
       </div>
     </div>
   {/if}

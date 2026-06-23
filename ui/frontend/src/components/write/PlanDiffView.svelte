@@ -1,7 +1,11 @@
 <script lang="ts">
   import type { PlanDiff } from '../../lib/writeApi';
   import Badge from '../ui/Badge.svelte';
-  import { actionVariant, actionGlyph, accentBorderClass } from '../../lib/status';
+  import {
+    actionVariant,
+    actionGlyph,
+    accentBorderClass,
+  } from '../../lib/status';
 
   let { diffs }: { diffs: PlanDiff[] } = $props();
 

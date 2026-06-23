@@ -97,18 +97,37 @@
             <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">External IP</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical IP</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">External IDs</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Enrichment</th>
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Type</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >External IP</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Logical IP</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >External IDs</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Enrichment</th
+                  >
                 </tr>
               </thead>
               <tbody>
                 {#each nats as nat (nat._uuid)}
                   <tr class="border-base-300/60">
                     <td>
-                      {#if nat.type}<Badge text={String(nat.type)} variant="ghost" />{:else}<span class="text-base-content/40">-</span>{/if}
+                      {#if nat.type}<Badge
+                          text={String(nat.type)}
+                          variant="ghost"
+                        />{:else}<span class="text-base-content/40">-</span
+                        >{/if}
                     </td>
                     <td class="text-xs">{nat.external_ip || '-'}</td>
                     <td class="text-xs">{nat.logical_ip || '-'}</td>
@@ -138,11 +157,16 @@
             >
               Ports
             </h2>
-            <span class="font-mono text-2xs text-base-content/40">{ports.length}</span>
+            <span class="font-mono text-2xs text-base-content/40"
+              >{ports.length}</span
+            >
           </div>
           <div class="flex flex-col gap-2">
             {#each ports as port, i (i)}
-              {@const lrp = (port.logical_router_port ?? {}) as Record<string, unknown>}
+              {@const lrp = (port.logical_router_port ?? {}) as Record<
+                string,
+                unknown
+              >}
               <details class="group rounded border border-base-300 bg-base-100">
                 <summary
                   class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-mono text-sm marker:content-none hover:bg-base-300/30"
@@ -151,7 +175,8 @@
                     class="select-none text-primary transition-transform group-open:rotate-90"
                     aria-hidden="true">▸</span
                   >
-                  <span class="truncate">{lrp.name || lrp._uuid || 'Port'}</span>
+                  <span class="truncate">{lrp.name || lrp._uuid || 'Port'}</span
+                  >
                 </summary>
                 <div class="border-t border-base-300 p-3">
                   <BindingChain chain={port} />

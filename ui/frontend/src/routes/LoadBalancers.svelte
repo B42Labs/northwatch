@@ -90,7 +90,10 @@
 
     <div class="flex flex-col gap-4">
       {#each filtered as lb (lb.uuid)}
-        <Card title={lb.name || lb.uuid.slice(0, 8)} subtitle={lb.uuid.slice(0, 8)}>
+        <Card
+          title={lb.name || lb.uuid.slice(0, 8)}
+          subtitle={lb.uuid.slice(0, 8)}
+        >
           {#if lb.protocol || lb.routers.length > 0 || lb.switches.length > 0}
             <div class="mb-2 flex flex-wrap gap-1">
               {#if lb.protocol}

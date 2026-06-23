@@ -259,7 +259,9 @@
   {#if filteredPortGroups.length > 0}
     <div class="flex flex-col gap-3">
       {#each filteredPortGroups as pg (pg.uuid)}
-        <section class="overflow-hidden rounded border border-base-300 bg-base-100">
+        <section
+          class="overflow-hidden rounded border border-base-300 bg-base-100"
+        >
           <!-- Panel header (collapse toggle) -->
           <button
             class="flex w-full cursor-pointer items-center gap-3 border-b border-base-300 bg-base-200/40 px-3 py-2 text-left hover:bg-base-200/70"
@@ -272,7 +274,9 @@
               &#9654;
             </span>
             <div class="min-w-0 flex-1">
-              <h2 class="truncate font-mono text-sm font-semibold text-base-content/85">
+              <h2
+                class="truncate font-mono text-sm font-semibold text-base-content/85"
+              >
                 {pg.displayName}
               </h2>
               {#if pg.displayName !== pg.name}
@@ -324,10 +328,22 @@
                     <table class="table table-xs w-full font-mono">
                       <thead>
                         <tr>
-                          <th class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Priority</th>
-                          <th class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Direction</th>
-                          <th class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Action</th>
-                          <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Match</th>
+                          <th
+                            class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            >Priority</th
+                          >
+                          <th
+                            class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            >Direction</th
+                          >
+                          <th
+                            class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            >Action</th
+                          >
+                          <th
+                            class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            >Match</th
+                          >
                         </tr>
                       </thead>
                       <tbody>
@@ -377,17 +393,29 @@
       >
         Standalone ACLs
       </h2>
-      <p class="mb-3 font-prose text-sm text-base-content/55">
+      <p class="font-prose mb-3 text-sm text-base-content/55">
         ACL rules not assigned to any port group
       </p>
       <div class="overflow-x-auto rounded border border-base-300">
         <table class="table table-xs w-full font-mono">
           <thead>
             <tr>
-              <th class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Priority</th>
-              <th class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Direction</th>
-              <th class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Action</th>
-              <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Match</th>
+              <th
+                class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                >Priority</th
+              >
+              <th
+                class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                >Direction</th
+              >
+              <th
+                class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                >Action</th
+              >
+              <th
+                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                >Match</th
+              >
             </tr>
           </thead>
           <tbody>
@@ -401,7 +429,10 @@
                   />
                 </td>
                 <td>
-                  <Badge text={acl.action} variant={aclActionVariant(acl.action)} />
+                  <Badge
+                    text={acl.action}
+                    variant={aclActionVariant(acl.action)}
+                  />
                 </td>
                 <td class="break-all text-xs">{acl.match}</td>
               </tr>

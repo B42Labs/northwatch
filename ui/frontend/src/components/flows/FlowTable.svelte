@@ -50,7 +50,9 @@
   let hasSearch = $derived(searchQuery.length > 0);
 
   // Categorize common OVN actions for visual hints
-  function actionBadges(actions: string): { label: string; variant: Variant }[] {
+  function actionBadges(
+    actions: string,
+  ): { label: string; variant: Variant }[] {
     const badges: { label: string; variant: Variant }[] = [];
     if (actions.includes('drop'))
       badges.push({ label: 'drop', variant: 'error' });
@@ -97,7 +99,9 @@
           >{/if}</span
       >
       <Badge
-        text={hasSearch ? `${matchCount}/${flows.length}` : String(flows.length)}
+        text={hasSearch
+          ? `${matchCount}/${flows.length}`
+          : String(flows.length)}
         variant={hasSearch && matchCount === 0
           ? 'ghost'
           : pipeline === 'ingress'
@@ -111,7 +115,9 @@
   {#if !collapsed}
     <div class="max-h-[500px] overflow-y-auto">
       {#if filteredFlows.length === 0}
-        <div class="px-3 py-4 text-center font-mono text-xs text-base-content/40">
+        <div
+          class="px-3 py-4 text-center font-mono text-xs text-base-content/40"
+        >
           <span class="text-base-content/30">//</span>
           {#if hasSearch}
             no flows matching "{searchQuery}"
@@ -203,7 +209,11 @@
                                   {key}: {value.slice(0, 8)}...
                                 </a>
                               {:else}
-                                <Badge text={`${key}: ${value}`} variant="ghost" outline />
+                                <Badge
+                                  text={`${key}: ${value}`}
+                                  variant="ghost"
+                                  outline
+                                />
                               {/if}
                             {/each}
                           </div>

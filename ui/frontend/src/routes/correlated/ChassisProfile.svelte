@@ -84,7 +84,11 @@
       />
 
       {#if cp}
-        <PropertyCard title="Chassis Private · SB" data={cp} exclude={['_uuid']} />
+        <PropertyCard
+          title="Chassis Private · SB"
+          data={cp}
+          exclude={['_uuid']}
+        />
       {/if}
 
       {#if encaps.length > 0}
@@ -93,16 +97,29 @@
             <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">IP</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Options</th>
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Type</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >IP</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Options</th
+                  >
                 </tr>
               </thead>
               <tbody>
                 {#each encaps as enc (enc._uuid)}
                   <tr class="border-base-300/60">
                     <td>
-                      {#if enc.type}<Badge text={String(enc.type)} variant="ghost" />{:else}<span class="text-base-content/40">-</span>{/if}
+                      {#if enc.type}<Badge
+                          text={String(enc.type)}
+                          variant="ghost"
+                        />{:else}<span class="text-base-content/40">-</span
+                        >{/if}
                     </td>
                     <td class="text-xs">{enc.ip || '-'}</td>
                     <td><CellRenderer value={enc.options} /></td>
@@ -115,16 +132,35 @@
       {/if}
 
       {#if portBindings.length > 0}
-        <Card title="Hosted Ports" subtitle={String(portBindings.length)} padding="none">
+        <Card
+          title="Hosted Ports"
+          subtitle={String(portBindings.length)}
+          padding="none"
+        >
           <div class="overflow-x-auto rounded border border-base-300">
             <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">UUID</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical Port</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Tunnel Key</th>
-                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">MAC</th>
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >UUID</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Logical Port</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Type</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >Tunnel Key</th
+                  >
+                  <th
+                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    >MAC</th
+                  >
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +182,10 @@
                     </td>
                     <td class="text-xs">{pb.logical_port || '-'}</td>
                     <td
-                      >{#if pb.type}<Badge text={String(pb.type)} variant="ghost" />{:else}-{/if}</td
+                      >{#if pb.type}<Badge
+                          text={String(pb.type)}
+                          variant="ghost"
+                        />{:else}-{/if}</td
                     >
                     <td class="text-xs">{pb.tunnel_key || '-'}</td>
                     <td class="max-w-xs truncate text-xs"

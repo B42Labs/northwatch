@@ -35,8 +35,9 @@
         {#each breadcrumbs as crumb, i (crumb.label)}
           {#if i > 0}<span class="text-base-content/25">/</span>{/if}
           {#if crumb.href}
-            <a href={link(crumb.href)} class="transition-colors hover:text-primary"
-              >{crumb.label}</a
+            <a
+              href={link(crumb.href)}
+              class="transition-colors hover:text-primary">{crumb.label}</a
             >
           {:else}
             <span>{crumb.label}</span>
@@ -53,19 +54,23 @@
 
     <h1
       class="flex items-baseline gap-2 text-xl font-semibold leading-tight text-base-content {mono
-        ? 'font-mono break-all'
+        ? 'break-all font-mono'
         : ''}"
     >
-      <span class="select-none text-primary nw-glow" aria-hidden="true">&gt;</span>
+      <span class="nw-glow select-none text-primary" aria-hidden="true"
+        >&gt;</span
+      >
       <span class="min-w-0">{title}</span>
     </h1>
 
     {#if meta}
-      <div class="mt-1.5 flex flex-wrap items-center gap-2">{@render meta()}</div>
+      <div class="mt-1.5 flex flex-wrap items-center gap-2">
+        {@render meta()}
+      </div>
     {/if}
 
     {#if description}
-      <p class="mt-1.5 max-w-2xl font-prose text-sm text-base-content/55">
+      <p class="font-prose mt-1.5 max-w-2xl text-sm text-base-content/55">
         {description}
       </p>
     {/if}

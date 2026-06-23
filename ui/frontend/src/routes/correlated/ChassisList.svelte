@@ -22,6 +22,13 @@
   description="Southbound chassis with their tunnel encapsulations and hypervisor hosts."
   loader={listCorrelatedChassis}
   {transform}
-  columns={['_uuid', 'name', 'hostname', 'encap_ips', 'encap_count', 'external_ids']}
+  columns={[
+    '_uuid',
+    'name',
+    'hostname',
+    'encap_ips',
+    'encap_count',
+    'external_ids',
+  ]}
   routeBase="/correlated/chassis"
 />

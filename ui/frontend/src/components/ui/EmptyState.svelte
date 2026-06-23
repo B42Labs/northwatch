@@ -19,7 +19,7 @@
     ><span class="text-base-content/30">//</span> {message}</span
   >
   {#if hint}
-    <span class="max-w-sm font-prose text-xs text-base-content/35">{hint}</span>
+    <span class="font-prose max-w-sm text-xs text-base-content/35">{hint}</span>
   {/if}
   {#if action}
     <div class="mt-1">{@render action()}</div>

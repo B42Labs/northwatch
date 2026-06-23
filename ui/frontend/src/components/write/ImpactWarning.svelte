@@ -65,7 +65,9 @@
     </button>
 
     {#if showTree}
-      <div class="mt-2 rounded border border-base-300 bg-base-100 p-3 text-base-content">
+      <div
+        class="mt-2 rounded border border-base-300 bg-base-100 p-3 text-base-content"
+      >
         {#each entries as entry (entry.operation_index)}
           <ImpactTree node={entry.result.root} />
         {/each}

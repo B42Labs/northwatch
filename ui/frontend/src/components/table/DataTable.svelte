@@ -131,8 +131,13 @@
     </select>
     {#if allColumns.length > columns.length}
       <label class="flex cursor-pointer items-center gap-2">
-        <input type="checkbox" class="toggle toggle-sm" bind:checked={showAll} />
-        <span class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        <input
+          type="checkbox"
+          class="toggle toggle-sm"
+          bind:checked={showAll}
+        />
+        <span
+          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
           >all columns</span
         >
       </label>
@@ -153,7 +158,8 @@
             >
               <div class="flex items-center gap-1">
                 {col}
-                <span class="text-primary {sortColumn === col ? '' : 'opacity-0'}"
+                <span
+                  class="text-primary {sortColumn === col ? '' : 'opacity-0'}"
                   >{sortColumn === col && !sortAsc ? '▼' : '▲'}</span
                 >
               </div>
@@ -200,14 +206,16 @@
       {#if totalPages > 1}
         <div class="join">
           <button
-            class="btn join-item btn-ghost btn-sm border-base-300"
+            class="btn btn-ghost join-item btn-sm border-base-300"
             disabled={currentPage === 1}
             onclick={() => currentPage--}
             aria-label="Previous page">«</button
           >
           {#each pageNumbers as p, i (i)}
             {#if p === '...'}
-              <button class="btn btn-disabled join-item btn-ghost btn-sm">…</button>
+              <button class="btn btn-disabled btn-ghost join-item btn-sm"
+                >…</button
+              >
             {:else}
               <button
                 class="btn join-item btn-sm {p === currentPage
@@ -218,7 +226,7 @@
             {/if}
           {/each}
           <button
-            class="btn join-item btn-ghost btn-sm border-base-300"
+            class="btn btn-ghost join-item btn-sm border-base-300"
             disabled={currentPage === totalPages}
             onclick={() => currentPage++}
             aria-label="Next page">»</button

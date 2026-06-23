@@ -174,7 +174,10 @@
       </div>
     {/if}
 
-    <button class="btn btn-primary btn-sm self-start font-mono" onclick={handleAdd}>
+    <button
+      class="btn btn-primary btn-sm self-start font-mono"
+      onclick={handleAdd}
+    >
       Add to Batch
     </button>
   </div>

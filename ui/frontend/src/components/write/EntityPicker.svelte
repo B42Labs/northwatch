@@ -70,7 +70,11 @@
       oninput={(e) => onSelect(e.currentTarget.value)}
     />
   {:else}
-    <FilterInput bind:value={filter} placeholder="Filter entities..." width="w-full" />
+    <FilterInput
+      bind:value={filter}
+      placeholder="Filter entities..."
+      width="w-full"
+    />
     {#if loading}
       <span class="font-mono text-xs text-base-content/50">Loading...</span>
     {:else}

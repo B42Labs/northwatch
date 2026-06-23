@@ -64,7 +64,9 @@
           <div class="mb-2 font-mono text-xs text-base-content/55">
             {db.endpoints} endpoint{db.endpoints === 1 ? '' : 's'}
             {#if db.active_endpoint}
-              · active <span class="text-base-content/80">{db.active_endpoint}</span>
+              · active <span class="text-base-content/80"
+                >{db.active_endpoint}</span
+              >
             {/if}
           </div>
 
@@ -73,16 +75,27 @@
               <table class="table table-xs font-mono">
                 <thead>
                   <tr>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Target</th>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Status</th>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Up</th>
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Target</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Status</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Up</th
+                    >
                   </tr>
                 </thead>
                 <tbody>
                   {#each db.connections as conn (conn.target)}
                     <tr class="border-base-300/60">
                       <td class="text-xs">{conn.target}</td>
-                      <td class="text-xs text-base-content/70">{conn.status ?? '-'}</td>
+                      <td class="text-xs text-base-content/70"
+                        >{conn.status ?? '-'}</td
+                      >
                       <td>
                         <Badge
                           text={conn.is_connected ? 'yes' : 'no'}

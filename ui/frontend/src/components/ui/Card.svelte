@@ -51,7 +51,9 @@
         {/if}
       </div>
       {#if actions}
-        <div class="flex flex-shrink-0 items-center gap-1">{@render actions()}</div>
+        <div class="flex flex-shrink-0 items-center gap-1">
+          {@render actions()}
+        </div>
       {/if}
     </header>
   {/if}

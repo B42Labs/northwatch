@@ -23,7 +23,9 @@
   class="flex flex-wrap gap-px overflow-hidden rounded border border-base-300 bg-base-300 {extra}"
 >
   {#each tiles as t (t.label)}
-    <div class="flex min-w-[6.5rem] flex-1 flex-col gap-0.5 bg-base-100 px-3 py-2">
+    <div
+      class="flex min-w-[6.5rem] flex-1 flex-col gap-0.5 bg-base-100 px-3 py-2"
+    >
       <span
         class="font-mono text-xl font-semibold tabular-nums leading-none {textClass[
           t.variant ?? 'neutral'

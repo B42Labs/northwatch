@@ -203,7 +203,11 @@
       tiles={[
         { label: 'NAT Rules', value: natRules.length },
         { label: 'SNAT', value: snatCount, variant: 'info' },
-        { label: 'DNAT', value: dnatCount + dnatAndSnatCount, variant: 'success' },
+        {
+          label: 'DNAT',
+          value: dnatCount + dnatAndSnatCount,
+          variant: 'success',
+        },
         { label: 'Routers', value: routersWithNat },
       ]}
     />
@@ -261,12 +265,30 @@
               <table class="table table-xs font-mono">
                 <thead>
                   <tr>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">External IP</th>
-                    <th class="bg-base-200 text-center text-2xs uppercase tracking-wider text-base-content/55">Dir</th>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical IP</th>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical Port</th>
-                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Gateway Port</th>
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Type</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >External IP</th
+                    >
+                    <th
+                      class="bg-base-200 text-center text-2xs uppercase tracking-wider text-base-content/55"
+                      >Dir</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Logical IP</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Logical Port</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Gateway Port</th
+                    >
                   </tr>
                 </thead>
                 <tbody>
@@ -283,8 +305,12 @@
                         >{typeArrow(nat.type)}</td
                       >
                       <td class="text-xs">{nat.logical_ip || '-'}</td>
-                      <td class="text-xs text-base-content/70">{formatPort(nat.logical_port)}</td>
-                      <td class="text-xs text-base-content/70">{formatPort(nat.gateway_port)}</td>
+                      <td class="text-xs text-base-content/70"
+                        >{formatPort(nat.logical_port)}</td
+                      >
+                      <td class="text-xs text-base-content/70"
+                        >{formatPort(nat.gateway_port)}</td
+                      >
                     </tr>
                   {/each}
                 </tbody>
@@ -304,9 +330,18 @@
                 <table class="table table-xs font-mono">
                   <thead>
                     <tr>
-                      <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Prefix</th>
-                      <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Nexthop</th>
-                      <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Output Port</th>
+                      <th
+                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        >Prefix</th
+                      >
+                      <th
+                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        >Nexthop</th
+                      >
+                      <th
+                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        >Output Port</th
+                      >
                     </tr>
                   </thead>
                   <tbody>
@@ -314,7 +349,9 @@
                       <tr class="border-base-300/60">
                         <td class="text-xs">{route.ip_prefix || '-'}</td>
                         <td class="text-xs">{route.nexthop || '-'}</td>
-                        <td class="text-xs text-base-content/70">{formatPort(route.output_port)}</td>
+                        <td class="text-xs text-base-content/70"
+                          >{formatPort(route.output_port)}</td
+                        >
                       </tr>
                     {/each}
                   </tbody>

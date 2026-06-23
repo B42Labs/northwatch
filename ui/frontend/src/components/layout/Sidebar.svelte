@@ -37,7 +37,8 @@
       onclick={() => toggle(key)}
       aria-expanded={isOpen}
     >
-      <span class="select-none text-base-content/30 transition-colors group-hover:text-primary"
+      <span
+        class="select-none text-base-content/30 transition-colors group-hover:text-primary"
         >{isOpen ? '▾' : '▸'}</span
       >
       <span class="truncate">{label}</span>
@@ -55,7 +56,9 @@
               aria-current={active ? 'page' : undefined}
             >
               <span
-                class="select-none {active ? 'text-primary' : 'text-transparent'}"
+                class="select-none {active
+                  ? 'text-primary'
+                  : 'text-transparent'}"
                 aria-hidden="true">&gt;</span
               >
               <span class="truncate">{l.label}</span>
@@ -68,7 +71,7 @@
 {/snippet}
 
 <aside
-  class="flex h-full min-h-screen w-64 flex-col bg-base-100 border-r border-base-300"
+  class="flex h-full min-h-screen w-64 flex-col border-r border-base-300 bg-base-100"
 >
   <!-- Brand: the command prompt -->
   <a
@@ -76,10 +79,11 @@
     class="flex items-center gap-2.5 border-b border-base-300 px-4 py-3.5 transition-colors hover:bg-base-300/30"
   >
     <span
-      class="grid h-7 w-7 place-items-center rounded-sm bg-primary/15 font-bold text-primary nw-glow"
+      class="nw-glow grid h-7 w-7 place-items-center rounded-sm bg-primary/15 font-bold text-primary"
       aria-hidden="true">◈</span
     >
-    <span class="font-mono text-base font-semibold tracking-tight text-base-content"
+    <span
+      class="font-mono text-base font-semibold tracking-tight text-base-content"
       >northwatch</span
     >
   </a>
