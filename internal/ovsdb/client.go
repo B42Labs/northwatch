@@ -156,7 +156,13 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 	}
 
 	// Staged: one monitor request per table, sleeping between them so the server
-	// serializes and ships each table's initial dump separately over time.
+	// serializes and ships each table's initial dump separately over time. Since
+	// a staged load is deliberately slow, log each table's progress and timing to
+	// stdout so an operator can see what is loading and spot a slow table. NB and
+	// SB stage concurrently and their lines interleave, so prefix each with the
+	// database name.
+	dbName := dbModel.Name()
+	stagedStart := time.Now()
 	for i, t := range tables {
 		if i > 0 {
 			select {
@@ -165,12 +171,16 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 			case <-time.After(mon.BatchDelay):
 			}
 		}
+		fmt.Printf("[%s] loading table %s (%d/%d)...\n", dbName, t, i+1, len(tables))
 		m := c.NewMonitor()
 		m.Tables = append(m.Tables, client.TableMonitor{Table: t})
+		start := time.Now()
 		if _, err := c.Monitor(ctx, m); err != nil {
 			return fmt.Errorf("monitoring table %s: %w", t, err)
 		}
+		fmt.Printf("[%s] loaded table %s (%d/%d) in %s\n", dbName, t, i+1, len(tables), time.Since(start).Round(time.Millisecond))
 	}
+	fmt.Printf("[%s] staged load complete: %d tables in %s\n", dbName, len(tables), time.Since(stagedStart).Round(time.Millisecond))
 	return nil
 }
 
