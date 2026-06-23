@@ -39,6 +39,11 @@ type Config struct {
 	ConfigFile string          // --config-file / NORTHWATCH_CONFIG_FILE
 	Clusters   []ClusterConfig // populated from file or from flat flags
 
+	// Offline snapshot mode: path to a snapshot file to serve instead of
+	// connecting to a live OVN deployment. When set, the NB/SB addresses are
+	// synthesized from local in-memory servers backing the snapshot.
+	SnapshotFile string // --snapshot / NORTHWATCH_SNAPSHOT
+
 	// OpenStack enrichment (all optional)
 	OpenStackAuthURL     string
 	OpenStackUsername     string
@@ -84,6 +89,9 @@ func Parse(args []string) (*Config, error) {
 	// Multi-cluster config file
 	fs.StringVar(&cfg.ConfigFile, "config-file", os.Getenv("NORTHWATCH_CONFIG_FILE"), "Path to JSON config file for multi-cluster")
 
+	// Offline snapshot mode
+	fs.StringVar(&cfg.SnapshotFile, "snapshot", os.Getenv("NORTHWATCH_SNAPSHOT"), "Path to a snapshot file to serve offline (no live OVN connection; takes precedence over --ovn-*-addr and --config-file)")
+
 	// OpenStack enrichment flags
 	fs.StringVar(&cfg.OpenStackAuthURL, "os-auth-url", os.Getenv("OS_AUTH_URL"), "OpenStack Keystone auth URL")
 	fs.StringVar(&cfg.OpenStackUsername, "os-username", os.Getenv("OS_USERNAME"), "OpenStack username")
@@ -124,8 +132,12 @@ func Parse(args []string) (*Config, error) {
 		return nil, err
 	}
 
-	// Load cluster config from file if specified
-	if cfg.ConfigFile != "" {
+	// Offline snapshot mode takes precedence: the cluster list is synthesized
+	// in main from the in-memory servers backing the snapshot, so no live
+	// addresses or config file are required here.
+	if cfg.SnapshotFile != "" {
+		// nothing to validate; clusters are filled in once the snapshot is served
+	} else if cfg.ConfigFile != "" {
 		if err := loadConfigFile(cfg); err != nil {
 			return nil, fmt.Errorf("loading config file: %w", err)
 		}

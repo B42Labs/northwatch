@@ -5,7 +5,9 @@ go 1.26.4
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/coder/websocket v1.8.14
+	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/stdr v1.2.2
+	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud/v2 v2.11.1
 	github.com/ovn-kubernetes/libovsdb v0.8.1
 	github.com/prometheus/client_golang v1.22.0
@@ -27,7 +29,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
@@ -35,7 +36,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.26.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect

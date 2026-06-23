@@ -31,6 +31,10 @@ coverage.html
 *.db-shm
 *.db-wal
 
+# Snapshots (offline-mode captures may contain real deployment data)
+northwatch-snapshot.json
+*-snapshot.json
+
 # Generated
 openapi-export/
 openapi.json
