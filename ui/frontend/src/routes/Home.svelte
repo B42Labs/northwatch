@@ -31,7 +31,6 @@
       >
         <span class="text-primary nw-glow">◈</span>
         <span class="ml-2">northwatch</span>
-        <span class="nw-cursor" aria-hidden="true"></span>
       </h1>
       <p class="mt-3 max-w-2xl font-prose text-sm leading-relaxed text-base-content/65">
         A read-only console for browsing, debugging, and monitoring OVN

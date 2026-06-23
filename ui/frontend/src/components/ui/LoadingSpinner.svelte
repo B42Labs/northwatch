@@ -9,5 +9,4 @@
 >
   <span class="text-primary">&gt;</span>
   <span>{label}</span>
-  <span class="nw-cursor" aria-hidden="true"></span>
 </div>

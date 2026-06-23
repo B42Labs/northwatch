@@ -82,7 +82,6 @@
     <span class="font-mono text-base font-semibold tracking-tight text-base-content"
       >northwatch</span
     >
-    <span class="nw-cursor" aria-hidden="true"></span>
   </a>
 
   <nav class="flex-1 overflow-y-auto px-2 py-3">

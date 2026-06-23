@@ -23,10 +23,6 @@ export default {
         terminal: '0.02em',
       },
       keyframes: {
-        'nw-blink': {
-          '0%, 49%': { opacity: '1' },
-          '50%, 100%': { opacity: '0' },
-        },
         'nw-pulse-ring': {
           '0%': { boxShadow: '0 0 0 0 var(--nw-pulse, rgba(74, 222, 128, 0.5))' },
           '70%': { boxShadow: '0 0 0 6px rgba(74, 222, 128, 0)' },
@@ -38,7 +34,6 @@ export default {
         },
       },
       animation: {
-        'nw-blink': 'nw-blink 1.1s steps(1) infinite',
         'nw-pulse-ring': 'nw-pulse-ring 2s ease-out infinite',
         'nw-row-flash': 'nw-row-flash 2s ease-out',
       },
