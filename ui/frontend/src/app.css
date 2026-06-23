@@ -5,7 +5,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    Northwatch · Console / Terminal design system
    Monospace-forward, dual-phosphor (green + amber) on warm near-black.
-   The boldness lives in the prompt, cursor, and scanlines — everything else
+   The boldness lives in the prompt and scanlines — everything else
    stays a quiet hairline grid so the data reads first.
 
    Colors reference DaisyUI's theme variables (oklch triplets: --p primary,
@@ -76,28 +76,6 @@
 }
 
 /* ── Signature: the command prompt ──────────────────────────────────────── */
-
-/* Blinking block cursor — the page's heartbeat. */
-.nw-cursor {
-  display: inline-block;
-  width: 0.55em;
-  height: 1.05em;
-  margin-left: 0.1em;
-  transform: translateY(0.12em);
-  background-color: oklch(var(--p));
-  animation: nw-blink 1.1s steps(1) infinite;
-}
-
-@keyframes nw-blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0;
-  }
-}
 
 /* The `> ` shell prompt before a label. */
 .nw-prompt::before {
@@ -179,12 +157,8 @@
   }
 }
 
-/* ── Respect reduced-motion: kill blink, pulse, scanlines, flashes ──────── */
+/* ── Respect reduced-motion: kill pulse, scanlines, flashes ─────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .nw-cursor {
-    animation: none;
-    opacity: 1;
-  }
   .nw-dot-live {
     animation: none;
   }
