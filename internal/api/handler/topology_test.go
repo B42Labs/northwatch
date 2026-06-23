@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildTopology_Basic(t *testing.T) {
@@ -68,6 +70,14 @@ func TestBuildTopology_Empty(t *testing.T) {
 	resp := buildTopology(nil, nil, nil, nil, nil, nil, nil, false)
 	assert.Empty(t, resp.Nodes)
 	assert.Empty(t, resp.Edges)
+
+	// Slices must be non-nil so the response marshals to empty JSON arrays,
+	// not null. null crashes array-assuming clients (issue #3).
+	assert.NotNil(t, resp.Nodes)
+	assert.NotNil(t, resp.Edges)
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"nodes":[],"edges":[]}`, string(body))
 }
 
 func TestBuildTopology_ChassisGrouping(t *testing.T) {

@@ -166,6 +166,15 @@ func buildTopology(
 	if includeVMs {
 		nodes, edges = addVMPorts(input, idx, nodes, edges)
 	}
+	// Guarantee non-nil slices so a deployment with no logical topology
+	// marshals to {"nodes":[],"edges":[]} rather than {"nodes":null,...}.
+	// null would crash array-assuming clients (see issue #3).
+	if nodes == nil {
+		nodes = []TopologyNode{}
+	}
+	if edges == nil {
+		edges = []TopologyEdge{}
+	}
 	return TopologyResponse{Nodes: nodes, Edges: edges}
 }
 
