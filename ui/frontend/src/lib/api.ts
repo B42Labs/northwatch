@@ -160,13 +160,19 @@ export interface TopologyResponse {
   edges: TopologyEdge[];
 }
 
-export function getTopology(opts?: {
+export async function getTopology(opts?: {
   vms?: boolean;
 }): Promise<TopologyResponse> {
   const params = new URLSearchParams();
   if (opts?.vms) params.set('vms', 'true');
   const qs = params.toString();
-  return get(`/api/v1/topology${qs ? '?' + qs : ''}`);
+  const data = await get<TopologyResponse>(
+    `/api/v1/topology${qs ? '?' + qs : ''}`,
+  );
+  // The backend marshals empty (nil) slices to JSON null, so an OVN
+  // deployment with no logical topology returns {"nodes":null,"edges":null}.
+  // Normalize here so every caller can rely on real arrays.
+  return { nodes: data.nodes ?? [], edges: data.edges ?? [] };
 }
 
 // Flow Pipeline
