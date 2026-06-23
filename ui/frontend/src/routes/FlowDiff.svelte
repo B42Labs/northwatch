@@ -5,19 +5,36 @@
     listDatapathBindings,
     type FlowDiffResponse,
   } from '../lib/api';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import SegmentedControl from '../components/ui/SegmentedControl.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import { actionVariant, actionGlyph } from '../lib/status';
   import { subscribeToTable } from '../lib/eventStore';
 
   let datapaths: Record<string, unknown>[] = $state([]);
   let datapathsLoading = $state(true);
   let selectedDatapath = $state('');
   let timeRange = $state<5 | 15 | 30 | 0>(30);
+  let timeRangeValue = $state('30');
   let autoRefresh = $state(false);
   let diffData: FlowDiffResponse | null = $state(null);
   let loading = $state(false);
   let error = $state('');
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const timeRangeOptions = [
+    { value: '5', label: '5 min' },
+    { value: '15', label: '15 min' },
+    { value: '30', label: '30 min' },
+    { value: '0', label: 'All' },
+  ];
+
+  function onTimeRangeChange(v: string) {
+    timeRange = Number(v) as 5 | 15 | 30 | 0;
+  }
 
   interface DatapathOption {
     uuid: string;
@@ -65,19 +82,6 @@
         return 'border-l-warning';
       default:
         return 'border-l-base-300';
-    }
-  }
-
-  function changeBadge(type: string): string {
-    switch (type) {
-      case 'insert':
-        return 'badge-success';
-      case 'delete':
-        return 'badge-error';
-      case 'update':
-        return 'badge-warning';
-      default:
-        return 'badge-ghost';
     }
   }
 
@@ -144,180 +148,162 @@
   });
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Flow Diff</h1>
-    <p class="text-sm text-base-content/60">
-      Track LogicalFlow changes over time — inserts, updates, and deletes
-    </p>
+<PageHeader
+  eyebrow="Debug"
+  title="Flow Diff"
+  description="Track LogicalFlow changes over time — inserts, updates, and deletes"
+/>
+
+<DataState loading={datapathsLoading} {error}>
+  <!-- Controls -->
+  <div class="mb-4 flex flex-wrap items-center gap-3">
+    <select
+      bind:value={selectedDatapath}
+      class="select select-bordered select-sm w-64 bg-base-200/60 font-mono"
+    >
+      <option value="">All datapaths</option>
+      {#each datapathOptions as dp (dp.uuid)}
+        <option value={dp.uuid}>[{dp.type}] {dp.name}</option>
+      {/each}
+    </select>
+
+    <SegmentedControl
+      options={timeRangeOptions}
+      bind:value={timeRangeValue}
+      onchange={onTimeRangeChange}
+      size="xs"
+    />
+
+    <label class="label cursor-pointer gap-2">
+      <span
+        class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >Auto-refresh</span
+      >
+      <input
+        type="checkbox"
+        bind:checked={autoRefresh}
+        class="toggle toggle-primary toggle-xs"
+      />
+    </label>
+
+    <button class="btn btn-ghost btn-xs border-base-300" onclick={loadDiff}
+      >Refresh</button
+    >
   </div>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {/if}
-
-  {#if datapathsLoading}
+  {#if loading && !diffData}
     <LoadingSpinner />
-  {:else}
-    <!-- Controls -->
-    <div class="mb-4 flex flex-wrap items-center gap-3">
-      <select
-        bind:value={selectedDatapath}
-        class="select select-bordered select-sm w-64"
-      >
-        <option value="">All datapaths</option>
-        {#each datapathOptions as dp (dp.uuid)}
-          <option value={dp.uuid}>[{dp.type}] {dp.name}</option>
-        {/each}
-      </select>
+  {:else if diffData}
+    <!-- Stats bar -->
+    <StatTiles
+      class="mb-4 w-full"
+      tiles={[
+        { label: 'Total Changes', value: diffData.count },
+        { label: 'Inserts', value: inserts, variant: 'success' },
+        { label: 'Updates', value: updates, variant: 'warning' },
+        { label: 'Deletes', value: deletes, variant: 'error' },
+      ]}
+    />
 
-      <div class="join">
-        <button
-          class="btn join-item btn-xs {timeRange === 5 ? 'btn-active' : ''}"
-          onclick={() => (timeRange = 5)}>5 min</button
-        >
-        <button
-          class="btn join-item btn-xs {timeRange === 15 ? 'btn-active' : ''}"
-          onclick={() => (timeRange = 15)}>15 min</button
-        >
-        <button
-          class="btn join-item btn-xs {timeRange === 30 ? 'btn-active' : ''}"
-          onclick={() => (timeRange = 30)}>30 min</button
-        >
-        <button
-          class="btn join-item btn-xs {timeRange === 0 ? 'btn-active' : ''}"
-          onclick={() => (timeRange = 0)}>All</button
+    <!-- Timeline -->
+    {#if diffData.changes.length === 0}
+      <div class="py-8 text-center">
+        <span class="font-mono text-sm text-base-content/40"
+          ><span class="text-base-content/30">//</span> no flow changes in the selected
+          time range</span
         >
       </div>
+    {:else}
+      <div class="flex flex-col gap-2">
+        {#each diffData.changes as change (change.uuid + change.timestamp)}
+          <div
+            class="rounded border border-l-4 border-base-300 bg-base-100 px-4 py-3 {changeColor(
+              change.type,
+            )}"
+          >
+            <div class="flex items-center gap-2">
+              <Badge
+                text={change.type}
+                variant={actionVariant(change.type)}
+                glyph={actionGlyph(change.type)}
+              />
+              <span class="font-mono text-xs text-base-content/50"
+                >{change.uuid.slice(0, 12)}</span
+              >
+              <span class="ml-auto font-mono text-2xs text-base-content/40"
+                >{formatTime(change.timestamp)} ({formatTimeDelta(
+                  change.timestamp,
+                )})</span
+              >
+            </div>
 
-      <label class="label cursor-pointer gap-2">
-        <span class="label-text text-xs">Auto-refresh</span>
-        <input
-          type="checkbox"
-          bind:checked={autoRefresh}
-          class="toggle toggle-primary toggle-xs"
-        />
-      </label>
-
-      <button class="btn btn-ghost btn-xs" onclick={loadDiff}>Refresh</button>
-    </div>
-
-    {#if loading && !diffData}
-      <LoadingSpinner />
-    {:else if diffData}
-      <!-- Stats bar -->
-      <div
-        class="stats mb-4 w-full border border-base-300 bg-base-100 shadow-sm"
-      >
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Total Changes</div>
-          <div class="stat-value text-lg">{diffData.count}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Inserts</div>
-          <div class="stat-value text-lg text-success">{inserts}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Updates</div>
-          <div class="stat-value text-lg text-warning">{updates}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Deletes</div>
-          <div class="stat-value text-lg text-error">{deletes}</div>
-        </div>
-      </div>
-
-      <!-- Timeline -->
-      {#if diffData.changes.length === 0}
-        <div class="py-8 text-center text-sm text-base-content/40">
-          No flow changes in the selected time range
-        </div>
-      {:else}
-        <div class="flex flex-col gap-2">
-          {#each diffData.changes as change (change.uuid + change.timestamp)}
-            <div
-              class="rounded-lg border-l-4 bg-base-100 px-4 py-3 shadow-sm {changeColor(
-                change.type,
-              )}"
-            >
-              <div class="flex items-center gap-2">
-                <span class="badge badge-sm {changeBadge(change.type)}"
-                  >{change.type}</span
-                >
-                <span class="font-mono text-xs text-base-content/50"
-                  >{change.uuid.slice(0, 12)}</span
-                >
-                <span class="ml-auto text-xs text-base-content/40"
-                  >{formatTime(change.timestamp)} ({formatTimeDelta(
-                    change.timestamp,
-                  )})</span
-                >
-              </div>
-
-              {#if change.type === 'update' && change.old_row && change.new_row}
-                <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <div class="mb-0.5 font-semibold text-base-content/50">
-                      Before
-                    </div>
-                    {#if change.old_row.match}
-                      <div>
-                        <span class="text-base-content/50">match:</span>
-                        <span class="font-mono">{change.old_row.match}</span>
-                      </div>
-                    {/if}
-                    {#if change.old_row.actions}
-                      <div>
-                        <span class="text-base-content/50">actions:</span>
-                        <span class="font-mono">{change.old_row.actions}</span>
-                      </div>
-                    {/if}
+            {#if change.type === 'update' && change.old_row && change.new_row}
+              <div class="mt-2 grid grid-cols-2 gap-2 font-mono text-xs">
+                <div>
+                  <div
+                    class="mb-0.5 font-semibold uppercase tracking-wider text-base-content/50"
+                  >
+                    Before
                   </div>
-                  <div>
-                    <div class="mb-0.5 font-semibold text-base-content/50">
-                      After
-                    </div>
-                    {#if change.new_row.match}
-                      <div>
-                        <span class="text-base-content/50">match:</span>
-                        <span class="font-mono">{change.new_row.match}</span>
-                      </div>
-                    {/if}
-                    {#if change.new_row.actions}
-                      <div>
-                        <span class="text-base-content/50">actions:</span>
-                        <span class="font-mono">{change.new_row.actions}</span>
-                      </div>
-                    {/if}
-                  </div>
-                </div>
-              {:else if change.new_row}
-                <div class="mt-1 text-xs">
-                  {#if change.new_row.match}
-                    <span class="text-base-content/50">match:</span>
-                    <span class="font-mono">{change.new_row.match}</span>
-                  {/if}
-                  {#if change.new_row.actions}
-                    <span class="ml-2 text-base-content/50">actions:</span>
-                    <span class="font-mono">{change.new_row.actions}</span>
-                  {/if}
-                </div>
-              {:else if change.old_row}
-                <div class="mt-1 text-xs line-through opacity-60">
                   {#if change.old_row.match}
-                    <span class="text-base-content/50">match:</span>
-                    <span class="font-mono">{change.old_row.match}</span>
+                    <div>
+                      <span class="text-base-content/50">match:</span>
+                      <span>{change.old_row.match}</span>
+                    </div>
                   {/if}
                   {#if change.old_row.actions}
-                    <span class="ml-2 text-base-content/50">actions:</span>
-                    <span class="font-mono">{change.old_row.actions}</span>
+                    <div>
+                      <span class="text-base-content/50">actions:</span>
+                      <span>{change.old_row.actions}</span>
+                    </div>
                   {/if}
                 </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      {/if}
+                <div>
+                  <div
+                    class="mb-0.5 font-semibold uppercase tracking-wider text-base-content/50"
+                  >
+                    After
+                  </div>
+                  {#if change.new_row.match}
+                    <div>
+                      <span class="text-base-content/50">match:</span>
+                      <span>{change.new_row.match}</span>
+                    </div>
+                  {/if}
+                  {#if change.new_row.actions}
+                    <div>
+                      <span class="text-base-content/50">actions:</span>
+                      <span>{change.new_row.actions}</span>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {:else if change.new_row}
+              <div class="mt-1 font-mono text-xs">
+                {#if change.new_row.match}
+                  <span class="text-base-content/50">match:</span>
+                  <span>{change.new_row.match}</span>
+                {/if}
+                {#if change.new_row.actions}
+                  <span class="ml-2 text-base-content/50">actions:</span>
+                  <span>{change.new_row.actions}</span>
+                {/if}
+              </div>
+            {:else if change.old_row}
+              <div class="mt-1 font-mono text-xs line-through opacity-60">
+                {#if change.old_row.match}
+                  <span class="text-base-content/50">match:</span>
+                  <span>{change.old_row.match}</span>
+                {/if}
+                {#if change.old_row.actions}
+                  <span class="ml-2 text-base-content/50">actions:</span>
+                  <span>{change.old_row.actions}</span>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
     {/if}
   {/if}
-</div>
+</DataState>

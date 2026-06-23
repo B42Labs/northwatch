@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { Plan } from '../../lib/writeApi';
+  import type { Variant } from '../../lib/status';
   import Badge from '../ui/Badge.svelte';
+  import Card from '../ui/Card.svelte';
+  import FormField from '../ui/FormField.svelte';
   import ImpactWarning from './ImpactWarning.svelte';
   import PlanDiffView from './PlanDiffView.svelte';
 
@@ -38,9 +41,7 @@
     return `${mins}:${String(s).padStart(2, '0')}`;
   });
 
-  function statusVariant(
-    status: string,
-  ): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
+  function statusVariant(status: string): Variant {
     switch (status) {
       case 'pending':
         return 'warning';
@@ -59,23 +60,27 @@
 
 <div class="flex flex-col gap-4">
   <!-- Plan metadata -->
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body p-4">
+  <Card>
+    <div class="flex flex-col gap-2">
       <div class="flex flex-wrap items-center gap-3">
-        <h3 class="card-title text-sm">Plan</h3>
+        <h3
+          class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        >
+          Plan
+        </h3>
         <Badge text={plan.status} variant={statusVariant(plan.status)} />
         <span class="font-mono text-xs text-base-content/50">
           {plan.id.slice(0, 12)}
         </span>
-        <span class="text-xs text-base-content/50">
+        <span class="font-mono text-xs text-base-content/50">
           Expires in: <span class:text-error={expired}>{remaining}</span>
         </span>
       </div>
-      <div class="text-xs text-base-content/60">
+      <div class="font-mono text-xs text-base-content/60">
         {plan.operations.length} operation(s) &middot; {plan.diffs.length} change(s)
       </div>
     </div>
-  </div>
+  </Card>
 
   <!-- Impact warning -->
   {#if plan.impact && plan.impact.length > 0}
@@ -84,29 +89,30 @@
 
   <!-- Diffs -->
   <div>
-    <h3 class="mb-2 text-sm font-semibold">Changes Preview</h3>
+    <h3
+      class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+    >
+      Changes Preview
+    </h3>
     <PlanDiffView diffs={plan.diffs} />
   </div>
 
   <!-- Apply controls -->
   {#if plan.status === 'pending'}
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body p-4">
+    <Card>
+      <div class="flex flex-col gap-2">
         <div class="flex flex-wrap items-end gap-3">
-          <div class="form-control">
-            <label class="label py-0.5" for="apply-actor">
-              <span class="label-text text-xs">Actor (optional)</span>
-            </label>
+          <FormField label="Actor (optional)" forId="apply-actor">
             <input
               id="apply-actor"
               type="text"
-              class="input input-sm input-bordered w-60"
+              class="input input-sm input-bordered w-60 font-mono"
               placeholder="your-name"
               bind:value={actor}
             />
-          </div>
+          </FormField>
           <button
-            class="btn btn-primary btn-sm"
+            class="btn btn-primary btn-sm font-mono"
             disabled={expired || applying}
             onclick={() => onApply(actor)}
           >
@@ -116,7 +122,7 @@
             Apply Changes
           </button>
           <button
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost btn-sm border-base-300 font-mono"
             disabled={applying}
             onclick={onCancel}
           >
@@ -124,11 +130,14 @@
           </button>
         </div>
         {#if expired}
-          <div role="alert" class="alert alert-error mt-2 py-2 text-xs">
+          <div
+            role="alert"
+            class="rounded border border-error/40 bg-error/10 px-3 py-2 font-mono text-sm text-error"
+          >
             Plan has expired. Preview again to create a new plan.
           </div>
         {/if}
       </div>
-    </div>
+    </Card>
   {/if}
 </div>

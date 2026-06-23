@@ -1,308 +1,105 @@
 <script lang="ts">
-  import { location } from '../../lib/router';
-  import { databases, correlatedViews } from '../../lib/tables';
-  import { link } from '../../lib/router';
+  import { location, link } from '../../lib/router';
+  import { databases } from '../../lib/tables';
+  import { navSections, isActiveLink, type NavLink } from '../../lib/nav';
   import { writeEnabled } from '../../lib/capabilitiesStore';
 
-  let collapsedSections: Record<string, boolean> = $state({});
+  // Database groups carry a lot of tables, so they start collapsed; the
+  // curated sections above stay open.
+  let collapsed: Record<string, boolean> = $state({ nb: true, sb: true });
 
-  function toggleSection(key: string) {
-    collapsedSections[key] = !collapsedSections[key];
+  function toggle(key: string) {
+    collapsed[key] = !collapsed[key];
   }
 
-  function isActive(path: string, href: string): boolean {
-    return path === href || path.startsWith(href + '/');
-  }
+  let sections = $derived(
+    navSections.filter((s) => !s.requiresWrite || $writeEnabled),
+  );
+
+  // The database tables expressed as nav links.
+  let dbGroups = $derived(
+    databases.map((db) => ({
+      key: db.key,
+      label: db.label,
+      links: db.tables.map(
+        (t): NavLink => ({ label: t.label, href: `/${db.key}/${t.slug}` }),
+      ),
+    })),
+  );
 </script>
 
-<aside class="min-h-screen w-64 border-r border-base-300 bg-base-100">
-  <div class="border-b border-base-300 p-4">
-    <a href={link('/')} class="text-xl font-bold text-primary">Northwatch</a>
-  </div>
-
-  <ul class="menu menu-sm gap-0.5 p-2">
-    <!-- Correlated views -->
-    <li>
-      <button
-        class="menu-title flex justify-between"
-        onclick={() => toggleSection('correlated')}
+{#snippet group(key: string, label: string, links: NavLink[])}
+  {@const isOpen = !collapsed[key]}
+  <div class="mb-0.5">
+    <button
+      type="button"
+      class="group flex w-full items-center gap-1.5 rounded px-2 py-1.5 font-mono text-2xs font-semibold uppercase tracking-widest text-base-content/45 transition-colors hover:text-base-content/80"
+      onclick={() => toggle(key)}
+      aria-expanded={isOpen}
+    >
+      <span class="select-none text-base-content/30 transition-colors group-hover:text-primary"
+        >{isOpen ? '▾' : '▸'}</span
       >
-        Correlated
-        <span class="text-xs"
-          >{collapsedSections['correlated'] ? '+' : '-'}</span
-        >
-      </button>
-      {#if !collapsedSections['correlated']}
-        <ul>
-          {#each correlatedViews as view (view.slug)}
-            <li>
-              <a
-                href={link(`/correlated/${view.slug}`)}
-                class:active={isActive($location, `/correlated/${view.slug}`)}
+      <span class="truncate">{label}</span>
+    </button>
+    {#if isOpen}
+      <ul class="ml-2 flex flex-col border-l border-base-300 pl-1.5">
+        {#each links as l (l.href)}
+          {@const active = isActiveLink($location, l)}
+          <li>
+            <a
+              href={link(l.href)}
+              class="flex items-center gap-1.5 rounded px-2 py-1 text-sm transition-colors {active
+                ? 'bg-primary/10 font-medium text-primary'
+                : 'text-base-content/70 hover:bg-base-300/50 hover:text-base-content'}"
+              aria-current={active ? 'page' : undefined}
+            >
+              <span
+                class="select-none {active ? 'text-primary' : 'text-transparent'}"
+                aria-hidden="true">&gt;</span
               >
-                {view.label}
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </li>
-
-    <!-- Visualization -->
-    <li>
-      <button
-        class="menu-title flex justify-between"
-        onclick={() => toggleSection('visualization')}
-      >
-        Visualization
-        <span class="text-xs"
-          >{collapsedSections['visualization'] ? '+' : '-'}</span
-        >
-      </button>
-      {#if !collapsedSections['visualization']}
-        <ul>
-          <li>
-            <a
-              href={link('/topology')}
-              class:active={isActive($location, '/topology')}
-            >
-              Topology
+              <span class="truncate">{l.label}</span>
             </a>
           </li>
-          <li>
-            <a
-              href={link('/flows')}
-              class:active={isActive($location, '/flows')}
-            >
-              Flow Pipeline
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/security')}
-              class:active={isActive($location, '/security')}
-            >
-              Security Policy
-            </a>
-          </li>
-          <li>
-            <a href={link('/nat')} class:active={isActive($location, '/nat')}>
-              NAT Overview
-            </a>
-          </li>
-          <li>
-            <a href={link('/ha')} class:active={isActive($location, '/ha')}>
-              HA Failover
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/mac-table')}
-              class:active={isActive($location, '/mac-table')}
-            >
-              MAC Table
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/load-balancers')}
-              class:active={isActive($location, '/load-balancers')}
-            >
-              Load Balancers
-            </a>
-          </li>
-        </ul>
-      {/if}
-    </li>
-
-    <!-- Debug -->
-    <li>
-      <button
-        class="menu-title flex justify-between"
-        onclick={() => toggleSection('debug')}
-      >
-        Debug
-        <span class="text-xs">{collapsedSections['debug'] ? '+' : '-'}</span>
-      </button>
-      {#if !collapsedSections['debug']}
-        <ul>
-          <li>
-            <a
-              href={link('/debug/trace')}
-              class:active={isActive($location, '/debug/trace')}
-            >
-              Packet Trace
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/debug/flow-diff')}
-              class:active={isActive($location, '/debug/flow-diff')}
-            >
-              Flow Diff
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/debug/connectivity')}
-              class:active={isActive($location, '/debug/connectivity')}
-            >
-              Connectivity
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/debug/port-diagnostics')}
-              class:active={isActive($location, '/debug/port-diagnostics')}
-            >
-              Port Diagnostics
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/debug/acl-audit')}
-              class:active={isActive($location, '/debug/acl-audit')}
-            >
-              ACL Audit
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/debug/stale-entries')}
-              class:active={isActive($location, '/debug/stale-entries')}
-            >
-              Stale Entries
-            </a>
-          </li>
-        </ul>
-      {/if}
-    </li>
-
-    <!-- History & Events -->
-    <li>
-      <button
-        class="menu-title flex justify-between"
-        onclick={() => toggleSection('history')}
-      >
-        History & Events
-        <span class="text-xs">{collapsedSections['history'] ? '+' : '-'}</span>
-      </button>
-      {#if !collapsedSections['history']}
-        <ul>
-          <li>
-            <a
-              href={link('/events')}
-              class:active={isActive($location, '/events')}
-            >
-              Events
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/history')}
-              class:active={isActive($location, '/history')}
-            >
-              Snapshots
-            </a>
-          </li>
-        </ul>
-      {/if}
-    </li>
-
-    <!-- Monitoring -->
-    <li>
-      <button
-        class="menu-title flex justify-between"
-        onclick={() => toggleSection('monitoring')}
-      >
-        Monitoring
-        <span class="text-xs"
-          >{collapsedSections['monitoring'] ? '+' : '-'}</span
-        >
-      </button>
-      {#if !collapsedSections['monitoring']}
-        <ul>
-          <li>
-            <a
-              href={link('/raft-health')}
-              class:active={isActive($location, '/raft-health')}
-            >
-              Raft Health
-            </a>
-          </li>
-          <li>
-            <a
-              href={link('/propagation-timeline')}
-              class:active={isActive($location, '/propagation-timeline')}
-            >
-              Propagation Timeline
-            </a>
-          </li>
-        </ul>
-      {/if}
-    </li>
-
-    <!-- Write (conditional) -->
-    {#if $writeEnabled}
-      <li>
-        <button
-          class="menu-title flex justify-between"
-          onclick={() => toggleSection('write')}
-        >
-          Write
-          <span class="text-xs">{collapsedSections['write'] ? '+' : '-'}</span>
-        </button>
-        {#if !collapsedSections['write']}
-          <ul>
-            <li>
-              <a
-                href={link('/write')}
-                class:active={isActive($location, '/write') &&
-                  !isActive($location, '/write/audit')}
-              >
-                Operation Builder
-              </a>
-            </li>
-            <li>
-              <a
-                href={link('/write/audit')}
-                class:active={isActive($location, '/write/audit')}
-              >
-                Audit Log
-              </a>
-            </li>
-          </ul>
-        {/if}
-      </li>
+        {/each}
+      </ul>
     {/if}
+  </div>
+{/snippet}
 
-    <div class="divider my-1"></div>
+<aside
+  class="flex h-full min-h-screen w-64 flex-col bg-base-100 border-r border-base-300"
+>
+  <!-- Brand: the command prompt -->
+  <a
+    href={link('/')}
+    class="flex items-center gap-2.5 border-b border-base-300 px-4 py-3.5 transition-colors hover:bg-base-300/30"
+  >
+    <span
+      class="grid h-7 w-7 place-items-center rounded-sm bg-primary/15 font-bold text-primary nw-glow"
+      aria-hidden="true">◈</span
+    >
+    <span class="font-mono text-base font-semibold tracking-tight text-base-content"
+      >northwatch</span
+    >
+    <span class="nw-cursor" aria-hidden="true"></span>
+  </a>
 
-    <!-- Database tables -->
-    {#each databases as db (db.key)}
-      <li>
-        <button
-          class="menu-title flex justify-between"
-          onclick={() => toggleSection(db.key)}
-        >
-          {db.label}
-          <span class="text-xs">{collapsedSections[db.key] ? '+' : '-'}</span>
-        </button>
-        {#if !collapsedSections[db.key]}
-          <ul>
-            {#each db.tables as table (table.slug)}
-              <li>
-                <a
-                  href={link(`/${db.key}/${table.slug}`)}
-                  class:active={isActive($location, `/${db.key}/${table.slug}`)}
-                >
-                  {table.label}
-                </a>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </li>
+  <nav class="flex-1 overflow-y-auto px-2 py-3">
+    {#each sections as section (section.key)}
+      {@render group(section.key, section.label, section.links)}
     {/each}
-  </ul>
+
+    <div class="my-2 flex items-center gap-2 px-2">
+      <span
+        class="font-mono text-2xs uppercase tracking-widest text-base-content/30"
+        >Databases</span
+      >
+      <span class="h-px flex-1 bg-base-300"></span>
+    </div>
+
+    {#each dbGroups as db (db.key)}
+      {@render group(db.key, db.label, db.links)}
+    {/each}
+  </nav>
 </aside>

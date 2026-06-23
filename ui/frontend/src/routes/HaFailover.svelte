@@ -1,6 +1,9 @@
 <script lang="ts">
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import FilterInput from '../components/ui/FilterInput.svelte';
+  import Badge from '../components/ui/Badge.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { writeEnabled } from '../lib/capabilitiesStore';
   import {
@@ -105,6 +108,18 @@
   }
 
   // --- State ---
+
+  interface SelectionPanelOpts {
+    title: string;
+    description: string;
+    countHeader: string;
+    rows: { name: string; hostname: string; count: number }[];
+    countVariant: (count: number) => 'neutral' | 'warning' | 'error';
+    actionLabel: string;
+    actionClass: string;
+    onaction: (name: string) => void;
+    onclose: () => void;
+  }
 
   let loading = $state(true);
   let error = $state('');
@@ -540,89 +555,74 @@
   }
 </script>
 
-<div>
-  <!-- Header -->
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">HA Failover</h1>
-    <p class="text-sm text-base-content/60">
-      HA Chassis Groups and gateway chassis failover chains
-    </p>
+<PageHeader
+  eyebrow="Visualize"
+  title="HA Failover"
+  description="HA Chassis Groups and gateway chassis failover chains."
+>
+  {#snippet actions()}
+    <StatTiles
+      tiles={[
+        { label: 'HA Groups', value: groups.length },
+        { label: 'Chassis Involved', value: totalChassisInvolved },
+      ]}
+    />
+  {/snippet}
+</PageHeader>
+
+<DataState {loading} {error}>
+  <!-- Summary + Search bar + Evacuate -->
+  <div class="mb-4 flex flex-wrap items-center gap-2">
+    <FilterInput
+      bind:value={searchQuery}
+      placeholder="filter by group name, chassis…"
+      width="w-72"
+    />
+
+    {#if $writeEnabled && hasNbGroups && activeChassisInfo.length > 0}
+      <button
+        class="btn btn-outline btn-warning btn-sm font-mono normal-case"
+        onclick={() => {
+          showEvacuateDropdown = !showEvacuateDropdown;
+          showRestoreDropdown = false;
+          if (!showEvacuateDropdown) clearAction();
+        }}
+      >
+        Evacuate Chassis
+      </button>
+    {/if}
+    {#if $writeEnabled && drainedChassisInfo.length > 0}
+      <button
+        class="btn btn-outline btn-success btn-sm font-mono normal-case"
+        onclick={() => {
+          showRestoreDropdown = !showRestoreDropdown;
+          showEvacuateDropdown = false;
+          if (!showRestoreDropdown) clearAction();
+        }}
+      >
+        Restore Chassis
+      </button>
+    {/if}
   </div>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else}
-    <!-- Summary + Search bar + Evacuate -->
-    <div class="mb-4 flex flex-wrap items-center gap-4">
-      <div>
-        <input
-          type="text"
-          bind:value={searchQuery}
-          placeholder="Filter by group name, chassis..."
-          class="input input-sm input-bordered w-72"
-        />
-      </div>
-
-      {#if $writeEnabled && hasNbGroups && activeChassisInfo.length > 0}
-        <button
-          class="btn btn-outline btn-warning btn-sm"
-          onclick={() => {
-            showEvacuateDropdown = !showEvacuateDropdown;
-            showRestoreDropdown = false;
-            if (!showEvacuateDropdown) clearAction();
-          }}
-        >
-          Evacuate Chassis
-        </button>
-      {/if}
-      {#if $writeEnabled && drainedChassisInfo.length > 0}
-        <button
-          class="btn btn-outline btn-success btn-sm"
-          onclick={() => {
-            showRestoreDropdown = !showRestoreDropdown;
-            showEvacuateDropdown = false;
-            if (!showRestoreDropdown) clearAction();
-          }}
-        >
-          Restore Chassis
-        </button>
-      {/if}
-
-      <div
-        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
-      >
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">HA Groups</div>
-          <div class="stat-value text-lg">{groups.length}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Chassis Involved</div>
-          <div class="stat-value text-lg">{totalChassisInvolved}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Evacuate chassis selection panel -->
-    {#if showEvacuateDropdown && !evacuateTarget}
-      <div
-        class="mb-4 rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
-      >
+    <!-- Shared chassis-selection panel (evacuate / restore) -->
+    {#snippet selectionPanel(opts: SelectionPanelOpts)}
+      <div class="mb-4 rounded border border-base-300 bg-base-100 p-4">
         <div class="mb-3 flex items-center justify-between">
           <div>
-            <div class="text-sm font-semibold">Select chassis to evacuate</div>
-            <div class="text-xs text-base-content/60">
-              Drains a chassis by setting its priority to 0 in all HA groups,
-              letting OVN promote the next-highest-priority chassis.
+            <div
+              class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+            >
+              {opts.title}
+            </div>
+            <div class="mt-1 font-prose text-xs text-base-content/55">
+              {opts.description}
             </div>
           </div>
           <button
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost btn-sm border-base-300"
             aria-label="Close"
-            onclick={() => {
-              showEvacuateDropdown = false;
-            }}
+            onclick={opts.onclose}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -640,41 +640,49 @@
             </svg>
           </button>
         </div>
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
+        <div class="overflow-x-auto rounded border border-base-300">
+          <table class="table table-xs font-mono">
             <thead>
               <tr>
-                <th>Chassis</th>
-                <th>Hostname</th>
-                <th>Active in</th>
-                <th></th>
+                <th
+                  class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                  >Chassis</th
+                >
+                <th
+                  class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                  >Hostname</th
+                >
+                <th
+                  class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                  >{opts.countHeader}</th
+                >
+                <th
+                  class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                ></th>
               </tr>
             </thead>
             <tbody>
-              {#each activeChassisInfo as chassis (chassis.name)}
-                <tr class="hover">
-                  <td class="font-mono text-sm">{chassis.name}</td>
-                  <td class="text-sm text-base-content/70"
+              {#each opts.rows as chassis (chassis.name)}
+                <tr class="border-base-300/60 hover:bg-base-300/40">
+                  <td class="text-xs">{chassis.name}</td>
+                  <td class="text-xs text-base-content/70"
                     >{chassis.hostname || '—'}</td
                   >
                   <td>
-                    <span
-                      class="badge badge-sm"
-                      class:badge-warning={chassis.activeInGroups.length > 2}
-                    >
-                      {chassis.activeInGroups.length} group{chassis
-                        .activeInGroups.length !== 1
+                    <Badge
+                      text="{chassis.count} group{chassis.count !== 1
                         ? 's'
-                        : ''}
-                    </span>
+                        : ''}"
+                      variant={opts.countVariant(chassis.count)}
+                    />
                   </td>
                   <td class="text-right">
                     <button
-                      class="btn btn-outline btn-warning btn-xs"
-                      onclick={() => startEvacuate(chassis.name)}
+                      class="btn btn-xs font-mono normal-case {opts.actionClass}"
+                      onclick={() => opts.onaction(chassis.name)}
                       disabled={actionLoading}
                     >
-                      Evacuate
+                      {opts.actionLabel}
                     </button>
                   </td>
                 </tr>
@@ -683,92 +691,58 @@
           </table>
         </div>
       </div>
+    {/snippet}
+
+    <!-- Evacuate chassis selection panel -->
+    {#if showEvacuateDropdown && !evacuateTarget}
+      {@render selectionPanel({
+        title: 'Select chassis to evacuate',
+        description:
+          'Drains a chassis by setting its priority to 0 in all HA groups, letting OVN promote the next-highest-priority chassis.',
+        countHeader: 'Active in',
+        rows: activeChassisInfo.map((c) => ({
+          name: c.name,
+          hostname: c.hostname,
+          count: c.activeInGroups.length,
+        })),
+        countVariant: (count) => (count > 2 ? 'warning' : 'neutral'),
+        actionLabel: 'Evacuate',
+        actionClass: 'btn-outline btn-warning',
+        onaction: startEvacuate,
+        onclose: () => {
+          showEvacuateDropdown = false;
+        },
+      })}
     {/if}
 
     <!-- Restore chassis selection panel -->
     {#if showRestoreDropdown && !restoreTarget}
-      <div
-        class="mb-4 rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
-      >
-        <div class="mb-3 flex items-center justify-between">
-          <div>
-            <div class="text-sm font-semibold">Select chassis to restore</div>
-            <div class="text-xs text-base-content/60">
-              Restores a previously drained chassis to its original priority
-              (standby).
-            </div>
-          </div>
-          <button
-            class="btn btn-ghost btn-sm"
-            aria-label="Close"
-            onclick={() => {
-              showRestoreDropdown = false;
-              clearAction();
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Chassis</th>
-                <th>Hostname</th>
-                <th>Drained in</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each drainedChassisInfo as chassis (chassis.name)}
-                <tr class="hover">
-                  <td class="font-mono text-sm">{chassis.name}</td>
-                  <td class="text-sm text-base-content/70"
-                    >{chassis.hostname || '—'}</td
-                  >
-                  <td>
-                    <span class="badge badge-error badge-sm">
-                      {chassis.drainedInGroups.length} group{chassis
-                        .drainedInGroups.length !== 1
-                        ? 's'
-                        : ''}
-                    </span>
-                  </td>
-                  <td class="text-right">
-                    <button
-                      class="btn btn-outline btn-success btn-xs"
-                      onclick={() => startRestore(chassis.name)}
-                      disabled={actionLoading}
-                    >
-                      Restore
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {@render selectionPanel({
+        title: 'Select chassis to restore',
+        description:
+          'Restores a previously drained chassis to its original priority (standby).',
+        countHeader: 'Drained in',
+        rows: drainedChassisInfo.map((c) => ({
+          name: c.name,
+          hostname: c.hostname,
+          count: c.drainedInGroups.length,
+        })),
+        countVariant: () => 'error',
+        actionLabel: 'Restore',
+        actionClass: 'btn-outline btn-success',
+        onaction: startRestore,
+        onclose: () => {
+          showRestoreDropdown = false;
+          clearAction();
+        },
+      })}
     {/if}
 
     <!-- Evacuate / Failover / Restore confirmation panel -->
     {#if (failoverTarget || evacuateTarget || restoreTarget) && (pendingPlan || actionLoading || actionError || actionSuccess)}
-      <div class="mb-4 rounded-lg border-2 border-warning bg-warning/5 p-4">
+      <div class="mb-4 rounded border-l-2 border-warning bg-warning/5 p-4">
         {#if actionSuccess}
-          <div class="flex items-center gap-2 text-sm text-success">
+          <div class="flex items-center gap-2 font-mono text-sm text-success">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               class="h-5 w-5"
@@ -786,72 +760,97 @@
             {actionSuccess}
           </div>
         {:else if actionLoading && !pendingPlan}
-          <div class="flex items-center gap-2 text-sm">
+          <div class="flex items-center gap-2 font-mono text-sm">
             <span class="loading loading-spinner loading-sm"></span>
             Computing preview...
           </div>
         {:else if actionError && !pendingPlan}
           <div class="flex items-center justify-between">
-            <span class="text-sm text-error">{actionError}</span>
-            <button class="btn btn-ghost btn-sm" onclick={clearAction}>
+            <span class="font-mono text-sm text-error">{actionError}</span>
+            <button
+              class="btn btn-ghost btn-sm border-base-300"
+              onclick={clearAction}
+            >
               Close
             </button>
           </div>
         {:else if pendingPlan}
           <div class="space-y-3">
             <!-- Header -->
-            <div class="flex items-start justify-between">
+            <div class="flex items-start justify-between gap-2">
               <div>
                 {#if failoverTarget}
-                  <div class="text-sm font-semibold">
+                  <div
+                    class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  >
                     Failover: {failoverTarget.groupName}
                   </div>
-                  <div class="text-xs text-base-content/60">
+                  <div class="mt-1 font-mono text-xs text-base-content/55">
                     {failoverTarget.activeChassisName} &rarr; {failoverTarget.targetChassis}
                   </div>
                 {:else if evacuateTarget}
-                  <div class="text-sm font-semibold">
+                  <div
+                    class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  >
                     Evacuate: {evacuateTarget}
                   </div>
-                  <div class="text-xs text-base-content/60">
+                  <div class="mt-1 font-mono text-xs text-base-content/55">
                     {pendingPlan.diffs.length} group(s) affected
                   </div>
                 {:else if restoreTarget}
-                  <div class="text-sm font-semibold">
+                  <div
+                    class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  >
                     Restore: {restoreTarget}
                   </div>
-                  <div class="text-xs text-base-content/60">
+                  <div class="mt-1 font-mono text-xs text-base-content/55">
                     {pendingPlan.diffs.length} group(s) affected
                   </div>
                 {/if}
               </div>
-              <span class="badge badge-warning badge-sm">
-                {pendingPlan.operations.length} operations
-              </span>
+              <Badge
+                text="{pendingPlan.operations.length} operations"
+                variant="warning"
+              />
             </div>
 
             <!-- Diff table -->
-            <div class="overflow-x-auto">
-              <table class="table table-xs">
+            <div class="overflow-x-auto rounded border border-base-300">
+              <table class="table table-xs font-mono">
                 <thead>
                   <tr>
-                    <th>Table</th>
-                    <th>UUID</th>
-                    <th>Field</th>
-                    <th>Before</th>
-                    <th>After</th>
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Table</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >UUID</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Field</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >Before</th
+                    >
+                    <th
+                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      >After</th
+                    >
                   </tr>
                 </thead>
                 <tbody>
                   {#each pendingPlan.diffs as diff (diff.uuid)}
                     {#if diff.fields}
                       {#each diff.fields as field (field.field)}
-                        <tr>
-                          <td class="font-mono text-xs">{diff.table}</td>
-                          <td class="font-mono text-xs">
+                        <tr class="border-base-300/60">
+                          <td class="text-xs">{diff.table}</td>
+                          <td class="text-xs">
                             {diff.uuid}
                           </td>
-                          <td class="font-mono text-xs">{field.field}</td>
+                          <td class="text-xs">{field.field}</td>
                           <td class="text-error">{field.old_value}</td>
                           <td class="text-success">{field.new_value}</td>
                         </tr>
@@ -864,13 +863,13 @@
 
             <!-- Action error -->
             {#if actionError}
-              <div class="text-sm text-error">{actionError}</div>
+              <div class="font-mono text-sm text-error">{actionError}</div>
             {/if}
 
             <!-- Buttons -->
             <div class="flex items-center gap-2">
               <button
-                class="btn btn-warning btn-sm"
+                class="btn btn-warning btn-sm font-mono normal-case"
                 onclick={confirmApply}
                 disabled={actionLoading}
               >
@@ -880,7 +879,7 @@
                 Apply
               </button>
               <button
-                class="btn btn-ghost btn-sm"
+                class="btn btn-ghost btn-sm border-base-300"
                 onclick={confirmCancel}
                 disabled={actionLoading}
               >
@@ -893,40 +892,48 @@
     {/if}
 
     {#if groups.length === 0}
-      <div class="py-8 text-center text-base-content/50">
-        No HA Chassis Groups found
+      <div class="py-8 text-center">
+        <span class="font-mono text-sm text-base-content/40"
+          ><span class="text-base-content/30">//</span> no HA Chassis Groups found</span
+        >
       </div>
     {:else if filteredGroups.length === 0}
-      <div class="py-8 text-center text-base-content/50">
-        No groups match the filter
+      <div class="py-8 text-center">
+        <span class="font-mono text-sm text-base-content/40"
+          ><span class="text-base-content/30">//</span> no groups match the filter</span
+        >
       </div>
     {:else}
       <div class="grid grid-cols-1 gap-4">
         {#each filteredGroups as group (group.uuid)}
-          <div class="card border border-base-300 bg-base-100 shadow-sm">
-            <div class="card-body p-4">
+          <div class="rounded border border-base-300 bg-base-100 p-4">
+            <div>
               <!-- Group header -->
               <div
                 class="mb-3 flex flex-wrap items-start justify-between gap-2"
               >
                 <div>
-                  <h2 class="card-title text-sm font-semibold">
+                  <h2
+                    class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  >
                     {shortName(group.name)}
                   </h2>
                   {#if group.crPortName}
-                    <p class="mt-0.5 text-xs text-base-content/50">
+                    <p class="mt-0.5 font-mono text-xs text-base-content/50">
                       CR port: {group.crPortName}
                     </p>
                   {/if}
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="badge badge-outline badge-sm">
-                    {group.chassisChain.length} chassis
-                  </span>
+                  <Badge
+                    text="{group.chassisChain.length} chassis"
+                    variant="neutral"
+                    outline
+                  />
                   {#if group.activeChassis}
-                    <span class="badge badge-success badge-sm">has active</span>
+                    <Badge text="has active" variant="success" />
                   {:else}
-                    <span class="badge badge-warning badge-sm">no active</span>
+                    <Badge text="no active" variant="warning" />
                   {/if}
                   {#if $writeEnabled && group.nbGroupName && group.activeChassis && group.chassisChain.length > 1}
                     {@const activeEntry = group.chassisChain.find(
@@ -937,7 +944,7 @@
                     )}
                     {#if activeEntry && standbyEntry}
                       <button
-                        class="btn btn-square btn-outline btn-warning btn-xs"
+                        class="btn btn-square btn-outline btn-warning btn-xs font-mono"
                         aria-label="Failover to {standbyEntry.chassisName}"
                         title="Failover to {standbyEntry.chassisName}"
                         onclick={() =>
@@ -970,53 +977,47 @@
 
               <!-- Chassis failover chain -->
               {#if group.chassisChain.length === 0}
-                <div class="py-2 text-xs text-base-content/40">
-                  No chassis entries in this group
+                <div class="py-2">
+                  <span class="font-mono text-xs text-base-content/40"
+                    ><span class="text-base-content/30">//</span> no chassis entries
+                    in this group</span
+                  >
                 </div>
               {:else}
                 <div class="flex flex-wrap items-center gap-0">
                   {#each group.chassisChain as entry, idx (entry.uuid)}
                     <!-- Chassis box -->
                     <div
-                      class="relative flex min-w-[140px] flex-col rounded-lg border-2 px-3 py-2 {entry.isActive
+                      class="relative flex min-w-[140px] flex-col rounded border-l-2 px-3 py-2 {entry.isActive
                         ? 'border-success bg-success/5'
                         : 'border-base-300 bg-base-200/50'}"
                     >
                       <!-- Priority badge -->
                       <div class="mb-1 flex items-center justify-between gap-2">
-                        <span
-                          class="badge badge-sm font-mono {entry.isActive
-                            ? 'badge-success'
-                            : 'badge-ghost'}"
-                        >
-                          P{entry.priority}
-                        </span>
+                        <Badge
+                          text="P{entry.priority}"
+                          variant={entry.isActive ? 'success' : 'ghost'}
+                        />
                         {#if entry.isActive}
-                          <span class="badge badge-success badge-sm"
-                            >ACTIVE</span
-                          >
+                          <Badge text="ACTIVE" variant="success" />
                         {:else if entry.isDrained}
-                          <span class="badge badge-error badge-sm">DRAINED</span
-                          >
+                          <Badge text="DRAINED" variant="error" />
                         {:else if idx === 0 && !group.activeChassis}
-                          <span class="badge badge-warning badge-sm"
-                            >STANDBY</span
-                          >
+                          <Badge text="STANDBY" variant="warning" />
                         {:else}
-                          <span class="badge badge-ghost badge-sm">STANDBY</span
-                          >
+                          <Badge text="STANDBY" variant="ghost" />
                         {/if}
                       </div>
                       <!-- Chassis name -->
                       <div
-                        class="text-sm font-medium"
+                        class="font-mono text-sm font-medium"
                         title={entry.chassisName}
                       >
                         {shortName(entry.chassisName)}
                       </div>
                       {#if entry.hostname}
                         <div
-                          class="text-xs text-base-content/50"
+                          class="font-mono text-xs text-base-content/50"
                           title={entry.hostname}
                         >
                           {entry.hostname}
@@ -1047,7 +1048,7 @@
                 </div>
 
                 <!-- Legend for this card -->
-                <div class="mt-2 text-xs text-base-content/40">
+                <div class="mt-2 font-prose text-xs text-base-content/40">
                   Ordered by priority (highest first). Highest priority with
                   bound CR port = active gateway.
                 </div>
@@ -1057,5 +1058,4 @@
         {/each}
       </div>
     {/if}
-  {/if}
-</div>
+  </DataState>

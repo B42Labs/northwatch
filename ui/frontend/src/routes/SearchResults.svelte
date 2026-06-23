@@ -2,8 +2,9 @@
   import { search, type SearchResponse } from '../lib/api';
   import { push, link } from '../lib/router';
   import { tableSlugFromOvsdbName } from '../lib/tables';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
   import Badge from '../components/ui/Badge.svelte';
 
   let { query }: { query: string } = $props();
@@ -57,96 +58,102 @@
   }
 </script>
 
-<div>
-  <h1 class="mb-1 text-xl font-bold">Search Results</h1>
-  {#if query}
-    <p class="mb-4 text-sm text-base-content/60">
-      Query: <span class="font-mono font-semibold">{query}</span>
+<PageHeader eyebrow="Search" title="Search results">
+  {#snippet meta()}
+    {#if query}
+      <span class="font-mono text-xs text-base-content/55">
+        query <span class="text-base-content/80">{query}</span>
+      </span>
       {#if result?.query_type}
         <Badge text={result.query_type} variant="info" />
       {/if}
       {#if !loading}
-        - {totalMatches} match{totalMatches !== 1 ? 'es' : ''}
+        <span class="font-mono text-xs text-base-content/55"
+          >{totalMatches} match{totalMatches !== 1 ? 'es' : ''}</span
+        >
       {/if}
-    </p>
-  {/if}
+    {/if}
+  {/snippet}
+</PageHeader>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else if result && totalMatches === 0}
-    <div class="py-8 text-center text-base-content/50">No results found</div>
-  {:else if result}
+<DataState
+  {loading}
+  {error}
+  empty={!!result && totalMatches === 0}
+  emptyMessage="no results"
+>
+  {#if result}
     <div class="flex flex-col gap-4">
       {#each result.results as group (`${group.database}:${group.table}`)}
         {#if group.matches && group.matches.length > 0}
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <h2 class="card-title text-sm">
+          <Card padding="none">
+            <div class="border-b border-base-300 bg-base-200/40 px-3 py-2">
+              <h2
+                class="flex items-baseline gap-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+              >
                 <Badge text={dbLabel(group.database)} variant="neutral" />
-                {group.table}
-                <span class="text-xs font-normal text-base-content/50">
-                  ({group.matches.length})
-                </span>
+                <span class="truncate">{group.table}</span>
+                <span class="font-mono text-2xs text-base-content/40"
+                  >{group.matches.length}</span
+                >
               </h2>
-              <div class="overflow-x-auto">
-                <table class="table table-zebra table-xs">
-                  <tbody>
-                    {#each group.matches.slice(0, groupLimit(`${group.database}:${group.table}`)) as match (match._uuid)}
-                      {@const uuid = match._uuid as string}
-                      <tr
-                        class="hover cursor-pointer"
-                        onclick={() =>
-                          push(
+            </div>
+            <div class="overflow-x-auto">
+              <table class="table table-xs font-mono">
+                <tbody>
+                  {#each group.matches.slice(0, groupLimit(`${group.database}:${group.table}`)) as match (match._uuid)}
+                    {@const uuid = match._uuid as string}
+                    <tr
+                      class="cursor-pointer border-base-300/60 hover:bg-base-300/40"
+                      onclick={() =>
+                        push(
+                          `/${dbKey(group.database)}/${tableSlug(group.table)}/${uuid}`,
+                        )}
+                    >
+                      <td class="text-xs">
+                        <a
+                          href={link(
                             `/${dbKey(group.database)}/${tableSlug(group.table)}/${uuid}`,
                           )}
-                      >
-                        <td class="font-mono text-xs">
-                          <a
-                            href={link(
-                              `/${dbKey(group.database)}/${tableSlug(group.table)}/${uuid}`,
-                            )}
-                            class="link link-primary"
+                          class="link link-primary"
+                        >
+                          {uuid ? uuid.slice(0, 8) : '-'}
+                        </a>
+                      </td>
+                      <td class="text-xs">
+                        {#if match.name}
+                          {match.name}
+                        {:else if match.logical_port}
+                          {match.logical_port}
+                        {:else if match.hostname}
+                          {match.hostname}
+                        {:else if match.match}
+                          <span class="font-mono"
+                            >{String(match.match).slice(0, 80)}</span
                           >
-                            {uuid ? uuid.slice(0, 8) : '-'}
-                          </a>
-                        </td>
-                        <td class="text-xs">
-                          {#if match.name}
-                            {match.name}
-                          {:else if match.logical_port}
-                            {match.logical_port}
-                          {:else if match.hostname}
-                            {match.hostname}
-                          {:else if match.match}
-                            <span class="font-mono"
-                              >{String(match.match).slice(0, 80)}</span
-                            >
-                          {:else}
-                            <span class="text-base-content/40">-</span>
-                          {/if}
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-                {#if group.matches.length > groupLimit(`${group.database}:${group.table}`)}
-                  <button
-                    class="btn btn-ghost btn-sm mt-2"
-                    onclick={() =>
-                      showMoreGroup(`${group.database}:${group.table}`)}
-                  >
-                    Show more (showing {groupLimit(
-                      `${group.database}:${group.table}`,
-                    )} of {group.matches.length})
-                  </button>
-                {/if}
-              </div>
+                        {:else}
+                          <span class="text-base-content/40">-</span>
+                        {/if}
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+              {#if group.matches.length > groupLimit(`${group.database}:${group.table}`)}
+                <button
+                  class="btn btn-ghost btn-sm m-2 border-base-300"
+                  onclick={() =>
+                    showMoreGroup(`${group.database}:${group.table}`)}
+                >
+                  Show more (showing {groupLimit(
+                    `${group.database}:${group.table}`,
+                  )} of {group.matches.length})
+                </button>
+              {/if}
             </div>
-          </div>
+          </Card>
         {/if}
       {/each}
     </div>
   {/if}
-</div>
+</DataState>

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
+  import Badge from '../components/ui/Badge.svelte';
 
   interface ConnectionDetail {
     uuid: string;
@@ -40,74 +42,65 @@
   onMount(() => load());
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Raft Cluster Health</h1>
-    <p class="text-sm text-base-content/60">
-      OVSDB Raft cluster connection status for NB and SB databases
-    </p>
-  </div>
+<PageHeader
+  eyebrow="Monitoring"
+  title="Raft Cluster Health"
+  description="OVSDB Raft cluster connection status for the Northbound and Southbound databases."
+/>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else if data}
+<DataState {loading} {error} empty={!data} emptyMessage="no health data">
+  {#if data}
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {#each [{ label: 'Northbound', db: data.nb }, { label: 'Southbound', db: data.sb }] as { label, db } (label)}
-        <div class="card border border-base-300 bg-base-100 shadow-sm">
-          <div class="card-body p-4">
-            <h2 class="card-title text-base">
-              {label}
-              <span
-                class="badge badge-sm {db.connected
-                  ? 'badge-success'
-                  : 'badge-error'}"
-              >
-                {db.connected ? 'Connected' : 'Disconnected'}
-              </span>
-            </h2>
-            <div class="text-sm text-base-content/60">
-              {db.endpoints} endpoint(s)
-            </div>
+        <Card title={label} accent={db.connected ? 'success' : 'error'}>
+          {#snippet actions()}
+            <Badge
+              text={db.connected ? 'connected' : 'disconnected'}
+              variant={db.connected ? 'success' : 'error'}
+              glyph={db.connected ? '●' : '○'}
+            />
+          {/snippet}
 
-            {#if db.connections.length > 0}
-              <div class="mt-2 overflow-x-auto">
-                <table class="table table-xs">
-                  <thead>
-                    <tr>
-                      <th>Target</th>
-                      <th>Status</th>
-                      <th>Connected</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each db.connections as conn (conn.target)}
-                      <tr>
-                        <td class="font-mono text-xs">{conn.target}</td>
-                        <td class="text-xs">{conn.status ?? '-'}</td>
-                        <td>
-                          <span
-                            class="badge badge-xs {conn.is_connected
-                              ? 'badge-success'
-                              : 'badge-error'}"
-                          >
-                            {conn.is_connected ? 'yes' : 'no'}
-                          </span>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {:else}
-              <div class="text-sm text-base-content/40">
-                No connection entries
-              </div>
+          <div class="mb-2 font-mono text-xs text-base-content/55">
+            {db.endpoints} endpoint{db.endpoints === 1 ? '' : 's'}
+            {#if db.active_endpoint}
+              · active <span class="text-base-content/80">{db.active_endpoint}</span>
             {/if}
           </div>
-        </div>
+
+          {#if db.connections.length > 0}
+            <div class="overflow-x-auto rounded border border-base-300">
+              <table class="table table-xs font-mono">
+                <thead>
+                  <tr>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Target</th>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Status</th>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Up</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each db.connections as conn (conn.target)}
+                    <tr class="border-base-300/60">
+                      <td class="text-xs">{conn.target}</td>
+                      <td class="text-xs text-base-content/70">{conn.status ?? '-'}</td>
+                      <td>
+                        <Badge
+                          text={conn.is_connected ? 'yes' : 'no'}
+                          variant={conn.is_connected ? 'success' : 'error'}
+                        />
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <div class="font-mono text-xs text-base-content/40">
+              <span class="text-base-content/30">//</span> no connection entries
+            </div>
+          {/if}
+        </Card>
       {/each}
     </div>
   {/if}
-</div>
+</DataState>

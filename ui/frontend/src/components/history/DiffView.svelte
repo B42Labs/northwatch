@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { DiffResult, TableDiff } from '../../lib/api';
+  import Badge from '../ui/Badge.svelte';
+  import FilterInput from '../ui/FilterInput.svelte';
 
   interface Props {
     diff: DiffResult;
@@ -63,47 +65,47 @@
   });
 </script>
 
-<div class="rounded-lg border border-base-300 bg-base-100 p-4">
+<div class="rounded border border-base-300 bg-base-100 p-4">
   <div class="mb-3 flex items-center justify-between">
-    <h3 class="text-lg font-semibold">
+    <h3
+      class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+    >
       Diff: Snapshot #{diff.from_id} → #{diff.to_id}
     </h3>
-    <span class="badge badge-ghost">{countChanges(diff.tables)} changes</span>
+    <Badge text="{countChanges(diff.tables)} changes" variant="neutral" />
   </div>
 
   {#if diff.tables.length === 0}
-    <div class="py-6 text-center text-sm text-base-content/40">
-      No differences found between these snapshots.
+    <div class="py-6 text-center font-mono text-sm text-base-content/40">
+      <span class="text-base-content/30">//</span> no differences found between these
+      snapshots
     </div>
   {:else}
     <div class="mb-3">
-      <input
-        type="text"
-        class="input input-sm input-bordered w-full"
-        placeholder="Search diff by UUID, field name, value, table..."
+      <FilterInput
         bind:value={searchQuery}
+        placeholder="search diff by UUID, field name, value, table…"
+        width="w-full"
       />
       {#if searchQuery.trim()}
-        <div class="mt-1 text-xs text-base-content/50">
+        <div class="mt-1 font-mono text-xs text-base-content/55">
           {countChanges(filteredTables)} of {countChanges(diff.tables)} changes match
         </div>
       {/if}
     </div>
 
     {#if filteredTables.length === 0}
-      <div class="py-6 text-center text-sm text-base-content/40">
-        No changes matching "{searchQuery.trim()}"
+      <div class="py-6 text-center font-mono text-sm text-base-content/40">
+        <span class="text-base-content/30">//</span> no changes matching "{searchQuery.trim()}"
       </div>
     {:else}
       <div class="flex flex-col gap-4">
         {#each filteredTables as tableDiff (tableDiff.database + '.' + tableDiff.table)}
           <div class="rounded border border-base-300 p-3">
-            <div class="mb-2 flex items-center gap-2 font-medium">
-              <span class="badge badge-ghost badge-sm"
-                >{tableDiff.database}</span
-              >
+            <div class="mb-2 flex items-center gap-2 font-mono font-medium">
+              <Badge text={tableDiff.database} variant="neutral" />
               <span>{tableDiff.table}</span>
-              <span class="ml-auto flex gap-2 text-xs">
+              <span class="ml-auto flex gap-2 font-mono text-xs">
                 {#if tableDiff.added?.length}
                   <span class="text-success"
                     >+{tableDiff.added.length} added</span
@@ -124,7 +126,11 @@
 
             {#if tableDiff.added?.length}
               <div class="mb-2">
-                <div class="mb-1 text-xs font-semibold text-success">Added</div>
+                <div
+                  class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-success"
+                >
+                  Added
+                </div>
                 {#each tableDiff.added as row, i (i)}
                   {#if tableDiff.added.length > 1}
                     <div class="mb-0.5 font-mono text-xs text-base-content/40">
@@ -132,7 +138,7 @@
                     </div>
                   {/if}
                   <pre
-                    class="mb-1 overflow-auto rounded border-l-2 border-success bg-success/5 p-2 text-xs">{JSON.stringify(
+                    class="mb-1 overflow-auto rounded border-l-2 border-success bg-success/10 p-2 text-xs text-success">{JSON.stringify(
                       row,
                       null,
                       2,
@@ -143,7 +149,11 @@
 
             {#if tableDiff.removed?.length}
               <div class="mb-2">
-                <div class="mb-1 text-xs font-semibold text-error">Removed</div>
+                <div
+                  class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-error"
+                >
+                  Removed
+                </div>
                 {#each tableDiff.removed as row, i (i)}
                   {#if tableDiff.removed.length > 1}
                     <div class="mb-0.5 font-mono text-xs text-base-content/40">
@@ -151,7 +161,7 @@
                     </div>
                   {/if}
                   <pre
-                    class="mb-1 overflow-auto rounded border-l-2 border-error bg-error/5 p-2 text-xs">{JSON.stringify(
+                    class="mb-1 overflow-auto rounded border-l-2 border-error bg-error/10 p-2 text-xs text-error">{JSON.stringify(
                       row,
                       null,
                       2,
@@ -162,7 +172,9 @@
 
             {#if tableDiff.modified?.length}
               <div>
-                <div class="mb-1 text-xs font-semibold text-warning">
+                <div
+                  class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-warning"
+                >
                   Modified
                 </div>
                 {#each tableDiff.modified as mod, i (mod.uuid)}
@@ -172,7 +184,7 @@
                     </div>
                   {/if}
                   <div
-                    class="mb-1 cursor-pointer rounded border-l-2 border-warning bg-warning/5 p-2"
+                    class="mb-1 cursor-pointer rounded border-l-2 border-warning bg-warning/10 p-2"
                     onclick={() =>
                       (expandedModified =
                         expandedModified === mod.uuid ? null : mod.uuid)}
@@ -183,8 +195,8 @@
                       (expandedModified =
                         expandedModified === mod.uuid ? null : mod.uuid)}
                   >
-                    <div class="flex items-center gap-2 text-xs">
-                      <span class="font-mono text-base-content/60"
+                    <div class="flex items-center gap-2 font-mono text-xs">
+                      <span class="text-base-content/60"
                         >{mod.uuid.slice(0, 12)}</span
                       >
                       <span class="text-base-content/40"
@@ -194,28 +206,31 @@
                       >
                     </div>
                     {#if expandedModified === mod.uuid}
-                      <table class="table table-xs mt-2">
+                      <table class="table table-xs mt-2 font-mono">
                         <thead>
                           <tr>
-                            <th>Field</th>
-                            <th>Old</th>
-                            <th>New</th>
+                            <th
+                              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                              >Field</th
+                            >
+                            <th
+                              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                              >Old</th
+                            >
+                            <th
+                              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                              >New</th
+                            >
                           </tr>
                         </thead>
                         <tbody>
                           {#each mod.fields as field (field.field)}
-                            <tr>
-                              <td class="font-mono font-semibold"
-                                >{field.field}</td
-                              >
-                              <td
-                                class="max-w-xs truncate font-mono text-error/70"
-                              >
+                            <tr class="border-base-300/60">
+                              <td class="font-semibold">{field.field}</td>
+                              <td class="max-w-xs truncate text-error/70">
                                 {JSON.stringify(field.old_value)}
                               </td>
-                              <td
-                                class="max-w-xs truncate font-mono text-success/70"
-                              >
+                              <td class="max-w-xs truncate text-success/70">
                                 {JSON.stringify(field.new_value)}
                               </td>
                             </tr>

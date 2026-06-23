@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Badge from '../ui/Badge.svelte';
+
   let { data }: { data: Record<string, unknown> } = $props();
 
   let displayName = $derived((data.display_name as string) || '');
@@ -7,19 +9,11 @@
   let deviceName = $derived((data.device_name as string) || '');
 </script>
 
-{#if displayName || projectName || deviceName}
+{#if displayName || projectName || deviceName || deviceOwner}
   <div class="flex flex-wrap items-center gap-1">
-    {#if displayName}
-      <span class="badge badge-info badge-sm">{displayName}</span>
-    {/if}
-    {#if projectName}
-      <span class="badge badge-ghost badge-sm">{projectName}</span>
-    {/if}
-    {#if deviceOwner}
-      <span class="badge badge-ghost badge-sm">{deviceOwner}</span>
-    {/if}
-    {#if deviceName}
-      <span class="badge badge-accent badge-sm">{deviceName}</span>
-    {/if}
+    {#if displayName}<Badge text={displayName} variant="info" />{/if}
+    {#if projectName}<Badge text={projectName} variant="ghost" />{/if}
+    {#if deviceOwner}<Badge text={deviceOwner} variant="ghost" />{/if}
+    {#if deviceName}<Badge text={deviceName} variant="accent" />{/if}
   </div>
 {/if}

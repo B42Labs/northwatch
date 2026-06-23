@@ -7,7 +7,9 @@
   import { getImpact, type ImpactResult } from '../lib/writeApi';
   import CellRenderer from '../components/table/CellRenderer.svelte';
   import ImpactTree from '../components/write/ImpactTree.svelte';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
   import JsonView from '../components/ui/JsonView.svelte';
 
@@ -82,19 +84,12 @@
   }
 </script>
 
-<div>
-  <div class="mb-1 flex items-center gap-2">
-    <a
-      href={link(`/${db}/${table}`)}
-      class="link-hover link text-sm text-base-content/60"
-    >
-      {tableDef?.label ?? table}
-    </a>
-    <span class="text-base-content/40">/</span>
-  </div>
-
-  <div class="mb-4 flex flex-wrap items-center gap-3">
-    <h1 class="font-mono text-xl font-bold">{uuid}</h1>
+<PageHeader
+  mono
+  title={uuid}
+  breadcrumbs={[{ label: tableDef?.label ?? table, href: `/${db}/${table}` }]}
+>
+  {#snippet actions()}
     {#if correlatedHref}
       <a href={link(correlatedHref)} class="btn btn-outline btn-primary btn-sm">
         Correlated View
@@ -124,65 +119,51 @@
         Impact Analysis
       </button>
     {/if}
-  </div>
+  {/snippet}
+</PageHeader>
 
-  {#if impactError}
-    <ErrorAlert message={impactError} />
-  {/if}
+{#if impactError}
+  <ErrorAlert message={impactError} />
+{/if}
 
-  {#if impactResult}
-    <div class="card mb-4 bg-base-100 shadow-sm">
-      <div class="card-body p-4">
-        <h3 class="mb-2 text-sm font-semibold">
-          Impact Analysis
-          {#if impactResult.summary.total_affected > 0}
-            <span class="font-normal text-base-content/60">
-              &mdash; {impactResult.summary.total_affected} dependent object{impactResult
-                .summary.total_affected !== 1
-                ? 's'
-                : ''}
-            </span>
-          {:else}
-            <span class="font-normal text-base-content/60"
-              >&mdash; no dependencies</span
-            >
-          {/if}
-        </h3>
-        {#if impactResult.summary.total_affected > 0}
-          <ImpactTree node={impactResult.root} />
-        {/if}
-      </div>
-    </div>
-  {/if}
+{#if impactResult}
+  <Card
+    title="Impact Analysis"
+    subtitle={impactResult.summary.total_affected > 0
+      ? `${impactResult.summary.total_affected} dependent object${impactResult.summary.total_affected !== 1 ? 's' : ''}`
+      : 'no dependencies'}
+    class="mb-4"
+  >
+    {#if impactResult.summary.total_affected > 0}
+      <ImpactTree node={impactResult.root} />
+    {:else}
+      <span class="font-mono text-sm text-base-content/40">
+        <span class="text-base-content/30">//</span> no dependencies
+      </span>
+    {/if}
+  </Card>
+{/if}
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else if entity}
-    <div class="card mb-4 bg-base-100 shadow-sm">
-      <div class="card-body p-4">
-        <table class="table table-sm">
-          <tbody>
-            {#each fields as [key, value] (key)}
-              <tr>
-                <td class="w-48 whitespace-nowrap text-sm font-semibold"
-                  >{key}</td
-                >
-                <td>
-                  <CellRenderer
-                    {value}
-                    column={key}
-                    refHref={getRefHref(key)}
-                  />
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </div>
+<DataState {loading} {error} empty={!entity} emptyMessage="entity not found">
+  {#if entity}
+    <Card title="Properties" padding="none" class="mb-4">
+      <table class="table table-sm font-mono">
+        <tbody>
+          {#each fields as [key, value] (key)}
+            <tr class="border-base-300/60">
+              <td
+                class="w-48 whitespace-nowrap align-top text-xs font-medium text-base-content/55"
+                >{key}</td
+              >
+              <td class="align-top">
+                <CellRenderer {value} refHref={getRefHref(key)} />
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </Card>
 
     <JsonView data={entity} label="Raw JSON" />
   {/if}
-</div>
+</DataState>

@@ -2,20 +2,12 @@
   let { message }: { message: string } = $props();
 </script>
 
-<div role="alert" class="alert alert-error">
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    class="h-5 w-5 shrink-0"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
+<div
+  role="alert"
+  class="flex items-start gap-2 rounded border border-error/40 bg-error/10 px-3 py-2.5 font-mono text-sm text-error"
+>
+  <span class="select-none font-bold" aria-hidden="true">!</span>
+  <span class="min-w-0 break-words"
+    ><span class="text-error/60">error:</span> {message}</span
   >
-    <path
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      stroke-width="2"
-      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-    />
-  </svg>
-  <span>{message}</span>
 </div>

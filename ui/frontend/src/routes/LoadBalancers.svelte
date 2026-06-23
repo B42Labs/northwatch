@@ -1,8 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import FilterInput from '../components/ui/FilterInput.svelte';
+  import type { Variant } from '../lib/status';
 
   interface LBBackend {
     address: string;
@@ -43,10 +47,10 @@
     }),
   );
 
-  function statusBadge(s?: string): string {
-    if (s === 'online') return 'badge-success';
-    if (s === 'offline' || s === 'error') return 'badge-error';
-    return 'badge-ghost';
+  function statusVariant(s?: string): Variant {
+    if (s === 'online') return 'success';
+    if (s === 'offline' || s === 'error') return 'error';
+    return 'ghost';
   }
 
   async function load() {
@@ -64,96 +68,77 @@
   onMount(() => load());
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Load Balancers</h1>
-    <p class="text-sm text-base-content/60">
-      VIP to backend mappings with health check status
-    </p>
-  </div>
+<PageHeader
+  eyebrow="Traffic"
+  title="Load Balancers"
+  description="VIP to backend mappings with health check status."
+/>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else if data}
-    <div class="mb-4 flex items-center gap-3">
-      <input
-        type="text"
+<DataState {loading} {error} empty={!data}>
+  {#if data}
+    <div class="mb-3 flex flex-wrap items-center gap-2">
+      <FilterInput
         bind:value={searchQuery}
-        placeholder="Search by name, UUID, or VIP..."
-        class="input input-sm input-bordered w-72"
+        placeholder="filter by name, UUID, or VIP…"
+        width="w-72"
       />
-      <span class="text-sm text-base-content/50"
-        >{filtered.length} of {data.total} load balancers</span
-      >
+      <span class="font-mono text-xs text-base-content/55">
+        <span class="text-base-content/80">{filtered.length}</span> / {data.total}
+        load balancers
+      </span>
     </div>
 
     <div class="flex flex-col gap-4">
       {#each filtered as lb (lb.uuid)}
-        <div class="card border border-base-300 bg-base-100 shadow-sm">
-          <div class="card-body p-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h2 class="card-title text-base">
-                  {lb.name || lb.uuid.slice(0, 8)}
-                </h2>
-                <div class="flex gap-1">
-                  {#if lb.protocol}
-                    <span class="badge badge-ghost badge-xs">{lb.protocol}</span
-                    >
-                  {/if}
-                  {#each lb.routers as r (r)}
-                    <span class="badge badge-primary badge-xs">router: {r}</span
-                    >
-                  {/each}
-                  {#each lb.switches as s (s)}
-                    <span class="badge badge-secondary badge-xs"
-                      >switch: {s}</span
-                    >
-                  {/each}
-                </div>
-              </div>
-              <span class="text-xs text-base-content/40"
-                >{lb.uuid.slice(0, 8)}</span
-              >
+        <Card title={lb.name || lb.uuid.slice(0, 8)} subtitle={lb.uuid.slice(0, 8)}>
+          {#if lb.protocol || lb.routers.length > 0 || lb.switches.length > 0}
+            <div class="mb-2 flex flex-wrap gap-1">
+              {#if lb.protocol}
+                <Badge text={lb.protocol} variant="ghost" />
+              {/if}
+              {#each lb.routers as r (r)}
+                <Badge text="router: {r}" variant="primary" />
+              {/each}
+              {#each lb.switches as s (s)}
+                <Badge text="switch: {s}" variant="secondary" />
+              {/each}
             </div>
+          {/if}
 
-            {#if lb.vips.length > 0}
-              <div class="mt-3">
-                {#each lb.vips as vip (vip.vip)}
-                  <div class="mb-2 rounded bg-base-200 p-2">
-                    <div class="mb-1 font-mono text-sm font-semibold">
-                      {vip.vip}
-                    </div>
-                    <div class="flex flex-wrap gap-1">
-                      {#each vip.backends as backend (backend.address)}
-                        <span
-                          class="badge badge-sm {statusBadge(backend.status)}"
-                        >
-                          {backend.address}
-                          {#if backend.status}({backend.status}){/if}
-                        </span>
-                      {/each}
-                      {#if vip.backends.length === 0}
-                        <span class="text-xs text-base-content/40"
-                          >No backends</span
-                        >
-                      {/if}
-                    </div>
+          {#if lb.vips.length > 0}
+            <div class="flex flex-col gap-2">
+              {#each lb.vips as vip (vip.vip)}
+                <div class="rounded border border-base-300 bg-base-200/60 p-2">
+                  <div class="mb-1 font-mono text-sm font-semibold">
+                    {vip.vip}
                   </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
+                  <div class="flex flex-wrap gap-1">
+                    {#each vip.backends as backend (backend.address)}
+                      <Badge
+                        text={backend.status
+                          ? `${backend.address} (${backend.status})`
+                          : backend.address}
+                        variant={statusVariant(backend.status)}
+                      />
+                    {/each}
+                    {#if vip.backends.length === 0}
+                      <span class="font-mono text-sm text-base-content/40">
+                        <span class="text-base-content/30">//</span> no backends
+                      </span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </Card>
       {/each}
 
       {#if filtered.length === 0}
-        <div class="py-8 text-center text-sm text-base-content/40">
-          No load balancers found
+        <div class="py-8 text-center font-mono text-sm text-base-content/40">
+          <span class="text-base-content/30">//</span> no load balancers found
         </div>
       {/if}
     </div>
   {/if}
-</div>
+</DataState>

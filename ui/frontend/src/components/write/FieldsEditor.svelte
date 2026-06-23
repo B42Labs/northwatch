@@ -5,6 +5,7 @@
     getTableSchema,
     type TableSchema,
   } from '../../lib/writeApi';
+  import SegmentedControl from '../ui/SegmentedControl.svelte';
 
   let {
     value,
@@ -170,14 +171,15 @@
     syncToParent();
   }
 
-  function switchMode(newMode: 'form' | 'json') {
-    if (newMode === mode) return;
-    if (newMode === 'form') {
+  function switchMode(newMode: string) {
+    const next = newMode as 'form' | 'json';
+    if (next === mode) return;
+    if (next === 'form') {
       rows = jsonToRows(value);
     } else {
       syncToParent();
     }
-    mode = newMode;
+    mode = next;
   }
 
   // Load entity fields for update mode
@@ -227,27 +229,20 @@
 <div class="flex flex-col gap-2">
   <!-- Mode toggle + actions -->
   <div class="flex items-center justify-between">
-    <div class="join">
-      <button
-        class="btn join-item btn-xs"
-        class:btn-active={mode === 'form'}
-        onclick={() => switchMode('form')}
-      >
-        Form
-      </button>
-      <button
-        class="btn join-item btn-xs"
-        class:btn-active={mode === 'json'}
-        onclick={() => switchMode('json')}
-      >
-        JSON
-      </button>
-    </div>
+    <SegmentedControl
+      options={[
+        { value: 'form', label: 'Form' },
+        { value: 'json', label: 'JSON' },
+      ]}
+      value={mode}
+      onchange={switchMode}
+      size="xs"
+    />
 
     <div class="flex gap-1">
       {#if mode === 'form' && currentSchema}
         <button
-          class="btn btn-ghost btn-xs"
+          class="btn btn-ghost btn-xs border-base-300 font-mono"
           onclick={loadSchemaFields}
           title="Pre-fill all writable fields from the table schema"
         >
@@ -256,7 +251,7 @@
       {/if}
       {#if mode === 'form' && action === 'update' && entityFields}
         <button
-          class="btn btn-ghost btn-xs"
+          class="btn btn-ghost btn-xs border-base-300 font-mono"
           onclick={loadFieldsFromEntity}
           title="Load current field values from entity"
         >
@@ -267,7 +262,7 @@
   </div>
 
   {#if loadingEntity}
-    <span class="text-xs text-base-content/50">Loading entity...</span>
+    <span class="font-mono text-xs text-base-content/50">Loading entity...</span>
   {/if}
 
   {#if mode === 'form'}
@@ -279,7 +274,7 @@
             <td style="width: 11rem; min-width: 11rem" class="align-top">
               {#if writableSchemaFields.length > 0}
                 <select
-                  class="select select-bordered select-xs w-full font-mono"
+                  class="select select-bordered select-xs w-full bg-base-200/60 font-mono"
                   bind:value={row.key}
                   onchange={handleRowChange}
                 >
@@ -324,7 +319,7 @@
                 >
               {/if}
               {#if row.type}
-                <span class="text-xs text-base-content/30">{row.type}</span>
+                <span class="font-mono text-xs text-base-content/30">{row.type}</span>
               {/if}
             </td>
             <td class="pl-0.5 align-top">
@@ -341,12 +336,12 @@
       </tbody>
     </table>
 
-    <button class="btn btn-ghost btn-xs self-start" onclick={addRow}>
+    <button class="btn btn-ghost btn-xs self-start border-base-300 font-mono" onclick={addRow}>
       + Add Field
     </button>
 
     {#if action === 'update' && rows.some((r) => r.original !== undefined)}
-      <p class="text-xs text-base-content/40">
+      <p class="font-prose text-xs text-base-content/40">
         Only modified fields will be sent. Values are auto-parsed (JSON
         objects/arrays, numbers, booleans).
       </p>

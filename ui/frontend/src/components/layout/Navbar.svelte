@@ -19,69 +19,46 @@
   }
 </script>
 
-<div class="navbar gap-2 border-b border-base-300 bg-base-100 px-4">
-  <!-- Mobile hamburger (small screens) -->
-  <div class="flex-none lg:hidden">
-    <label for="sidebar-toggle" class="btn btn-square btn-ghost btn-sm">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        class="h-5 w-5 stroke-current"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M4 6h16M4 12h16M4 18h16"
-        />
-      </svg>
-    </label>
-  </div>
+<header
+  class="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-base-300 bg-base-100/95 px-3 backdrop-blur"
+>
+  <!-- Mobile drawer trigger -->
+  <label
+    for="sidebar-toggle"
+    class="btn btn-square btn-ghost btn-sm font-mono text-lg lg:hidden"
+    aria-label="Open navigation">≡</label
+  >
 
-  <!-- Desktop sidebar toggle (large screens) -->
-  <div class="hidden flex-none lg:block">
-    <button
-      class="btn btn-square btn-ghost btn-sm"
-      onclick={toggleSidebar}
-      title={$sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        class="h-5 w-5 stroke-current"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M4 6h16M4 12h16M4 18h16"
-        />
-      </svg>
-    </button>
-  </div>
+  <!-- Desktop sidebar collapse -->
+  <button
+    type="button"
+    class="btn btn-square btn-ghost btn-sm hidden font-mono text-lg lg:inline-flex"
+    onclick={toggleSidebar}
+    title={$sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+    aria-label="Toggle sidebar">≡</button
+  >
 
-  <div class="flex-1">
-    <form onsubmit={handleSearch} class="w-full max-w-md">
+  <!-- Global search, command-bar style -->
+  <form onsubmit={handleSearch} class="min-w-0 flex-1">
+    <label class="relative block w-full max-w-lg">
+      <span
+        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none font-mono text-sm text-primary"
+        aria-hidden="true">⌕</span
+      >
       <input
         type="text"
-        placeholder="Search by IP, MAC, UUID, or name..."
-        class="input input-sm input-bordered w-full"
+        placeholder="search by ip, mac, uuid, or name…"
+        class="input input-sm input-bordered w-full bg-base-200/60 pl-8 font-mono"
         bind:value={searchQuery}
+        aria-label="Search"
       />
-    </form>
-  </div>
+    </label>
+  </form>
 
-  <div class="flex-none">
+  <div class="flex flex-none items-center gap-2">
     <ClusterSwitcher />
-  </div>
-
-  <div class="flex-none">
+    <span class="hidden h-4 w-px bg-base-300 sm:block"></span>
     <ConnectionStatus />
-  </div>
-
-  <div class="flex-none">
     <ThemeToggle />
   </div>
-</div>
+</header>

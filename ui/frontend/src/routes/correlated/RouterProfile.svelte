@@ -5,8 +5,9 @@
   import BindingChain from '../../components/profile/BindingChain.svelte';
   import EnrichmentBadge from '../../components/profile/EnrichmentBadge.svelte';
   import CellRenderer from '../../components/table/CellRenderer.svelte';
-  import LoadingSpinner from '../../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../../components/ui/ErrorAlert.svelte';
+  import Badge from '../../components/ui/Badge.svelte';
+  import Card from '../../components/ui/Card.svelte';
+  import DataState from '../../components/ui/DataState.svelte';
   import { subscribeToTables } from '../../lib/eventStore';
 
   let { uuid }: { uuid: string } = $props();
@@ -60,68 +61,58 @@
   );
 </script>
 
-{#if loading}
-  <LoadingSpinner />
-{:else if error}
-  <ErrorAlert message={error} />
-{:else if data}
-  <EntityHeader
-    title={String(lr.name || 'Unnamed Router')}
-    {uuid}
-    type="Logical Router"
-    breadcrumbs={[
-      { label: 'Logical Routers', href: '/correlated/logical-routers' },
-    ]}
-    {enrichment}
-    rawHref={`/nb/logical-routers/${uuid}`}
-  />
-
-  <div class="flex flex-col gap-4">
-    <PropertyCard
-      title="Properties"
-      data={lr}
-      exclude={['_uuid', 'name', 'ports', 'nat', 'enrichment']}
+<DataState {loading} {error} empty={!data} emptyMessage="router not found">
+  {#if data}
+    <EntityHeader
+      title={String(lr.name || 'Unnamed Router')}
+      {uuid}
+      type="Logical Router"
+      breadcrumbs={[
+        { label: 'Correlated' },
+        { label: 'Logical Routers', href: '/correlated/logical-routers' },
+        { label: String(lr.name || 'router') },
+      ]}
+      {enrichment}
+      rawHref={`/nb/logical-routers/${uuid}`}
     />
 
-    {#if dp}
+    <div class="flex flex-col gap-4">
       <PropertyCard
-        title="Datapath Binding (SB)"
-        data={dp}
-        exclude={['_uuid']}
+        title="Properties"
+        data={lr}
+        exclude={['_uuid', 'name', 'ports', 'nat', 'enrichment']}
       />
-    {/if}
 
-    {#if nats.length > 0}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <h2 class="card-title text-sm">NAT Rules ({nats.length})</h2>
-          <div class="overflow-x-auto">
-            <table class="table table-zebra table-xs">
+      {#if dp}
+        <PropertyCard
+          title="Datapath Binding · SB"
+          data={dp}
+          exclude={['_uuid']}
+        />
+      {/if}
+
+      {#if nats.length > 0}
+        <Card title="NAT Rules" subtitle={String(nats.length)} padding="none">
+          <div class="overflow-x-auto rounded border border-base-300">
+            <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>External IP</th>
-                  <th>Logical IP</th>
-                  <th>External IDs</th>
-                  <th>Enrichment</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">External IP</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical IP</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">External IDs</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Enrichment</th>
                 </tr>
               </thead>
               <tbody>
                 {#each nats as nat (nat._uuid)}
-                  <tr>
-                    <td
-                      ><span class="badge badge-ghost badge-sm"
-                        >{nat.type || '-'}</span
-                      ></td
-                    >
-                    <td class="font-mono text-xs">{nat.external_ip || '-'}</td>
-                    <td class="font-mono text-xs">{nat.logical_ip || '-'}</td>
-                    <td
-                      ><CellRenderer
-                        value={nat.external_ids}
-                        column="external_ids"
-                      /></td
-                    >
+                  <tr class="border-base-300/60">
+                    <td>
+                      {#if nat.type}<Badge text={String(nat.type)} variant="ghost" />{:else}<span class="text-base-content/40">-</span>{/if}
+                    </td>
+                    <td class="text-xs">{nat.external_ip || '-'}</td>
+                    <td class="text-xs">{nat.logical_ip || '-'}</td>
+                    <td><CellRenderer value={nat.external_ids} /></td>
                     <td>
                       {#if nat.enrichment}
                         <EnrichmentBadge
@@ -136,34 +127,40 @@
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    {/if}
+        </Card>
+      {/if}
 
-    {#if ports.length > 0}
-      <div>
-        <h2 class="mb-2 text-lg font-semibold">Ports ({ports.length})</h2>
-        <div class="flex flex-col gap-3">
-          {#each ports as port, i (i)}
-            <details class="collapse collapse-arrow bg-base-100 shadow-sm">
-              <summary class="collapse-title text-sm font-medium">
-                {#if port.logical_router_port}
-                  {@const lrp = port.logical_router_port as Record<
-                    string,
-                    unknown
-                  >}
-                  {lrp.name || lrp._uuid || 'Port'}
-                {:else}
-                  Port
-                {/if}
-              </summary>
-              <div class="collapse-content">
-                <BindingChain chain={port} />
-              </div>
-            </details>
-          {/each}
+      {#if ports.length > 0}
+        <div>
+          <div class="mb-2 flex items-center gap-2">
+            <h2
+              class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+            >
+              Ports
+            </h2>
+            <span class="font-mono text-2xs text-base-content/40">{ports.length}</span>
+          </div>
+          <div class="flex flex-col gap-2">
+            {#each ports as port, i (i)}
+              {@const lrp = (port.logical_router_port ?? {}) as Record<string, unknown>}
+              <details class="group rounded border border-base-300 bg-base-100">
+                <summary
+                  class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-mono text-sm marker:content-none hover:bg-base-300/30"
+                >
+                  <span
+                    class="select-none text-primary transition-transform group-open:rotate-90"
+                    aria-hidden="true">▸</span
+                  >
+                  <span class="truncate">{lrp.name || lrp._uuid || 'Port'}</span>
+                </summary>
+                <div class="border-t border-base-300 p-3">
+                  <BindingChain chain={port} />
+                </div>
+              </details>
+            {/each}
+          </div>
         </div>
-      </div>
-    {/if}
-  </div>
-{/if}
+      {/if}
+    </div>
+  {/if}
+</DataState>

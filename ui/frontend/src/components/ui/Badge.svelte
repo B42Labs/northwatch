@@ -1,16 +1,23 @@
 <script lang="ts">
-  let { text, variant = 'neutral' }: { text: string; variant?: string } =
-    $props();
+  import { badgeClass, type Variant } from '../../lib/status';
 
-  const classes: Record<string, string> = {
-    neutral: 'badge-neutral',
-    primary: 'badge-primary',
-    success: 'badge-success',
-    warning: 'badge-warning',
-    error: 'badge-error',
-    info: 'badge-info',
-    ghost: 'badge-ghost',
-  };
+  let {
+    text,
+    variant = 'neutral',
+    glyph,
+    outline = false,
+  }: {
+    text: string;
+    variant?: Variant;
+    glyph?: string;
+    outline?: boolean;
+  } = $props();
 </script>
 
-<span class="badge badge-sm {classes[variant] || 'badge-neutral'}">{text}</span>
+<span
+  class="badge badge-sm gap-1 font-mono text-2xs {badgeClass[variant]} {outline
+    ? 'badge-outline'
+    : ''}"
+>
+  {#if glyph}<span class="font-bold" aria-hidden="true">{glyph}</span>{/if}{text}
+</span>

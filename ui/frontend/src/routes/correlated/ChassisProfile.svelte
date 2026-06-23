@@ -4,8 +4,9 @@
   import EntityHeader from '../../components/profile/EntityHeader.svelte';
   import PropertyCard from '../../components/profile/PropertyCard.svelte';
   import CellRenderer from '../../components/table/CellRenderer.svelte';
-  import LoadingSpinner from '../../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../../components/ui/ErrorAlert.svelte';
+  import Badge from '../../components/ui/Badge.svelte';
+  import Card from '../../components/ui/Card.svelte';
+  import DataState from '../../components/ui/DataState.svelte';
   import { subscribeToTables } from '../../lib/eventStore';
 
   let { uuid }: { uuid: string } = $props();
@@ -61,83 +62,75 @@
   );
 </script>
 
-{#if loading}
-  <LoadingSpinner />
-{:else if error}
-  <ErrorAlert message={error} />
-{:else if data}
-  <EntityHeader
-    title={String(ch.name || ch.hostname || 'Chassis')}
-    {uuid}
-    type="Chassis"
-    breadcrumbs={[{ label: 'Chassis', href: '/correlated/chassis' }]}
-    rawHref={`/sb/chassis/${uuid}`}
-  />
-
-  <div class="flex flex-col gap-4">
-    <PropertyCard
-      title="Properties"
-      data={ch}
-      exclude={['_uuid', 'name', 'encaps']}
+<DataState {loading} {error} empty={!data} emptyMessage="chassis not found">
+  {#if data}
+    <EntityHeader
+      title={String(ch.name || ch.hostname || 'Chassis')}
+      {uuid}
+      type="Chassis"
+      breadcrumbs={[
+        { label: 'Correlated' },
+        { label: 'Chassis', href: '/correlated/chassis' },
+        { label: String(ch.name || ch.hostname || 'chassis') },
+      ]}
+      rawHref={`/sb/chassis/${uuid}`}
     />
 
-    {#if cp}
-      <PropertyCard title="Chassis Private" data={cp} exclude={['_uuid']} />
-    {/if}
+    <div class="flex flex-col gap-4">
+      <PropertyCard
+        title="Properties"
+        data={ch}
+        exclude={['_uuid', 'name', 'encaps']}
+      />
 
-    {#if encaps.length > 0}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <h2 class="card-title text-sm">Encaps ({encaps.length})</h2>
-          <div class="overflow-x-auto">
-            <table class="table table-zebra table-xs">
+      {#if cp}
+        <PropertyCard title="Chassis Private · SB" data={cp} exclude={['_uuid']} />
+      {/if}
+
+      {#if encaps.length > 0}
+        <Card title="Encaps" subtitle={String(encaps.length)} padding="none">
+          <div class="overflow-x-auto rounded border border-base-300">
+            <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>IP</th>
-                  <th>Options</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">IP</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Options</th>
                 </tr>
               </thead>
               <tbody>
                 {#each encaps as enc (enc._uuid)}
-                  <tr>
-                    <td
-                      ><span class="badge badge-ghost badge-sm"
-                        >{enc.type || '-'}</span
-                      ></td
-                    >
-                    <td class="font-mono text-xs">{enc.ip || '-'}</td>
+                  <tr class="border-base-300/60">
+                    <td>
+                      {#if enc.type}<Badge text={String(enc.type)} variant="ghost" />{:else}<span class="text-base-content/40">-</span>{/if}
+                    </td>
+                    <td class="text-xs">{enc.ip || '-'}</td>
                     <td><CellRenderer value={enc.options} /></td>
                   </tr>
                 {/each}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    {/if}
+        </Card>
+      {/if}
 
-    {#if portBindings.length > 0}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <h2 class="card-title text-sm">
-            Hosted Ports ({portBindings.length})
-          </h2>
-          <div class="overflow-x-auto">
-            <table class="table table-zebra table-xs">
+      {#if portBindings.length > 0}
+        <Card title="Hosted Ports" subtitle={String(portBindings.length)} padding="none">
+          <div class="overflow-x-auto rounded border border-base-300">
+            <table class="table table-xs font-mono">
               <thead>
                 <tr>
-                  <th>UUID</th>
-                  <th>Logical Port</th>
-                  <th>Type</th>
-                  <th>Tunnel Key</th>
-                  <th>MAC</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">UUID</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical Port</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Tunnel Key</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">MAC</th>
                 </tr>
               </thead>
               <tbody>
                 {#each portBindings as pb (pb._uuid)}
                   <tr
-                    class="hover cursor-pointer"
+                    class="cursor-pointer border-base-300/60 hover:bg-base-300/40"
                     onclick={() => {
                       const id = pb._uuid as string;
                       if (id) push(`/correlated/port-bindings/${id}`);
@@ -146,19 +139,17 @@
                     <td>
                       <a
                         href={link(`/correlated/port-bindings/${pb._uuid}`)}
-                        class="link link-primary font-mono text-xs"
+                        class="link link-primary text-xs"
                       >
                         {String(pb._uuid).slice(0, 8)}
                       </a>
                     </td>
-                    <td class="font-mono text-xs">{pb.logical_port || '-'}</td>
+                    <td class="text-xs">{pb.logical_port || '-'}</td>
                     <td
-                      >{#if pb.type}<span class="badge badge-ghost badge-sm"
-                          >{pb.type}</span
-                        >{:else}-{/if}</td
+                      >{#if pb.type}<Badge text={String(pb.type)} variant="ghost" />{:else}-{/if}</td
                     >
-                    <td class="font-mono text-xs">{pb.tunnel_key || '-'}</td>
-                    <td class="max-w-xs truncate font-mono text-xs"
+                    <td class="text-xs">{pb.tunnel_key || '-'}</td>
+                    <td class="max-w-xs truncate text-xs"
                       >{Array.isArray(pb.mac)
                         ? pb.mac.join(', ')
                         : pb.mac || '-'}</td
@@ -168,8 +159,8 @@
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    {/if}
-  </div>
-{/if}
+        </Card>
+      {/if}
+    </div>
+  {/if}
+</DataState>

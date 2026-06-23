@@ -1,5 +1,7 @@
 <script lang="ts">
   import { listTable } from '../../lib/api';
+  import SegmentedControl from '../ui/SegmentedControl.svelte';
+  import FilterInput from '../ui/FilterInput.svelte';
 
   let {
     tableSlug,
@@ -14,7 +16,8 @@
   let entities: Record<string, unknown>[] = $state([]);
   let filter = $state('');
   let loading = $state(false);
-  let manualMode = $state(false);
+  let mode = $state<'select' | 'manual'>('select');
+  let manualMode = $derived(mode === 'manual');
 
   $effect(() => {
     if (tableSlug) {
@@ -48,17 +51,15 @@
   });
 </script>
 
-<div class="flex flex-col gap-1">
-  <div class="flex items-center gap-2">
-    <label class="label text-xs">
-      <input
-        type="checkbox"
-        class="checkbox checkbox-xs"
-        bind:checked={manualMode}
-      />
-      Manual UUID
-    </label>
-  </div>
+<div class="flex flex-col gap-1.5">
+  <SegmentedControl
+    options={[
+      { value: 'select', label: 'Select' },
+      { value: 'manual', label: 'Manual UUID' },
+    ]}
+    bind:value={mode}
+    size="xs"
+  />
 
   {#if manualMode}
     <input
@@ -69,17 +70,12 @@
       oninput={(e) => onSelect(e.currentTarget.value)}
     />
   {:else}
-    <input
-      type="text"
-      class="input input-sm input-bordered w-full"
-      placeholder="Filter entities..."
-      bind:value={filter}
-    />
+    <FilterInput bind:value={filter} placeholder="Filter entities..." width="w-full" />
     {#if loading}
-      <span class="text-xs text-base-content/50">Loading...</span>
+      <span class="font-mono text-xs text-base-content/50">Loading...</span>
     {:else}
       <select
-        class="select select-bordered select-sm w-full font-mono"
+        class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
         {value}
         onchange={(e) => onSelect(e.currentTarget.value)}
       >
@@ -93,7 +89,7 @@
         {/each}
       </select>
       {#if entities.length > 200}
-        <span class="text-xs text-base-content/50">
+        <span class="font-mono text-xs text-base-content/50">
           Showing 200 of {entities.length} — use filter to narrow
         </span>
       {/if}

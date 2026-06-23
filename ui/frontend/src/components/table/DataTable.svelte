@@ -1,5 +1,6 @@
 <script lang="ts">
   import CellRenderer from './CellRenderer.svelte';
+  import FilterInput from '../ui/FilterInput.svelte';
 
   let {
     rows,
@@ -111,20 +112,17 @@
 
 <div class="flex flex-col gap-3">
   <!-- Toolbar -->
-  <div class="flex flex-wrap items-center gap-3">
-    <input
-      type="text"
-      placeholder="Filter rows..."
-      class="input input-sm input-bordered w-full max-w-xs"
-      bind:value={filterInput}
-    />
-    <span class="text-sm text-base-content/60">
-      {filteredRows.length} of {rows.length} rows
+  <div class="flex flex-wrap items-center gap-2">
+    <FilterInput bind:value={filterInput} placeholder="filter rows…" />
+    <span class="font-mono text-xs text-base-content/55">
+      <span class="text-base-content/80">{filteredRows.length}</span> / {rows.length}
+      rows
     </span>
     <select
-      class="select select-bordered select-sm"
+      class="select select-bordered select-sm bg-base-200/60 font-mono"
       bind:value={pageSize}
       onchange={() => (currentPage = 1)}
+      aria-label="Rows per page"
     >
       <option value={25}>25 / page</option>
       <option value={50}>50 / page</option>
@@ -132,37 +130,32 @@
       <option value={250}>250 / page</option>
     </select>
     {#if allColumns.length > columns.length}
-      <label class="label cursor-pointer gap-2">
-        <span class="label-text text-sm">All columns</span>
-        <input
-          type="checkbox"
-          class="toggle toggle-sm"
-          bind:checked={showAll}
-        />
+      <label class="flex cursor-pointer items-center gap-2">
+        <input type="checkbox" class="toggle toggle-sm" bind:checked={showAll} />
+        <span class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+          >all columns</span
+        >
       </label>
     {/if}
   </div>
 
   <!-- Table -->
   <div
-    class="max-h-[calc(100vh-16rem)] overflow-x-auto overflow-y-auto rounded-lg border border-base-300"
+    class="max-h-[calc(100vh-16rem)] overflow-auto rounded border border-base-300"
   >
-    <table class="table table-pin-rows table-xs">
+    <table class="table table-pin-rows table-xs font-mono">
       <thead>
         <tr>
           {#each displayColumns as col (col)}
             <th
-              class="cursor-pointer select-none whitespace-nowrap bg-base-100 hover:bg-base-200"
+              class="cursor-pointer select-none whitespace-nowrap border-b border-base-300 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55 transition-colors hover:text-base-content"
               onclick={() => toggleSort(col)}
             >
               <div class="flex items-center gap-1">
                 {col}
-                {#if sortColumn === col}
-                  <span class="text-xs opacity-70">{sortAsc ? '▲' : '▼'}</span>
-                {:else}
-                  <span class="text-xs opacity-0 group-hover:opacity-30">▲</span
-                  >
-                {/if}
+                <span class="text-primary {sortColumn === col ? '' : 'opacity-0'}"
+                  >{sortColumn === col && !sortAsc ? '▼' : '▲'}</span
+                >
               </div>
             </th>
           {/each}
@@ -171,20 +164,19 @@
       <tbody>
         {#each displayedRows as row, i (row._uuid ?? i)}
           <tr
-            class="{onRowClick
-              ? 'hover cursor-pointer'
-              : 'hover'}{changedUuids.has(String(row._uuid ?? ''))
-              ? ' recently-changed'
-              : ''}"
+            class="border-base-300/60 {onRowClick
+              ? 'cursor-pointer'
+              : ''} hover:bg-base-300/40 {changedUuids.has(
+              String(row._uuid ?? ''),
+            )
+              ? 'recently-changed'
+              : i % 2 === 1
+                ? 'bg-base-200/40'
+                : ''}"
             onclick={() => onRowClick?.(row)}
           >
             {#each displayColumns as col (col)}
-              <td
-                class="max-w-xs whitespace-nowrap"
-                style:background-color={i % 2 === 1
-                  ? 'oklch(var(--b3) / 1)'
-                  : null}
-              >
+              <td class="max-w-xs whitespace-nowrap align-top">
                 <CellRenderer value={row[col]} refHref={refHref?.(col)} />
               </td>
             {/each}
@@ -196,9 +188,11 @@
 
   <!-- Footer -->
   {#if filteredRows.length > 0}
-    <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-      <span class="text-base-content/60">
-        Showing {(currentPage - 1) * pageSize + 1}–{Math.min(
+    <div
+      class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-base-content/55"
+    >
+      <span>
+        showing {(currentPage - 1) * pageSize + 1}–{Math.min(
           currentPage * pageSize,
           filteredRows.length,
         )} of {filteredRows.length}
@@ -206,26 +200,28 @@
       {#if totalPages > 1}
         <div class="join">
           <button
-            class="btn join-item btn-sm"
+            class="btn join-item btn-ghost btn-sm border-base-300"
             disabled={currentPage === 1}
-            onclick={() => currentPage--}>«</button
+            onclick={() => currentPage--}
+            aria-label="Previous page">«</button
           >
           {#each pageNumbers as p, i (i)}
             {#if p === '...'}
-              <button class="btn btn-disabled join-item btn-sm">…</button>
+              <button class="btn btn-disabled join-item btn-ghost btn-sm">…</button>
             {:else}
               <button
                 class="btn join-item btn-sm {p === currentPage
-                  ? 'btn-active'
-                  : ''}"
+                  ? 'btn-primary'
+                  : 'btn-ghost border-base-300'}"
                 onclick={() => (currentPage = p)}>{p}</button
               >
             {/if}
           {/each}
           <button
-            class="btn join-item btn-sm"
+            class="btn join-item btn-ghost btn-sm border-base-300"
             disabled={currentPage === totalPages}
-            onclick={() => currentPage++}>»</button
+            onclick={() => currentPage++}
+            aria-label="Next page">»</button
           >
         </div>
       {/if}
@@ -233,6 +229,8 @@
   {/if}
 
   {#if rows.length === 0}
-    <div class="py-8 text-center text-base-content/50">No data</div>
+    <div class="py-8 text-center font-mono text-sm text-base-content/40">
+      <span class="text-base-content/30">//</span> no data
+    </div>
   {/if}
 </div>
