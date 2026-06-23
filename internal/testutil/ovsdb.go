@@ -15,6 +15,7 @@ import (
 	"github.com/ovn-kubernetes/libovsdb/database/inmemory"
 	"github.com/ovn-kubernetes/libovsdb/model"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
+	"github.com/ovn-kubernetes/libovsdb/ovsdb/serverdb"
 	"github.com/ovn-kubernetes/libovsdb/server"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +67,47 @@ func SetupSBTestClient(t *testing.T) client.Client {
 	_, err = c.MonitorAll(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
+	return c
+}
+
+// SetupServerMonitorTestClient creates an in-memory "_Server" OVSDB test server
+// seeded with the given Database rows (mirroring how a real ovsdb-server exposes
+// Raft cluster state) and returns a connected, monitoring client.
+func SetupServerMonitorTestClient(t *testing.T, rows ...serverdb.Database) client.Client {
+	t.Helper()
+	clientModel, err := serverdb.FullDatabaseModel()
+	require.NoError(t, err)
+	schema := serverdb.Schema()
+	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
+	require.Empty(t, errs)
+	logger := stdr.New(nil)
+	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
+	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
+	require.NoError(t, err)
+	sockPath := filepath.Join(t.TempDir(), "server.sock")
+	go func() { _ = ovsdbServer.Serve("unix", sockPath) }()
+	require.Eventually(t, func() bool { return ovsdbServer.Ready() }, 5*time.Second, 10*time.Millisecond)
+	t.Cleanup(func() { ovsdbServer.Close() })
+	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
+	require.NoError(t, err)
+	require.NoError(t, c.Connect(context.Background()))
+	_, err = c.MonitorAll(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { c.Close() })
+
+	for i := range rows {
+		row := rows[i]
+		ops, err := c.Create(&row)
+		require.NoError(t, err)
+		reply, err := c.Transact(context.Background(), ops...)
+		require.NoError(t, err)
+		_, err = ovsdb.CheckOperationResults(reply, ops)
+		require.NoError(t, err)
+		uuid := reply[0].UUID.GoUUID
+		require.Eventually(t, func() bool {
+			return c.Get(context.Background(), &serverdb.Database{UUID: uuid}) == nil
+		}, 2*time.Second, 10*time.Millisecond)
+	}
 	return c
 }
 
