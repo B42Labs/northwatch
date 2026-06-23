@@ -322,6 +322,112 @@ func UpdateChassisPrivate(t *testing.T, c client.Client, name string, nbCfg, nbC
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+// InsertChassisRedirectBinding inserts a Port_Binding of type "chassisredirect"
+// (the cr-lrp port), optionally referencing an HA_Chassis_Group as its
+// election source. chassisUUID is the actual active owner (may be nil).
+func InsertChassisRedirectBinding(t *testing.T, c client.Client, logicalPort string, chassisUUID *string, haGroupUUID string) string {
+	t.Helper()
+	dpUUID := InsertDatapathBinding(t, c)
+	pb := &sb.PortBinding{
+		LogicalPort: logicalPort,
+		Type:        "chassisredirect",
+		Datapath:    dpUUID,
+		Chassis:     chassisUUID,
+		TunnelKey:   int(tunnelKeyCounter.Add(1)),
+		ExternalIDs: map[string]string{},
+		Options:     map[string]string{},
+	}
+	if haGroupUUID != "" {
+		g := haGroupUUID
+		pb.HaChassisGroup = &g
+	}
+	ops, err := c.Create(pb)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	uuid := reply[0].UUID.GoUUID
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &sb.PortBinding{UUID: uuid}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+	return uuid
+}
+
+// InsertGatewayRouter creates a Logical_Router with one Logical_Router_Port and
+// optional dnat_and_snat NAT rows (one per fip) in a single transaction.
+// Logical_Router_Port and NAT are non-root tables, so they must be created
+// together with their referencing root (the Logical_Router) or OVSDB referential
+// integrity garbage-collects them immediately.
+func InsertGatewayRouter(t *testing.T, c client.Client, routerName, lrpName string, networks, fips []string) {
+	t.Helper()
+	if len(networks) == 0 {
+		networks = []string{"0.0.0.0/0"}
+	}
+
+	var allOps []ovsdb.Operation
+
+	lrpNamed := "lrp_" + lrpName
+	lrp := &nb.LogicalRouterPort{
+		UUID:          lrpNamed,
+		Name:          lrpName,
+		Networks:      networks,
+		MAC:           "00:00:00:00:00:01",
+		ExternalIDs:   map[string]string{},
+		Options:       map[string]string{},
+		Ipv6RaConfigs: map[string]string{},
+		Status:        map[string]string{},
+	}
+	ops, err := c.Create(lrp)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	natNamed := make([]string, len(fips))
+	for i, fip := range fips {
+		natNamed[i] = fmt.Sprintf("nat_%s_%d", lrpName, i)
+		nat := &nb.NAT{
+			UUID:        natNamed[i],
+			Type:        nb.NATType("dnat_and_snat"),
+			ExternalIP:  fip,
+			LogicalIP:   "192.168.0.10",
+			ExternalIDs: map[string]string{},
+			Options:     map[string]string{},
+		}
+		ops, err := c.Create(nat)
+		require.NoError(t, err)
+		allOps = append(allOps, ops...)
+	}
+
+	lr := &nb.LogicalRouter{
+		Name:        routerName,
+		Ports:       []string{lrpNamed},
+		Nat:         natNamed,
+		ExternalIDs: map[string]string{},
+		Options:     map[string]string{},
+	}
+	ops, err = c.Create(lr)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	reply, err := c.Transact(context.Background(), allOps...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, allOps)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		var routers []nb.LogicalRouter
+		if err := c.List(context.Background(), &routers); err != nil {
+			return false
+		}
+		for _, r := range routers {
+			if r.Name == routerName && len(r.Ports) == 1 {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 // HAChassisEntry describes a single HA_Chassis member for InsertHAChassisGroup.
 type HAChassisEntry struct {
 	ChassisUUID string

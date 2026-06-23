@@ -237,6 +237,69 @@ export function getPortDiagnostic(uuid: string): Promise<PortDiagnostic> {
   return get(`/api/v1/debug/port-diagnostics/${uuid}`);
 }
 
+// Gateway (chassisredirect) health — desired vs. actual gateway ownership.
+export interface GatewayCheck {
+  name: string;
+  status: 'healthy' | 'warning' | 'error';
+  message: string;
+}
+
+export interface GatewayMember {
+  chassis_uuid?: string;
+  name: string;
+  hostname?: string;
+  priority: number;
+  present: boolean;
+  stale: boolean;
+  gateway_capable: boolean;
+  alive: boolean;
+  active: boolean;
+  desired: boolean;
+}
+
+export interface GatewayHealth {
+  cr_port: string;
+  port_binding_uuid: string;
+  lrp_name?: string;
+  router_uuid?: string;
+  router_name?: string;
+  ha_group_uuid?: string;
+  ha_group_name?: string;
+  external_networks?: string[];
+  served_ips?: string[];
+  desired_chassis?: string;
+  actual_chassis?: string;
+  members: GatewayMember[];
+  status: string;
+  overall: 'healthy' | 'warning' | 'error';
+  checks: GatewayCheck[];
+}
+
+export interface GatewayConflict {
+  external_ip: string;
+  chassis: string[];
+  cr_ports: string[];
+}
+
+export interface GatewayHealthReport {
+  total: number;
+  healthy: number;
+  warning: number;
+  error: number;
+  gateways: GatewayHealth[];
+  conflicts?: GatewayConflict[];
+}
+
+export async function getGatewayHealth(): Promise<GatewayHealthReport> {
+  const data = await get<GatewayHealthReport>('/api/v1/topology/gateway');
+  // The backend marshals nil slices to JSON null; normalize to arrays.
+  return {
+    ...data,
+    gateways: data.gateways ?? [],
+    conflicts: data.conflicts ?? [],
+  };
+}
+
 // Debug: Connectivity Checker
 export interface ConnectivityCheck {
   name: string;

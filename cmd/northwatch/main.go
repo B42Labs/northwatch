@@ -267,6 +267,7 @@ func registerDefaultRoutes(
 	handler.RegisterTopology(mux, def.DBs.NB, def.DBs.SB)
 	handler.RegisterNATTopology(mux, def.DBs.NB)
 	handler.RegisterLBTopology(mux, def.DBs.NB, def.DBs.SB)
+	handler.RegisterGatewayHealth(mux, def.DBs.NB, def.DBs.SB)
 	handler.RegisterFlows(mux, def.DBs.SB)
 	handler.RegisterDebug(mux, def.ConnectivityChecker, def.PortDiagnoser, def.ACLAuditor, def.StaleDetector)
 	handler.RegisterTrace(mux, def.DBs.SB, traceStore)
@@ -290,6 +291,7 @@ func registerClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore
 	handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
 	handler.RegisterNATTopology(subMux, c.DBs.NB)
 	handler.RegisterLBTopology(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterGatewayHealth(subMux, c.DBs.NB, c.DBs.SB)
 	handler.RegisterFlows(subMux, c.DBs.SB)
 	handler.RegisterSearch(subMux, c.SearchEngine)
 	handler.RegisterFlowDiff(subMux, c.FlowDiff)
@@ -319,7 +321,7 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 			// Build a temporary config-like struct for the OpenStack provider
 			osCfg := &config.Config{
 				OpenStackAuthURL:     cc.Enrichment.OpenStackAuthURL,
-				OpenStackUsername:     cc.Enrichment.OpenStackUsername,
+				OpenStackUsername:    cc.Enrichment.OpenStackUsername,
 				OpenStackPassword:    cc.Enrichment.OpenStackPassword,
 				OpenStackProjectName: cc.Enrichment.OpenStackProjectName,
 				OpenStackDomainName:  cc.Enrichment.OpenStackDomainName,
