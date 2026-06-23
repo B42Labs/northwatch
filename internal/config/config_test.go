@@ -111,6 +111,77 @@ func TestParse_InvalidCacheTTL(t *testing.T) {
 	assert.Contains(t, err.Error(), "enrichment-cache-ttl")
 }
 
+func TestParse_MonitorDefaults(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, DefaultMonitorBatchDelay, cfg.MonitorBatchDelay)
+	assert.Empty(t, cfg.MonitorSkipTables)
+}
+
+func TestParse_MonitorBatchDelayDisabled(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--monitor-batch-delay", "0",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, time.Duration(0), cfg.MonitorBatchDelay)
+}
+
+func TestParse_MonitorFlags(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--monitor-batch-delay", "100ms",
+		"--monitor-skip-tables", "Logical_Flow, MAC_Binding ,,FDB",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 100*time.Millisecond, cfg.MonitorBatchDelay)
+	assert.Equal(t, []string{"Logical_Flow", "MAC_Binding", "FDB"}, cfg.MonitorSkipTables)
+}
+
+func TestParse_MonitorEnvVars(t *testing.T) {
+	t.Setenv("NORTHWATCH_OVN_NB_ADDR", "tcp:127.0.0.1:6641")
+	t.Setenv("NORTHWATCH_OVN_SB_ADDR", "tcp:127.0.0.1:6642")
+	t.Setenv("NORTHWATCH_MONITOR_BATCH_DELAY", "250ms")
+	t.Setenv("NORTHWATCH_MONITOR_SKIP_TABLES", "Logical_Flow")
+
+	cfg, err := Parse([]string{})
+	require.NoError(t, err)
+	assert.Equal(t, 250*time.Millisecond, cfg.MonitorBatchDelay)
+	assert.Equal(t, []string{"Logical_Flow"}, cfg.MonitorSkipTables)
+}
+
+func TestParse_InvalidMonitorBatchDelay(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--monitor-batch-delay", "nope",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "monitor-batch-delay")
+}
+
+func TestParse_NegativeMonitorBatchDelay(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--monitor-batch-delay", "-1s",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "monitor-batch-delay")
+}
+
+func TestSplitCSV(t *testing.T) {
+	assert.Nil(t, SplitCSV(""))
+	assert.Nil(t, SplitCSV("  , ,"))
+	assert.Equal(t, []string{"a"}, SplitCSV("a"))
+	assert.Equal(t, []string{"a", "b", "c"}, SplitCSV(" a, b ,c, "))
+}
+
 func TestParse_NoOpenStack(t *testing.T) {
 	cfg, err := Parse([]string{
 		"--ovn-nb-addr", "tcp:127.0.0.1:6641",

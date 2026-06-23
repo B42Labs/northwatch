@@ -5,8 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
+
+// DefaultMonitorBatchDelay is the default delay between staged per-table monitor
+// requests for live OVN connections (server mode and snapshot capture). Staging
+// spreads the initial-dump load so a large deployment isn't serialized into one
+// giant monitor reply at startup. Offline snapshot replay overrides this to 0,
+// since it connects to local in-memory servers with nothing to protect.
+const DefaultMonitorBatchDelay = 200 * time.Millisecond
 
 // ClusterConfig defines the connection and enrichment settings for a single OVN cluster.
 type ClusterConfig struct {
@@ -43,6 +51,14 @@ type Config struct {
 	// connecting to a live OVN deployment. When set, the NB/SB addresses are
 	// synthesized from local in-memory servers backing the snapshot.
 	SnapshotFile string // --snapshot / NORTHWATCH_SNAPSHOT
+
+	// Initial monitor tuning. These bound the load Northwatch puts on the OVN
+	// databases while building the initial cache (live startup and snapshot
+	// capture). MonitorBatchDelay > 0 spreads the initial dump over staged
+	// per-table monitor requests; MonitorSkipTables excludes the largest tables
+	// entirely. Both default to off (single MonitorAll over every table).
+	MonitorBatchDelay time.Duration // --monitor-batch-delay / NORTHWATCH_MONITOR_BATCH_DELAY
+	MonitorSkipTables []string      // --monitor-skip-tables / NORTHWATCH_MONITOR_SKIP_TABLES
 
 	// OpenStack enrichment (all optional)
 	OpenStackAuthURL     string
@@ -91,6 +107,12 @@ func Parse(args []string) (*Config, error) {
 
 	// Offline snapshot mode
 	fs.StringVar(&cfg.SnapshotFile, "snapshot", os.Getenv("NORTHWATCH_SNAPSHOT"), "Path to a snapshot file to serve offline (no live OVN connection; takes precedence over --ovn-*-addr and --config-file)")
+
+	// Initial monitor tuning (limits load on large OVN databases at startup)
+	var monitorBatchDelayStr string
+	fs.StringVar(&monitorBatchDelayStr, "monitor-batch-delay", envOrDefault("NORTHWATCH_MONITOR_BATCH_DELAY", DefaultMonitorBatchDelay.String()), "Delay between staged per-table monitor requests on connect (e.g. 100ms, 1s); 0 loads all tables in a single request (offline --snapshot replay always uses 0)")
+	var monitorSkipTablesStr string
+	fs.StringVar(&monitorSkipTablesStr, "monitor-skip-tables", os.Getenv("NORTHWATCH_MONITOR_SKIP_TABLES"), "Comma-separated OVN table names to never monitor (e.g. Logical_Flow,MAC_Binding,FDB); reduces initial load on huge deployments")
 
 	// OpenStack enrichment flags
 	fs.StringVar(&cfg.OpenStackAuthURL, "os-auth-url", os.Getenv("OS_AUTH_URL"), "OpenStack Keystone auth URL")
@@ -201,7 +223,29 @@ func Parse(args []string) (*Config, error) {
 	}
 	cfg.WritePlanTTL = wpt
 
+	mbd, err := time.ParseDuration(monitorBatchDelayStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid monitor-batch-delay: %w", err)
+	}
+	if mbd < 0 {
+		return nil, fmt.Errorf("monitor-batch-delay must not be negative")
+	}
+	cfg.MonitorBatchDelay = mbd
+	cfg.MonitorSkipTables = SplitCSV(monitorSkipTablesStr)
+
 	return cfg, nil
+}
+
+// SplitCSV parses a comma-separated list into a slice, trimming whitespace and
+// dropping empty entries. Returns nil for an empty input.
+func SplitCSV(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 // configFile is the JSON structure for the multi-cluster config file.

@@ -96,7 +96,7 @@ In production, OVN databases typically run as a 3- or 5-node Raft cluster. North
 On startup, Northwatch:
 
 1. Connects to both NB and SB databases (with automatic leader discovery for Raft clusters)
-2. Issues `monitor_all` for every table in both schemas
+2. Subscribes to every table in both schemas — by default as **staged per-table monitor requests** so the initial dump doesn't hit the OVSDB server as one giant reply (see [Large Deployments](#large-deployments-initial-load-tuning))
 3. Populates the in-memory cache with the initial snapshot
 4. Processes incremental updates as they arrive
 5. Builds cross-reference indexes (NB <-> SB entity mapping)
@@ -104,6 +104,28 @@ On startup, Northwatch:
 7. Takes an initial snapshot for the timeline
 
 TLS is supported for all OVSDB connections.
+
+### Large Deployments (Initial Load Tuning)
+
+Building the initial cache is the single heaviest moment for the OVN databases: an OVSDB `monitor`/`monitor_all` reply contains the **entire** initial state of every monitored table in one atomic message — OVSDB has no pagination. On a large Southbound DB (where `Logical_Flow` alone is often >90% of all rows), serializing that into one reply can spike memory and CPU on the (frequently single-threaded) `ovsdb-server`. The same applies when capturing a snapshot (`northwatch snapshot`), since it must monitor the live DBs first.
+
+Two knobs bound this load. Both apply to live server mode **and** snapshot capture; offline snapshot **replay** (`--snapshot <file>`) ignores them, as it serves a local in-memory copy with nothing to protect.
+
+- **`--monitor-batch-delay`** (default `200ms`) — instead of one `monitor_all`, Northwatch issues one monitor request *per table* with this delay between them. Each table's initial dump then arrives as its own smaller reply, spread over time, which bounds peak memory on both sides. NB and SB are loaded concurrently, so the added startup time is roughly `(tables_per_db − 1) × delay` (≈ 6.6 s at the default with 34 tables per DB). Set `0` to restore the original single-request behavior on small deployments.
+  - Note: the delay spreads the *many* tables across time, but the one dominant table is still a single reply — batching does not chunk *within* a table.
+- **`--monitor-skip-tables`** — never monitor the listed tables at all. This is the real lever for the dominant Southbound tables. Excluding them keeps the corresponding features empty:
+  - `Logical_Flow` → Logical Flows view, flow trace, flow diffing, flow telemetry
+  - `MAC_Binding` / `FDB` → MAC/FDB views
+
+**Recommended starting points:**
+
+| Deployment | Suggested flags |
+|---|---|
+| Small / dev / test | `--monitor-batch-delay 0` (fastest startup) |
+| Medium (default) | _no change_ — staged at `200ms` |
+| Very large (e.g. >10k chassis) | `--monitor-batch-delay 200ms --monitor-skip-tables Logical_Flow` |
+
+For the lowest possible impact on the primary DB, also point Northwatch at an **OVSDB relay or a standby/follower** rather than the Raft leader (the comma-separated `--ovn-sb-addr` already supports multiple endpoints).
 
 ## Capabilities
 
@@ -638,6 +660,8 @@ equivalent environment variable; flags take precedence over env vars.
 | `--ovn-nb-addr`            | `NORTHWATCH_OVN_NB_ADDR`             | (required)                   | OVN Northbound DB address. Comma-separated for failover.                                                          |
 | `--ovn-sb-addr`            | `NORTHWATCH_OVN_SB_ADDR`             | (required)                   | OVN Southbound DB address. Comma-separated for failover.                                                          |
 | `--config-file`            | `NORTHWATCH_CONFIG_FILE`             | (none)                       | Path to JSON multi-cluster config file. When set, `--ovn-nb-addr` / `--ovn-sb-addr` are ignored.                  |
+| `--monitor-batch-delay`    | `NORTHWATCH_MONITOR_BATCH_DELAY`     | `200ms`                      | Delay between staged per-table monitor requests on connect (Go duration). `0` loads all tables in a single request. Offline `--snapshot` replay always uses `0`. See [Large Deployments](#large-deployments-initial-load-tuning). |
+| `--monitor-skip-tables`    | `NORTHWATCH_MONITOR_SKIP_TABLES`     | (none)                       | Comma-separated OVN table names to never monitor (e.g. `Logical_Flow,MAC_Binding,FDB`). Features reading a skipped table see it as empty. |
 | `--os-auth-url`            | `OS_AUTH_URL`                        | (none)                       | OpenStack Keystone auth URL (enables OpenStack enrichment when set).                                              |
 | `--os-username`            | `OS_USERNAME`                        | (none)                       | OpenStack username.                                                                                               |
 | `--os-password`            | `OS_PASSWORD`                        | (none)                       | OpenStack password.                                                                                               |
