@@ -10,8 +10,13 @@
     type Plan,
     type WriteOperation,
   } from '../lib/writeApi';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import SegmentedControl from '../components/ui/SegmentedControl.svelte';
+  import FormField from '../components/ui/FormField.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import { severityVariant } from '../lib/status';
   import PlanDiffView from '../components/write/PlanDiffView.svelte';
 
   interface StaleEntry {
@@ -35,9 +40,14 @@
   let data: StaleResult | null = $state(null);
   let loading = $state(true);
   let error = $state('');
-  let typeFilter = $state<'all' | 'mac_binding' | 'fdb' | 'port_binding'>(
-    'all',
-  );
+  let typeFilter = $state('all');
+
+  const typeOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'mac_binding', label: 'MAC' },
+    { value: 'fdb', label: 'FDB' },
+    { value: 'port_binding', label: 'Ports' },
+  ];
 
   // Selection state
   let selected = new SvelteSet<string>();
@@ -50,7 +60,7 @@
   let deleteError = $state('');
   let actor = $state('');
 
-  function setTypeFilter(val: typeof typeFilter) {
+  function setTypeFilter(val: string) {
     typeFilter = val;
     selected.clear();
   }
@@ -180,56 +190,41 @@
   onMount(() => load());
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Stale Entries</h1>
-    <p class="text-sm text-base-content/60">
-      Aged MAC bindings, orphaned FDB entries, and port bindings without NB
-      counterparts
-    </p>
-  </div>
+<PageHeader
+  eyebrow="Debug"
+  title="Stale Entries"
+  description="Aged MAC bindings, orphaned FDB entries, and port bindings without NB counterparts"
+/>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else if data}
-    <div class="stats mb-4 w-full border border-base-300 bg-base-100 shadow-sm">
-      <div class="stat">
-        <div class="stat-title">Total</div>
-        <div class="stat-value text-lg">{data.total}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Stale MAC</div>
-        <div class="stat-value text-lg text-warning">
-          {data.stale_mac_bindings}
-        </div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Orphaned FDB</div>
-        <div class="stat-value text-lg text-warning">{data.orphaned_fdb}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Orphaned Ports</div>
-        <div class="stat-value text-lg text-error">
-          {data.orphaned_port_bindings}
-        </div>
-      </div>
-    </div>
+<DataState {loading} {error} empty={!data} emptyMessage="no data">
+  {#if data}
+    <StatTiles
+      class="mb-4 w-full"
+      tiles={[
+        { label: 'Total', value: data.total },
+        {
+          label: 'Stale MAC',
+          value: data.stale_mac_bindings,
+          variant: 'warning',
+        },
+        { label: 'Orphaned FDB', value: data.orphaned_fdb, variant: 'warning' },
+        {
+          label: 'Orphaned Ports',
+          value: data.orphaned_port_bindings,
+          variant: 'error',
+        },
+      ]}
+    />
 
     <div class="mb-4 flex items-center gap-3">
-      <div class="join">
-        {#each [['all', 'All'], ['mac_binding', 'MAC'], ['fdb', 'FDB'], ['port_binding', 'Ports']] as [val, label] (val)}
-          <button
-            class="btn join-item btn-xs {typeFilter === val
-              ? 'btn-active'
-              : ''}"
-            onclick={() => setTypeFilter(val as typeof typeFilter)}
-            >{label}</button
-          >
-        {/each}
-      </div>
-      <span class="text-sm text-base-content/50">{filtered.length} entries</span
+      <SegmentedControl
+        options={typeOptions}
+        bind:value={typeFilter}
+        onchange={setTypeFilter}
+        size="xs"
+      />
+      <span class="font-mono text-xs text-base-content/55"
+        >{filtered.length} entries</span
       >
 
       {#if $writeEnabled && selected.size > 0 && deleteStep === 'idle'}
@@ -241,17 +236,17 @@
 
     <!-- Delete confirmation modal -->
     {#if deleteStep !== 'idle'}
-      <div
-        class="mb-4 rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
-      >
+      <div class="mb-4 rounded border border-base-300 bg-base-100 p-4">
         {#if deleteStep === 'preview'}
           <div class="flex items-center gap-2">
             <span class="loading loading-spinner loading-sm"></span>
-            <span class="text-sm">Previewing changes...</span>
+            <span class="font-mono text-sm">Previewing changes...</span>
           </div>
         {:else if deleteStep === 'confirming' && plan}
           <div class="flex flex-col gap-3">
-            <h3 class="text-sm font-semibold">
+            <h3
+              class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+            >
               Confirm Deletion &mdash; {plan.operations.length} entr{plan
                 .operations.length === 1
                 ? 'y'
@@ -263,18 +258,15 @@
             <div
               class="flex flex-wrap items-end gap-3 border-t border-base-300 pt-3"
             >
-              <div class="form-control">
-                <label class="label py-0.5" for="stale-actor">
-                  <span class="label-text text-xs">Actor (optional)</span>
-                </label>
+              <FormField label="Actor (optional)" forId="stale-actor">
                 <input
                   id="stale-actor"
                   type="text"
-                  class="input input-sm input-bordered w-48"
+                  class="input input-sm input-bordered w-48 font-mono"
                   placeholder="your-name"
                   bind:value={actor}
                 />
-              </div>
+              </FormField>
               <button
                 class="btn btn-error btn-sm"
                 disabled={expired}
@@ -282,7 +274,10 @@
               >
                 Confirm Delete
               </button>
-              <button class="btn btn-ghost btn-sm" onclick={cancelDelete}>
+              <button
+                class="btn btn-ghost btn-sm border-base-300"
+                onclick={cancelDelete}
+              >
                 Cancel
               </button>
             </div>
@@ -296,19 +291,25 @@
         {:else if deleteStep === 'applying'}
           <div class="flex items-center gap-2">
             <span class="loading loading-spinner loading-sm"></span>
-            <span class="text-sm">Deleting entries...</span>
+            <span class="font-mono text-sm">Deleting entries...</span>
           </div>
         {:else if deleteStep === 'done'}
           <div role="alert" class="alert alert-success py-2">
             <span class="text-sm">Entries deleted successfully.</span>
-            <button class="btn btn-ghost btn-xs" onclick={resetDeleteFlow}>
+            <button
+              class="btn btn-ghost btn-xs border-base-300"
+              onclick={resetDeleteFlow}
+            >
               Dismiss
             </button>
           </div>
         {:else if deleteStep === 'error'}
           <div role="alert" class="alert alert-error py-2">
             <span class="text-sm">Error: {deleteError}</span>
-            <button class="btn btn-ghost btn-xs" onclick={resetDeleteFlow}>
+            <button
+              class="btn btn-ghost btn-xs border-base-300"
+              onclick={resetDeleteFlow}
+            >
               Dismiss
             </button>
           </div>
@@ -316,12 +317,14 @@
       </div>
     {/if}
 
-    <div class="overflow-x-auto">
-      <table class="table table-sm">
+    <div class="overflow-x-auto rounded border border-base-300">
+      <table class="table table-xs font-mono">
         <thead>
           <tr>
             {#if $writeEnabled}
-              <th class="w-8">
+              <th
+                class="w-8 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >
                 <input
                   type="checkbox"
                   class="checkbox checkbox-xs"
@@ -331,16 +334,35 @@
                 />
               </th>
             {/if}
-            <th>Severity</th>
-            <th>Type</th>
-            <th>Table</th>
-            <th>Message</th>
-            <th>Age</th>
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Severity</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Type</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Table</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Message</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Age</th
+            >
           </tr>
         </thead>
         <tbody>
           {#each filtered as entry (entry.uuid)}
-            <tr class={selected.has(entry.uuid) ? 'bg-base-200' : ''}>
+            <tr
+              class="border-base-300/60 {selected.has(entry.uuid)
+                ? 'bg-base-300/40'
+                : ''}"
+            >
               {#if $writeEnabled}
                 <td>
                   <input
@@ -353,18 +375,17 @@
                 </td>
               {/if}
               <td
-                ><span
-                  class="badge badge-sm {entry.severity === 'error'
-                    ? 'badge-error'
-                    : 'badge-warning'}">{entry.severity}</span
-                ></td
+                ><Badge
+                  text={entry.severity}
+                  variant={severityVariant(entry.severity)}
+                /></td
               >
               <td
                 ><span class="badge badge-ghost badge-sm">{entry.type}</span
                 ></td
               >
-              <td class="font-mono text-xs">{entry.table}</td>
-              <td class="text-sm">{entry.message}</td>
+              <td class="text-xs">{entry.table}</td>
+              <td class="text-xs">{entry.message}</td>
               <td class="text-xs text-base-content/50"
                 >{formatAge(entry.age_seconds)}</td
               >
@@ -375,11 +396,14 @@
     </div>
 
     {#if filtered.length === 0}
-      <div class="py-8 text-center text-sm text-base-content/40">
-        {data.total === 0
-          ? 'No stale entries detected'
-          : 'No entries match the current filter'}
+      <div class="py-8 text-center">
+        <span class="font-mono text-sm text-base-content/40"
+          ><span class="text-base-content/30">//</span>
+          {data.total === 0
+            ? 'no stale entries detected'
+            : 'no entries match the current filter'}</span
+        >
       </div>
     {/if}
   {/if}
-</div>
+</DataState>

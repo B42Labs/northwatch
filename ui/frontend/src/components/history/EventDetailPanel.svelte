@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { EventRecord } from '../../lib/api';
+  import { actionVariant, actionGlyph } from '../../lib/status';
+  import Badge from '../ui/Badge.svelte';
 
   interface Props {
     event: EventRecord;
@@ -9,19 +11,6 @@
   let { event, onClose }: Props = $props();
 
   let showRawJson = $state(false);
-
-  function badgeClass(type: string): string {
-    switch (type) {
-      case 'insert':
-        return 'badge-success';
-      case 'delete':
-        return 'badge-error';
-      case 'update':
-        return 'badge-warning';
-      default:
-        return 'badge-ghost';
-    }
-  }
 
   function changedKeys(
     oldRow: Record<string, unknown> | undefined,
@@ -74,15 +63,15 @@
 >
   <!-- Header -->
   <div
-    class="flex items-center justify-between border-b border-base-300 px-4 py-3"
+    class="flex items-center justify-between border-b border-base-300 bg-base-200/40 px-4 py-3"
   >
     <div class="flex items-center gap-3">
-      <span
-        class="badge {badgeClass(event.type)} badge-sm font-semibold uppercase"
-      >
-        {event.type}
-      </span>
-      <span class="text-sm text-base-content/60">
+      <Badge
+        text={event.type}
+        variant={actionVariant(event.type)}
+        glyph={actionGlyph(event.type)}
+      />
+      <span class="font-mono text-sm text-base-content/60">
         {new Date(event.timestamp).toLocaleString()}
       </span>
     </div>
@@ -111,17 +100,31 @@
   <!-- Content -->
   <div class="flex-1 overflow-y-auto p-4">
     <!-- Metadata -->
-    <div class="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-base-200 p-3">
+    <div
+      class="mb-4 grid grid-cols-2 gap-2 rounded border border-base-300 bg-base-200/40 p-3"
+    >
       <div>
-        <div class="text-xs font-semibold text-base-content/50">Database</div>
+        <div
+          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >
+          Database
+        </div>
         <div class="font-mono text-sm">{event.database}</div>
       </div>
       <div>
-        <div class="text-xs font-semibold text-base-content/50">Table</div>
+        <div
+          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >
+          Table
+        </div>
         <div class="font-mono text-sm">{event.table}</div>
       </div>
       <div class="col-span-2">
-        <div class="text-xs font-semibold text-base-content/50">UUID</div>
+        <div
+          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >
+          UUID
+        </div>
         <div class="select-all font-mono text-sm">{event.uuid}</div>
       </div>
     </div>
@@ -129,30 +132,38 @@
     <!-- Visualized Data -->
     {#if event.type === 'update' && event.old_row && event.row}
       <!-- Update: show diff -->
-      <h3 class="mb-2 text-sm font-semibold">Changed Fields</h3>
+      <h3
+        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      >
+        Changed Fields
+      </h3>
       {#if diffKeys.size > 0}
         <div class="mb-4 space-y-2">
           {#each allKeys.filter((k) => diffKeys.has(k)) as key (key)}
-            <div class="rounded-lg border border-base-300 p-2">
-              <div class="mb-1 text-xs font-semibold text-base-content/60">
+            <div class="rounded border border-base-300 p-2">
+              <div class="mb-1 font-mono text-xs font-semibold text-base-content/60">
                 {key}
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <div class="rounded bg-error/10 p-2">
-                  <div class="mb-0.5 text-[10px] font-semibold text-error">
+                  <div
+                    class="mb-0.5 font-mono text-2xs font-semibold uppercase tracking-wider text-error"
+                  >
                     Old
                   </div>
                   <pre
-                    class="whitespace-pre-wrap break-all text-xs">{formatValue(
+                    class="whitespace-pre-wrap break-all font-mono text-xs">{formatValue(
                       event.old_row![key],
                     )}</pre>
                 </div>
                 <div class="rounded bg-success/10 p-2">
-                  <div class="mb-0.5 text-[10px] font-semibold text-success">
+                  <div
+                    class="mb-0.5 font-mono text-2xs font-semibold uppercase tracking-wider text-success"
+                  >
                     New
                   </div>
                   <pre
-                    class="whitespace-pre-wrap break-all text-xs">{formatValue(
+                    class="whitespace-pre-wrap break-all font-mono text-xs">{formatValue(
                       event.row![key],
                     )}</pre>
                 </div>
@@ -161,20 +172,23 @@
           {/each}
         </div>
       {:else}
-        <div class="mb-4 text-xs text-base-content/40">
-          No field-level changes detected.
+        <div class="mb-4 font-mono text-sm text-base-content/40">
+          <span class="text-base-content/30">//</span> no field-level changes detected
         </div>
       {/if}
 
       {#if allKeys.filter((k) => !diffKeys.has(k)).length > 0}
-        <h3 class="mb-2 text-sm font-semibold">Unchanged Fields</h3>
-        <div class="mb-4 overflow-x-auto rounded-lg border border-base-300">
-          <table class="table table-xs">
+        <h3
+          class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        >
+          Unchanged Fields
+        </h3>
+        <div class="mb-4 overflow-x-auto rounded border border-base-300">
+          <table class="table table-xs font-mono">
             <tbody>
               {#each allKeys.filter((k) => !diffKeys.has(k)) as key (key)}
-                <tr>
-                  <td
-                    class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
+                <tr class="border-base-300/60">
+                  <td class="w-1/3 text-xs font-semibold text-base-content/60"
                     >{key}</td
                   >
                   <td>
@@ -196,16 +210,19 @@
       {/if}
     {:else if event.type === 'insert' && event.row}
       <!-- Insert: show new data -->
-      <h3 class="mb-2 text-sm font-semibold">New Row</h3>
-      <div
-        class="mb-4 overflow-x-auto rounded-lg border border-success/30 bg-success/5"
+      <h3
+        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
       >
-        <table class="table table-xs">
+        New Row
+      </h3>
+      <div
+        class="mb-4 overflow-x-auto rounded border border-success/30 bg-success/5"
+      >
+        <table class="table table-xs font-mono">
           <tbody>
             {#each allKeys as key (key)}
-              <tr>
-                <td
-                  class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
+              <tr class="border-base-300/60">
+                <td class="w-1/3 text-xs font-semibold text-base-content/60"
                   >{key}</td
                 >
                 <td>
@@ -225,16 +242,19 @@
       </div>
     {:else if event.type === 'delete' && event.old_row}
       <!-- Delete: show removed data -->
-      <h3 class="mb-2 text-sm font-semibold">Deleted Row</h3>
-      <div
-        class="mb-4 overflow-x-auto rounded-lg border border-error/30 bg-error/5"
+      <h3
+        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
       >
-        <table class="table table-xs">
+        Deleted Row
+      </h3>
+      <div
+        class="mb-4 overflow-x-auto rounded border border-error/30 bg-error/5"
+      >
+        <table class="table table-xs font-mono">
           <tbody>
             {#each allKeys as key (key)}
-              <tr>
-                <td
-                  class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
+              <tr class="border-base-300/60">
+                <td class="w-1/3 text-xs font-semibold text-base-content/60"
                   >{key}</td
                 >
                 <td>
@@ -256,14 +276,17 @@
       </div>
     {:else if displayRow}
       <!-- Fallback: generic key-value -->
-      <h3 class="mb-2 text-sm font-semibold">Row Data</h3>
-      <div class="mb-4 overflow-x-auto rounded-lg border border-base-300">
-        <table class="table table-xs">
+      <h3
+        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      >
+        Row Data
+      </h3>
+      <div class="mb-4 overflow-x-auto rounded border border-base-300">
+        <table class="table table-xs font-mono">
           <tbody>
             {#each allKeys as key (key)}
-              <tr>
-                <td
-                  class="w-1/3 font-mono text-xs font-semibold text-base-content/60"
+              <tr class="border-base-300/60">
+                <td class="w-1/3 text-xs font-semibold text-base-content/60"
                   >{key}</td
                 >
                 <td>
@@ -282,15 +305,15 @@
         </table>
       </div>
     {:else}
-      <div class="py-4 text-center text-sm text-base-content/40">
-        No row data available.
+      <div class="py-4 text-center font-mono text-sm text-base-content/40">
+        <span class="text-base-content/30">//</span> no row data available
       </div>
     {/if}
 
     <!-- Raw JSON toggle -->
     <div class="border-t border-base-300 pt-3">
       <button
-        class="btn btn-ghost btn-xs"
+        class="btn btn-ghost btn-xs border-base-300"
         onclick={() => (showRawJson = !showRawJson)}
       >
         {showRawJson ? 'Hide' : 'Show'} Raw JSON
@@ -299,11 +322,13 @@
         <div class="mt-2 space-y-2">
           {#if event.old_row}
             <div>
-              <div class="mb-1 text-xs font-semibold text-base-content/50">
+              <div
+                class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+              >
                 old_row
               </div>
               <pre
-                class="max-h-64 overflow-auto rounded-lg bg-base-200 p-3 text-xs">{JSON.stringify(
+                class="max-h-64 overflow-auto rounded bg-base-200 p-3 text-xs">{JSON.stringify(
                   event.old_row,
                   null,
                   2,
@@ -312,11 +337,13 @@
           {/if}
           {#if event.row}
             <div>
-              <div class="mb-1 text-xs font-semibold text-base-content/50">
+              <div
+                class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+              >
                 row
               </div>
               <pre
-                class="max-h-64 overflow-auto rounded-lg bg-base-200 p-3 text-xs">{JSON.stringify(
+                class="max-h-64 overflow-auto rounded bg-base-200 p-3 text-xs">{JSON.stringify(
                   event.row,
                   null,
                   2,

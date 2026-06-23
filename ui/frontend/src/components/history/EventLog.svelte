@@ -1,7 +1,10 @@
 <script lang="ts">
   import { queryEvents, type EventRecord } from '../../lib/api';
-  import LoadingSpinner from '../ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../ui/ErrorAlert.svelte';
+  import { actionVariant, actionGlyph } from '../../lib/status';
+  import DataState from '../ui/DataState.svelte';
+  import FilterInput from '../ui/FilterInput.svelte';
+  import SegmentedControl from '../ui/SegmentedControl.svelte';
+  import Badge from '../ui/Badge.svelte';
 
   let events: EventRecord[] = $state([]);
   let loading = $state(false);
@@ -12,18 +15,14 @@
   let timeRange = $state('1h');
   let expandedId: number | null = $state(null);
 
-  function badgeClass(type: string): string {
-    switch (type) {
-      case 'insert':
-        return 'badge-success';
-      case 'delete':
-        return 'badge-error';
-      case 'update':
-        return 'badge-warning';
-      default:
-        return 'badge-ghost';
-    }
-  }
+  const timeRangeOptions = [
+    { value: '5m', label: '5m' },
+    { value: '15m', label: '15m' },
+    { value: '1h', label: '1h' },
+    { value: '6h', label: '6h' },
+    { value: '24h', label: '24h' },
+    { value: 'all', label: 'all' },
+  ];
 
   function sinceValue(): string | undefined {
     if (timeRange === 'all') return undefined;
@@ -68,67 +67,81 @@
 
 <div>
   <div class="mb-3 flex flex-wrap items-center gap-2">
-    <select bind:value={filterDb} class="select select-bordered select-sm">
+    <select
+      bind:value={filterDb}
+      class="select select-bordered select-sm bg-base-200/60 font-mono"
+    >
       <option value="">All databases</option>
       <option value="nb">nb</option>
       <option value="sb">sb</option>
     </select>
 
-    <input
-      type="text"
+    <FilterInput
       bind:value={filterTable}
-      placeholder="Table name..."
-      class="input input-sm input-bordered w-40"
+      placeholder="table name…"
+      width="w-40"
     />
 
-    <select bind:value={filterType} class="select select-bordered select-sm">
+    <select
+      bind:value={filterType}
+      class="select select-bordered select-sm bg-base-200/60 font-mono"
+    >
       <option value="">All types</option>
       <option value="insert">insert</option>
       <option value="update">update</option>
       <option value="delete">delete</option>
     </select>
 
-    <div class="join">
-      {#each ['5m', '15m', '1h', '6h', '24h', 'all'] as range (range)}
-        <button
-          class="btn join-item btn-xs {timeRange === range ? 'btn-active' : ''}"
-          onclick={() => (timeRange = range)}
-        >
-          {range}
-        </button>
-      {/each}
-    </div>
+    <SegmentedControl
+      options={timeRangeOptions}
+      bind:value={timeRange}
+      size="xs"
+    />
 
-    <button class="btn btn-ghost btn-xs" onclick={loadEvents}>Refresh</button>
+    <button class="btn btn-ghost btn-xs border-base-300" onclick={loadEvents}
+      >Refresh</button
+    >
   </div>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading && events.length === 0}
-    <LoadingSpinner />
-  {:else if events.length === 0}
-    <div class="py-8 text-center text-sm text-base-content/40">
-      No events in the selected time range.
-    </div>
-  {:else}
-    <div class="mb-2 text-xs text-base-content/50">
+  <DataState
+    {loading}
+    {error}
+    empty={events.length === 0}
+    emptyMessage="no events in the selected time range"
+  >
+    <div class="mb-2 font-mono text-xs text-base-content/55">
       {events.length} events
     </div>
-    <div class="max-h-[600px] overflow-auto">
-      <table class="table table-xs">
-        <thead class="sticky top-0 bg-base-100">
+    <div class="max-h-[600px] overflow-auto rounded border border-base-300">
+      <table class="table table-pin-rows table-xs font-mono">
+        <thead>
           <tr>
-            <th>Time</th>
-            <th>Type</th>
-            <th>Database</th>
-            <th>Table</th>
-            <th>UUID</th>
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Time</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Type</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Database</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Table</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >UUID</th
+            >
           </tr>
         </thead>
         <tbody>
           {#each events as evt (evt.id)}
             <tr
-              class="hover cursor-pointer"
+              class="cursor-pointer border-base-300/60 hover:bg-base-300/40"
               onclick={() =>
                 (expandedId = expandedId === evt.id ? null : evt.id)}
             >
@@ -136,21 +149,23 @@
                 {new Date(evt.timestamp).toLocaleTimeString()}
               </td>
               <td>
-                <span class="badge badge-xs {badgeClass(evt.type)}"
-                  >{evt.type}</span
-                >
+                <Badge
+                  text={evt.type}
+                  variant={actionVariant(evt.type)}
+                  glyph={actionGlyph(evt.type)}
+                />
               </td>
               <td>{evt.database}</td>
               <td>{evt.table}</td>
-              <td class="font-mono text-xs">{evt.uuid.slice(0, 12)}</td>
+              <td class="text-xs">{evt.uuid.slice(0, 12)}</td>
             </tr>
             {#if expandedId === evt.id}
               <tr>
-                <td colspan="5" class="bg-base-200 p-2">
+                <td colspan="5" class="bg-base-200/40 p-2">
                   {#if evt.old_row}
                     <div class="mb-2">
                       <div
-                        class="mb-1 text-xs font-semibold text-base-content/50"
+                        class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
                       >
                         Old Row
                       </div>
@@ -165,7 +180,7 @@
                   {#if evt.row}
                     <div>
                       <div
-                        class="mb-1 text-xs font-semibold text-base-content/50"
+                        class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
                       >
                         Row
                       </div>
@@ -178,8 +193,8 @@
                     </div>
                   {/if}
                   {#if !evt.row && !evt.old_row}
-                    <div class="text-xs text-base-content/40">
-                      No row data available.
+                    <div class="font-mono text-sm text-base-content/40">
+                      <span class="text-base-content/30">//</span> no row data available
                     </div>
                   {/if}
                 </td>
@@ -189,5 +204,5 @@
         </tbody>
       </table>
     </div>
-  {/if}
+  </DataState>
 </div>

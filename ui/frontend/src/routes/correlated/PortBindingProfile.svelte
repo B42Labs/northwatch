@@ -2,8 +2,7 @@
   import { getCorrelatedPortBinding } from '../../lib/api';
   import EntityHeader from '../../components/profile/EntityHeader.svelte';
   import BindingChain from '../../components/profile/BindingChain.svelte';
-  import LoadingSpinner from '../../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../../components/ui/ErrorAlert.svelte';
+  import DataState from '../../components/ui/DataState.svelte';
 
   let { uuid }: { uuid: string } = $props();
 
@@ -34,21 +33,27 @@
   let pb = $derived((data?.port_binding ?? {}) as Record<string, unknown>);
 </script>
 
-{#if loading}
-  <LoadingSpinner />
-{:else if error}
-  <ErrorAlert message={error} />
-{:else if data}
-  <EntityHeader
-    title={String(pb.logical_port || 'Port Binding')}
-    {uuid}
-    type="Port Binding"
-    breadcrumbs={[{ label: 'Port Bindings', href: '/sb/port-bindings' }]}
-    rawHref={`/sb/port-bindings/${uuid}`}
-  />
+<DataState {loading} {error} empty={!data} emptyMessage="port binding not found">
+  {#if data}
+    <EntityHeader
+      title={String(pb.logical_port || 'Port Binding')}
+      {uuid}
+      type="Port Binding"
+      breadcrumbs={[
+        { label: 'Correlated' },
+        { label: 'Port Bindings', href: '/sb/port-bindings' },
+        { label: String(pb.logical_port || 'port binding') },
+      ]}
+      rawHref={`/sb/port-bindings/${uuid}`}
+    />
 
-  <div class="flex flex-col gap-4">
-    <h2 class="text-lg font-semibold">Binding Chain</h2>
-    <BindingChain chain={data} />
-  </div>
-{/if}
+    <div class="flex flex-col gap-4">
+      <h2
+        class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      >
+        Binding Chain
+      </h2>
+      <BindingChain chain={data} />
+    </div>
+  {/if}
+</DataState>

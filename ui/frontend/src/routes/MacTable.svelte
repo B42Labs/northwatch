@@ -1,6 +1,11 @@
 <script lang="ts">
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import FilterInput from '../components/ui/FilterInput.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import type { Variant } from '../lib/status';
   import { SvelteMap } from 'svelte/reactivity';
 
   interface MacBinding {
@@ -133,14 +138,14 @@
   let totalEntries = $derived(filteredBindings.length);
   let totalDatapaths = $derived(datapathGroups.length);
 
-  function typeBadgeClass(type: 'router' | 'switch' | 'unknown'): string {
+  function typeVariant(type: 'router' | 'switch' | 'unknown'): Variant {
     switch (type) {
       case 'router':
-        return 'bg-green-600 text-white';
+        return 'success';
       case 'switch':
-        return 'bg-blue-600 text-white';
+        return 'info';
       default:
-        return 'badge-ghost';
+        return 'ghost';
     }
   }
 
@@ -156,110 +161,85 @@
   }
 </script>
 
-<div>
-  <!-- Header -->
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">MAC / ARP Table</h1>
-    <p class="text-sm text-base-content/60">
-      Learned MAC-to-IP bindings from OVN Southbound DB, grouped by datapath
-    </p>
+<PageHeader
+  eyebrow="Southbound"
+  title="MAC / ARP Table"
+  description="Learned MAC-to-IP bindings from OVN Southbound DB, grouped by datapath."
+>
+  {#snippet actions()}
+    <StatTiles
+      tiles={[
+        {
+          label: 'MAC Entries',
+          value: totalEntries,
+          hint:
+            globalSearch.trim() && totalEntries !== macBindings.length
+              ? `of ${macBindings.length} total`
+              : undefined,
+        },
+        { label: 'Datapaths', value: totalDatapaths },
+      ]}
+    />
+  {/snippet}
+</PageHeader>
+
+<DataState {loading} {error}>
+  <!-- Search bar -->
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    <FilterInput
+      bind:value={globalSearch}
+      placeholder="filter by IP, MAC or port…"
+      width="w-72"
+    />
   </div>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else}
-    <!-- Summary + Search bar -->
-    <div class="mb-4 flex flex-wrap items-center gap-4">
-      <div>
-        <input
-          type="text"
-          placeholder="Search by IP, MAC or port..."
-          class="input input-sm input-bordered w-72"
-          bind:value={globalSearch}
-        />
-      </div>
-      <div
-        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
-      >
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">MAC Entries</div>
-          <div class="stat-value text-lg">{totalEntries}</div>
-          {#if globalSearch.trim() && totalEntries !== macBindings.length}
-            <div class="stat-desc text-xs">of {macBindings.length} total</div>
-          {/if}
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Datapaths</div>
-          <div class="stat-value text-lg">{totalDatapaths}</div>
-        </div>
-      </div>
+  {#if datapathGroups.length === 0}
+    <div class="py-8 text-center font-mono text-sm text-base-content/40">
+      <span class="text-base-content/30">//</span>
+      {#if globalSearch.trim()}
+        no MAC entries match the search criteria
+      {:else}
+        no MAC bindings found
+      {/if}
     </div>
+  {:else}
+    <div class="flex flex-col gap-4">
+      {#each datapathGroups as group (group.datapath._uuid)}
+        <Card title={group.name} subtitle={group.datapath._uuid.slice(0, 8)}>
+          {#snippet actions()}
+            <Badge text={typeBadgeLabel(group.type)} variant={typeVariant(group.type)} />
+            <Badge
+              text="{group.entries.length} {group.entries.length === 1
+                ? 'entry'
+                : 'entries'}"
+              variant="neutral"
+              outline
+            />
+          {/snippet}
 
-    {#if datapathGroups.length === 0}
-      <div class="py-8 text-center text-base-content/50">
-        {#if globalSearch.trim()}
-          No MAC entries match the search criteria
-        {:else}
-          No MAC bindings found
-        {/if}
-      </div>
-    {:else}
-      <div class="flex flex-col gap-6">
-        {#each datapathGroups as group (group.datapath._uuid)}
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <!-- Datapath header -->
-              <div class="flex items-center gap-2">
-                <span
-                  class="inline-block h-3 w-3 rounded-sm opacity-85"
-                  class:bg-green-500={group.type === 'router'}
-                  class:rotate-45={group.type === 'router'}
-                  class:bg-blue-500={group.type === 'switch'}
-                  class:rounded-full={group.type === 'switch'}
-                  class:bg-gray-400={group.type === 'unknown'}
-                ></span>
-                <h2 class="card-title text-sm">
-                  {group.name}
-                </h2>
-                <span class="badge badge-sm {typeBadgeClass(group.type)}">
-                  {typeBadgeLabel(group.type)}
-                </span>
-                <span class="text-xs text-base-content/40">
-                  {group.datapath._uuid.slice(0, 8)}
-                </span>
-                <span class="badge badge-outline badge-sm">
-                  {group.entries.length}
-                  {group.entries.length === 1 ? 'entry' : 'entries'}
-                </span>
-              </div>
-
-              <!-- MAC entries table -->
-              <div class="mt-2 overflow-x-auto">
-                <table class="table table-zebra table-xs">
-                  <thead>
-                    <tr>
-                      <th>IP Address</th>
-                      <th>MAC Address</th>
-                      <th>Logical Port</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each group.entries as entry, i (i)}
-                      <tr>
-                        <td class="font-mono text-xs">{entry.ip}</td>
-                        <td class="font-mono text-xs">{entry.mac}</td>
-                        <td class="text-xs">{entry.logical_port || '-'}</td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <!-- MAC entries table -->
+          <div class="overflow-x-auto rounded border border-base-300">
+            <table class="table table-xs font-mono">
+              <thead>
+                <tr>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">IP Address</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">MAC Address</th>
+                  <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical Port</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each group.entries as entry, i (i)}
+                  <tr class="border-base-300/60">
+                    <td class="text-xs">{entry.ip}</td>
+                    <td class="text-xs">{entry.mac}</td>
+                    <td class="text-xs text-base-content/70">{entry.logical_port || '-'}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
           </div>
-        {/each}
-      </div>
-    {/if}
+        </Card>
+      {/each}
+    </div>
   {/if}
-</div>
+</DataState>

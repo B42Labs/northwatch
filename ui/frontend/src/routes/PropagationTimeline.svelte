@@ -7,8 +7,11 @@
     type PropagationEvent,
     type ChassisPropSummary,
   } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import SegmentedControl from '../components/ui/SegmentedControl.svelte';
 
   type TimeRange = { label: string; ms: number };
   const TIME_RANGES: TimeRange[] = [
@@ -237,154 +240,160 @@
   });
 </script>
 
-<div>
-  <div class="mb-4 flex items-center justify-between">
-    <div>
-      <h1 class="text-xl font-bold">Config Propagation Timeline</h1>
-      <p class="text-sm text-base-content/60">
-        Per-chassis nb_cfg propagation latency over time
-        {#if currentGen > 0}
-          <span class="badge badge-ghost badge-sm ml-2"
-            >Current gen: {currentGen}</span
-          >
-        {/if}
-      </p>
-    </div>
-    <div class="flex items-center gap-2">
-      {#if chassisNames.length > 0}
-        <select
-          class="select select-bordered select-sm"
-          bind:value={chassisFilter}
-          onchange={load}
-        >
-          <option value="">All chassis</option>
-          {#each chassisNames as name (name)}
-            <option value={name}>{name}</option>
-          {/each}
-        </select>
-      {/if}
-      <div class="join">
-        {#each TIME_RANGES as range (range.label)}
-          <button
-            class="btn join-item btn-sm {selectedRange === range
-              ? 'btn-primary'
-              : 'btn-ghost'}"
-            onclick={() => {
-              selectedRange = range;
-              load();
-            }}
-          >
-            {range.label}
-          </button>
+<PageHeader
+  eyebrow="Monitoring"
+  title="Config Propagation Timeline"
+  description="Per-chassis nb_cfg propagation latency over time."
+>
+  {#snippet meta()}
+    {#if currentGen > 0}
+      <Badge text="gen {currentGen}" variant="neutral" />
+    {/if}
+  {/snippet}
+  {#snippet actions()}
+    {#if chassisNames.length > 0}
+      <select
+        class="select select-bordered select-sm bg-base-200/60 font-mono"
+        bind:value={chassisFilter}
+        onchange={load}
+        aria-label="Filter by chassis"
+      >
+        <option value="">All chassis</option>
+        {#each chassisNames as name (name)}
+          <option value={name}>{name}</option>
         {/each}
-      </div>
-    </div>
-  </div>
+      </select>
+    {/if}
+    <SegmentedControl
+      options={TIME_RANGES.map((r) => ({ value: r.label, label: r.label }))}
+      value={selectedRange.label}
+      onchange={(label) => {
+        const range = TIME_RANGES.find((r) => r.label === label);
+        if (range) {
+          selectedRange = range;
+          load();
+        }
+      }}
+    />
+  {/snippet}
+</PageHeader>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else}
-    <!-- Timeline Chart -->
-    <div class="card mb-6 border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body p-4">
-        <h2 class="card-title text-base">Propagation Timeline</h2>
-        {#if events.length === 0}
-          <div class="py-8 text-center text-sm text-base-content/40">
-            No propagation events recorded in this time range
-          </div>
-        {:else}
-          <div class="relative w-full">
-            <svg bind:this={svgRef} class="w-full" style="height: 320px"></svg>
-          </div>
-        {/if}
+<DataState {loading} {error}>
+  <!-- Timeline Chart -->
+  <Card title="Propagation Timeline" class="mb-6">
+    {#if events.length === 0}
+      <div class="py-8 text-center font-mono text-sm text-base-content/40">
+        <span class="text-base-content/30">//</span> no propagation events recorded
+        in this time range
       </div>
-    </div>
+    {:else}
+      <div class="relative w-full">
+        <svg bind:this={svgRef} class="w-full" style="height: 320px"></svg>
+      </div>
+    {/if}
+  </Card>
 
-    <!-- Heatmap Summary Table -->
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body p-4">
-        <h2 class="card-title text-base">Chassis Propagation Summary</h2>
-        {#if summaries.length === 0}
-          <div class="py-8 text-center text-sm text-base-content/40">
-            No chassis data available
-          </div>
-        {:else}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Chassis</th>
-                  <th>Hostname</th>
-                  <th class="text-right">Count</th>
-                  <th class="text-right">Avg</th>
-                  <th class="text-right">P50</th>
-                  <th class="text-right">P95</th>
-                  <th class="text-right">P99</th>
-                  <th class="text-right">Max</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each summaries as s (s.chassis)}
-                  <tr>
-                    <td class="font-mono text-xs">{s.chassis}</td>
-                    <td class="text-xs text-base-content/60"
-                      >{s.hostname || '-'}</td
-                    >
-                    <td class="text-right text-xs">{s.count}</td>
-                    <td class="text-right">
-                      <span
-                        class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
-                          s.avg_ms,
-                        )}"
-                      >
-                        {formatMs(s.avg_ms)}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <span
-                        class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
-                          s.p50_ms,
-                        )}"
-                      >
-                        {formatMs(s.p50_ms)}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <span
-                        class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
-                          s.p95_ms,
-                        )}"
-                      >
-                        {formatMs(s.p95_ms)}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <span
-                        class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
-                          s.p99_ms,
-                        )}"
-                      >
-                        {formatMs(s.p99_ms)}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <span
-                        class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
-                          s.max_ms,
-                        )}"
-                      >
-                        {formatMs(s.max_ms)}
-                      </span>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
+  <!-- Heatmap Summary Table -->
+  <Card title="Chassis Propagation Summary" padding="none">
+    {#if summaries.length === 0}
+      <div class="py-8 text-center font-mono text-sm text-base-content/40">
+        <span class="text-base-content/30">//</span> no chassis data available
       </div>
-    </div>
-  {/if}
-</div>
+    {:else}
+      <div class="overflow-x-auto rounded border border-base-300">
+        <table class="table table-xs font-mono">
+          <thead>
+            <tr>
+              <th
+                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                >Chassis</th
+              >
+              <th
+                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                >Hostname</th
+              >
+              <th
+                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                >Count</th
+              >
+              <th
+                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                >Avg</th
+              >
+              <th
+                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                >P50</th
+              >
+              <th
+                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                >P95</th
+              >
+              <th
+                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                >P99</th
+              >
+              <th
+                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                >Max</th
+              >
+            </tr>
+          </thead>
+          <tbody>
+            {#each summaries as s (s.chassis)}
+              <tr class="border-base-300/60">
+                <td class="text-xs">{s.chassis}</td>
+                <td class="text-xs text-base-content/60">{s.hostname || '-'}</td>
+                <td class="text-right text-xs">{s.count}</td>
+                <td class="text-right">
+                  <span
+                    class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
+                      s.avg_ms,
+                    )}"
+                  >
+                    {formatMs(s.avg_ms)}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <span
+                    class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
+                      s.p50_ms,
+                    )}"
+                  >
+                    {formatMs(s.p50_ms)}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <span
+                    class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
+                      s.p95_ms,
+                    )}"
+                  >
+                    {formatMs(s.p95_ms)}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <span
+                    class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
+                      s.p99_ms,
+                    )}"
+                  >
+                    {formatMs(s.p99_ms)}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <span
+                    class="rounded px-1.5 py-0.5 text-xs font-medium {latencyClass(
+                      s.max_ms,
+                    )}"
+                  >
+                    {formatMs(s.max_ms)}
+                  </span>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
+  </Card>
+</DataState>

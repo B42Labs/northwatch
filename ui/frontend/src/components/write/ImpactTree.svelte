@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { ImpactNode } from '../../lib/writeApi';
+  import type { Variant } from '../../lib/status';
   import Badge from '../ui/Badge.svelte';
   import ImpactTree from './ImpactTree.svelte';
 
@@ -8,7 +9,7 @@
 
   let expanded = $state(untrack(() => depth < 1));
 
-  function refBadge(rt: string): { text: string; variant: string } {
+  function refBadge(rt: string): { text: string; variant: Variant } {
     switch (rt) {
       case 'strong':
         return { text: 'cascade', variant: 'error' };
@@ -35,7 +36,7 @@
         onclick={() => (expanded = !expanded)}
         aria-label={expanded ? 'Collapse' : 'Expand'}
       >
-        <span class="text-xs">{expanded ? '\u25BE' : '\u25B8'}</span>
+        <span class="text-xs">{expanded ? '▾' : '▸'}</span>
       </button>
     {:else}
       <span class="inline-block w-5"></span>
@@ -44,7 +45,7 @@
     <span class="font-mono text-xs">{node.table}</span>
 
     {#if node.name}
-      <span class="text-xs font-semibold">{node.name}</span>
+      <span class="font-mono text-xs font-semibold">{node.name}</span>
     {/if}
 
     <span class="font-mono text-xs text-base-content/40">
@@ -56,7 +57,7 @@
     {/if}
 
     {#if childCount > 0 && !expanded}
-      <span class="text-xs text-base-content/50">({childCount})</span>
+      <span class="font-mono text-xs text-base-content/50">({childCount})</span>
     {/if}
   </div>
 

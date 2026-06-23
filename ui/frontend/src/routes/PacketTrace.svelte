@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getTrace, listPortBindings, type TraceResponse } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import FormField from '../components/ui/FormField.svelte';
+  import Badge from '../components/ui/Badge.svelte';
   import { SvelteSet } from 'svelte/reactivity';
 
   let portBindings: Record<string, unknown>[] = $state([]);
@@ -106,40 +108,27 @@
   });
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Packet Trace</h1>
-    <p class="text-sm text-base-content/60">
-      Simplified ovn-trace: see which logical flows a packet would traverse
-      through the pipeline
-    </p>
-  </div>
+<PageHeader
+  eyebrow="Debug"
+  title="Packet Trace"
+  description="Simplified ovn-trace: see which logical flows a packet would traverse through the pipeline"
+/>
 
-  {#if error && !traceData}
-    <ErrorAlert message={error} />
-  {/if}
-
-  {#if portsLoading}
-    <LoadingSpinner />
-  {:else}
-    <!-- Trace parameters -->
-    <div class="mb-4 flex flex-wrap items-end gap-3">
+<DataState loading={portsLoading} error={error && !traceData ? error : ''}>
+  <!-- Trace parameters -->
+  <div class="mb-4 flex flex-wrap items-end gap-3">
+    <FormField label="Source Port (SB Port Binding)" forId="trace-port">
       <div class="w-80">
-        <label class="label" for="trace-port">
-          <span class="label-text text-xs font-semibold"
-            >Source Port (SB Port Binding)</span
-          >
-        </label>
         <input
           type="text"
           bind:value={portFilter}
           placeholder="Filter ports..."
-          class="input input-sm input-bordered mb-1 w-full"
+          class="input input-sm input-bordered mb-1 w-full font-mono"
         />
         <select
           id="trace-port"
           bind:value={selectedPort}
-          class="select select-bordered select-sm w-full"
+          class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
         >
           <option value="">Select port...</option>
           {#each filteredPBOptions as p (p.uuid)}
@@ -149,182 +138,177 @@
           {/each}
         </select>
       </div>
-      <div>
-        <label class="label" for="dst-ip">
-          <span class="label-text text-xs font-semibold">Destination IP</span>
-        </label>
-        <input
-          id="dst-ip"
-          type="text"
-          bind:value={dstIp}
-          placeholder="e.g. 10.0.0.1"
-          class="input input-sm input-bordered w-40"
-        />
-      </div>
-      <div>
-        <label class="label" for="protocol">
-          <span class="label-text text-xs font-semibold">Protocol</span>
-        </label>
-        <select
-          id="protocol"
-          bind:value={protocol}
-          class="select select-bordered select-sm"
-        >
-          <option value="">Any</option>
-          <option value="tcp">TCP</option>
-          <option value="udp">UDP</option>
-          <option value="icmp">ICMP</option>
-        </select>
-      </div>
-      <button
-        class="btn btn-primary btn-sm"
-        disabled={!selectedPort || tracing}
-        onclick={runTrace}
+    </FormField>
+    <FormField label="Destination IP" forId="dst-ip">
+      <input
+        id="dst-ip"
+        type="text"
+        bind:value={dstIp}
+        placeholder="e.g. 10.0.0.1"
+        class="input input-sm input-bordered w-40 font-mono"
+      />
+    </FormField>
+    <FormField label="Protocol" forId="protocol">
+      <select
+        id="protocol"
+        bind:value={protocol}
+        class="select select-bordered select-sm bg-base-200/60 font-mono"
       >
-        {#if tracing}
-          <span class="loading loading-spinner loading-xs"></span>
+        <option value="">Any</option>
+        <option value="tcp">TCP</option>
+        <option value="udp">UDP</option>
+        <option value="icmp">ICMP</option>
+      </select>
+    </FormField>
+    <button
+      class="btn btn-primary btn-sm"
+      disabled={!selectedPort || tracing}
+      onclick={runTrace}
+    >
+      {#if tracing}
+        <span class="loading loading-spinner loading-xs"></span>
+      {/if}
+      Trace
+    </button>
+  </div>
+
+  {#if traceData}
+    <!-- Trace info -->
+    <div
+      class="mb-4 rounded border border-base-300 bg-base-100 p-3 font-mono text-sm"
+    >
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="text-base-content/55"
+          >Port: <span class="font-semibold text-base-content"
+            >{traceData.port_name}</span
+          ></span
+        >
+        <span class="text-base-content/55"
+          >Datapath: <span class="font-semibold text-base-content"
+            >{traceData.datapath_name ||
+              traceData.datapath_uuid.slice(0, 8)}</span
+          ></span
+        >
+        {#if traceData.dst_ip}
+          <span class="text-base-content/55"
+            >Dst IP: <span class="text-base-content">{traceData.dst_ip}</span
+            ></span
+          >
         {/if}
-        Trace
-      </button>
+        {#if traceData.protocol}
+          <span class="text-base-content/55"
+            >Protocol: <span class="text-base-content"
+              >{traceData.protocol}</span
+            ></span
+          >
+        {/if}
+        <a
+          href="/api/v1/export/trace?port={traceData.port_uuid}&format=json"
+          download="trace-{traceData.port_name}.json"
+          class="btn btn-ghost btn-sm ml-auto border-base-300"
+        >
+          Export JSON
+        </a>
+      </div>
     </div>
 
-    {#if traceData}
-      <!-- Trace info -->
-      <div
-        class="mb-4 rounded-lg border border-base-300 bg-base-100 p-3 text-sm"
-      >
-        <div class="flex flex-wrap items-center gap-4">
-          <span
-            >Port: <span class="font-mono font-semibold"
-              >{traceData.port_name}</span
-            ></span
-          >
-          <span
-            >Datapath: <span class="font-semibold"
-              >{traceData.datapath_name ||
-                traceData.datapath_uuid.slice(0, 8)}</span
-            ></span
-          >
-          {#if traceData.dst_ip}
-            <span
-              >Dst IP: <span class="font-mono">{traceData.dst_ip}</span></span
+    <!-- Pipeline stepper -->
+    <div class="flex flex-col gap-3">
+      {#each traceData.stages as stage, i (i)}
+        <div class="flex items-start gap-3">
+          <!-- Stage marker -->
+          <div class="flex flex-col items-center">
+            <div
+              class="flex h-8 w-8 items-center justify-center rounded-full font-mono text-xs font-bold {stage.pipeline ===
+              'ingress'
+                ? 'bg-info/20 text-info'
+                : 'bg-warning/20 text-warning'}"
             >
-          {/if}
-          {#if traceData.protocol}
-            <span
-              >Protocol: <span class="font-mono">{traceData.protocol}</span
-              ></span
-            >
-          {/if}
-          <a
-            href="/api/v1/export/trace?port={traceData.port_uuid}&format=json"
-            download="trace-{traceData.port_name}.json"
-            class="btn btn-ghost btn-sm ml-auto"
-          >
-            Export JSON
-          </a>
-        </div>
-      </div>
+              {stage.table_id}
+            </div>
+            {#if i < traceData.stages.length - 1}
+              <div class="h-full w-0.5 bg-base-300"></div>
+            {/if}
+          </div>
 
-      <!-- Pipeline stepper -->
-      <div class="flex flex-col gap-3">
-        {#each traceData.stages as stage, i (i)}
-          <div class="flex items-start gap-3">
-            <!-- Stage marker -->
-            <div class="flex flex-col items-center">
-              <div
-                class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold {stage.pipeline ===
-                'ingress'
-                  ? 'bg-info/20 text-info'
-                  : 'bg-warning/20 text-warning'}"
+          <!-- Stage content -->
+          <div class="flex-1 rounded border border-base-300 bg-base-100">
+            <div
+              class="flex items-center gap-2 border-b border-base-300 bg-base-200/40 px-3 py-2"
+            >
+              <Badge
+                text={stage.pipeline}
+                variant={stage.pipeline === 'ingress' ? 'info' : 'warning'}
+              />
+              <span
+                class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
               >
-                {stage.table_id}
-              </div>
-              {#if i < traceData.stages.length - 1}
-                <div class="h-full w-0.5 bg-base-300"></div>
-              {/if}
+                Table {stage.table_id}
+                {#if stage.table_name}
+                  <span class="ml-1 normal-case text-base-content/55"
+                    >{stage.table_name}</span
+                  >
+                {/if}
+              </span>
+              <span class="font-mono text-2xs text-base-content/40"
+                >{stage.flows.length} flows</span
+              >
             </div>
 
-            <!-- Stage content -->
-            <div class="flex-1 rounded-lg border border-base-300 bg-base-100">
-              <div
-                class="flex items-center gap-2 border-b border-base-300 px-3 py-2"
-              >
-                <span
-                  class="badge badge-xs {stage.pipeline === 'ingress'
-                    ? 'badge-info'
-                    : 'badge-warning'}">{stage.pipeline}</span
+            <div class="max-h-[300px] overflow-y-auto">
+              {#each stage.flows as flow (flow.uuid)}
+                <button
+                  type="button"
+                  class="block w-full cursor-pointer border-b border-l-4 border-base-300/60 px-3 py-1.5 text-left font-mono text-xs last:border-b-0 hover:bg-base-300/40 {hintColor(
+                    flow.hint,
+                    flow.selected,
+                  )}"
+                  onclick={() => toggleFlow(flow.uuid)}
                 >
-                <span class="text-sm font-semibold">
-                  Table {stage.table_id}
-                  {#if stage.table_name}
-                    <span class="ml-1 font-normal text-base-content/60"
-                      >{stage.table_name}</span
-                    >
-                  {/if}
-                </span>
-                <span class="text-xs text-base-content/40"
-                  >{stage.flows.length} flows</span
-                >
-              </div>
-
-              <div class="max-h-[300px] overflow-y-auto">
-                {#each stage.flows as flow (flow.uuid)}
-                  <button
-                    type="button"
-                    class="block w-full cursor-pointer border-b border-l-4 border-base-300 px-3 py-1.5 text-left text-xs last:border-0 hover:bg-base-200 {hintColor(
-                      flow.hint,
-                      flow.selected,
-                    )}"
-                    onclick={() => toggleFlow(flow.uuid)}
-                  >
-                    <div class="flex items-center gap-2">
-                      {#if flow.selected}
-                        <span class="text-success">&#10003;</span>
-                      {/if}
-                      <span class="badge badge-ghost badge-sm font-mono"
-                        >{flow.priority}</span
-                      >
-                      {#if hintBadge(flow.hint)}
-                        <span class="badge badge-xs {hintBadge(flow.hint)?.cls}"
-                          >{hintBadge(flow.hint)?.label}</span
-                        >
-                      {/if}
-                      <span class="truncate font-mono text-base-content/80"
-                        >{flow.match || '1 (any)'}</span
-                      >
-                    </div>
-
-                    {#if expandedFlows.has(flow.uuid)}
-                      <div
-                        class="mt-2 space-y-1 rounded border border-base-300 bg-base-200 p-2"
-                      >
-                        <div>
-                          <span class="font-semibold text-base-content/50"
-                            >Match:</span
-                          >
-                          <span class="font-mono"
-                            >{flow.match || '1 (any)'}</span
-                          >
-                        </div>
-                        <div>
-                          <span class="font-semibold text-base-content/50"
-                            >Actions:</span
-                          >
-                          <span class="font-mono">{flow.actions}</span>
-                        </div>
-                        <div class="text-base-content/40">
-                          UUID: {flow.uuid}
-                        </div>
-                      </div>
+                  <div class="flex items-center gap-2">
+                    {#if flow.selected}
+                      <span class="text-success">&#10003;</span>
                     {/if}
-                  </button>
-                {/each}
-              </div>
+                    <span class="badge badge-ghost badge-sm font-mono"
+                      >{flow.priority}</span
+                    >
+                    {#if hintBadge(flow.hint)}
+                      <span class="badge badge-xs {hintBadge(flow.hint)?.cls}"
+                        >{hintBadge(flow.hint)?.label}</span
+                      >
+                    {/if}
+                    <span class="truncate text-base-content/80"
+                      >{flow.match || '1 (any)'}</span
+                    >
+                  </div>
+
+                  {#if expandedFlows.has(flow.uuid)}
+                    <div
+                      class="mt-2 space-y-1 rounded border border-base-300 bg-base-200/60 p-2"
+                    >
+                      <div>
+                        <span class="font-semibold text-base-content/55"
+                          >Match:</span
+                        >
+                        <span>{flow.match || '1 (any)'}</span>
+                      </div>
+                      <div>
+                        <span class="font-semibold text-base-content/55"
+                          >Actions:</span
+                        >
+                        <span>{flow.actions}</span>
+                      </div>
+                      <div class="text-base-content/40">
+                        UUID: {flow.uuid}
+                      </div>
+                    </div>
+                  {/if}
+                </button>
+              {/each}
             </div>
           </div>
-        {/each}
-      </div>
-    {/if}
+        </div>
+      {/each}
+    </div>
   {/if}
-</div>
+</DataState>

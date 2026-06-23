@@ -1,26 +1,22 @@
 <script lang="ts">
   import { wsConnectionState } from '../../lib/eventStore';
+  import { connLabel, type ConnState } from '../../lib/status';
 
-  let state = $derived($wsConnectionState);
+  let state = $derived($wsConnectionState as ConnState);
 
-  let label = $derived(
+  let dotClass = $derived(
     state === 'connected'
-      ? 'Live'
+      ? 'nw-dot nw-dot-live'
       : state === 'connecting'
-        ? 'Connecting'
-        : 'Disconnected',
-  );
-
-  let colorClass = $derived(
-    state === 'connected'
-      ? 'bg-success'
-      : state === 'connecting'
-        ? 'bg-warning'
-        : 'bg-error',
+        ? 'nw-dot bg-warning'
+        : 'nw-dot bg-error',
   );
 </script>
 
-<div class="flex items-center gap-1.5" title="WebSocket: {label}">
-  <span class="h-2 w-2 rounded-full {colorClass}"></span>
-  <span class="text-xs text-base-content/60">{label}</span>
+<div
+  class="flex items-center gap-1.5 font-mono text-2xs uppercase tracking-wider text-base-content/55"
+  title="WebSocket: {connLabel(state)}"
+>
+  <span class={dotClass}></span>
+  <span>{connLabel(state)}</span>
 </div>

@@ -2,17 +2,29 @@
   import { onMount } from 'svelte';
   import { getPortDiagnostics, type PortDiagnosticsSummary } from '../lib/api';
   import { link } from '../lib/router';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import FilterInput from '../components/ui/FilterInput.svelte';
+  import SegmentedControl from '../components/ui/SegmentedControl.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import { severityVariant, accentBorderClass } from '../lib/status';
   import { SvelteSet } from 'svelte/reactivity';
 
   let data: PortDiagnosticsSummary | null = $state(null);
   let loading = $state(true);
   let error = $state('');
   let searchQuery = $state('');
-  let severityFilter = $state<'all' | 'error' | 'warning' | 'healthy'>('all');
+  let severityFilter = $state('all');
 
   let expandedPorts = new SvelteSet<string>();
+
+  const severityOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'error', label: 'Errors' },
+    { value: 'warning', label: 'Warnings' },
+    { value: 'healthy', label: 'Healthy' },
+  ];
 
   function togglePort(uuid: string) {
     if (expandedPorts.has(uuid)) {
@@ -37,39 +49,6 @@
     }),
   );
 
-  function severityColor(s: string): string {
-    switch (s) {
-      case 'error':
-        return 'border-error text-error';
-      case 'warning':
-        return 'border-warning text-warning';
-      default:
-        return 'border-success text-success';
-    }
-  }
-
-  function severityBadge(s: string): string {
-    switch (s) {
-      case 'error':
-        return 'badge-error';
-      case 'warning':
-        return 'badge-warning';
-      default:
-        return 'badge-success';
-    }
-  }
-
-  function checkStatusBadge(s: string): string {
-    switch (s) {
-      case 'error':
-        return 'badge-error';
-      case 'warning':
-        return 'badge-warning';
-      default:
-        return 'badge-success';
-    }
-  }
-
   async function load() {
     loading = true;
     error = '';
@@ -87,75 +66,38 @@
   });
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Port Diagnostics</h1>
-    <p class="text-sm text-base-content/60">
-      Health analysis of all logical ports: binding status, chassis health, type
-      verification
-    </p>
-  </div>
+<PageHeader
+  eyebrow="Debug"
+  title="Port Diagnostics"
+  description="Health analysis of all logical ports: binding status, chassis health, type verification"
+/>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else if data}
+<DataState {loading} {error} empty={!data} emptyMessage="no diagnostics">
+  {#if data}
     <!-- Summary stats -->
-    <div class="stats mb-4 w-full border border-base-300 bg-base-100 shadow-sm">
-      <div class="stat">
-        <div class="stat-title">Total</div>
-        <div class="stat-value text-lg">{data.total}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Healthy</div>
-        <div class="stat-value text-lg text-success">{data.healthy}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Warning</div>
-        <div class="stat-value text-lg text-warning">{data.warning}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Error</div>
-        <div class="stat-value text-lg text-error">{data.error}</div>
-      </div>
-    </div>
+    <StatTiles
+      class="mb-4 w-full"
+      tiles={[
+        { label: 'Total', value: data.total },
+        { label: 'Healthy', value: data.healthy, variant: 'success' },
+        { label: 'Warning', value: data.warning, variant: 'warning' },
+        { label: 'Error', value: data.error, variant: 'error' },
+      ]}
+    />
 
     <!-- Filter bar -->
     <div class="mb-4 flex flex-wrap items-center gap-3">
-      <input
-        type="text"
+      <FilterInput
         bind:value={searchQuery}
         placeholder="Search by name, UUID, switch..."
-        class="input input-sm input-bordered w-72"
+        width="w-72"
       />
-      <div class="join">
-        <button
-          class="btn join-item btn-xs {severityFilter === 'all'
-            ? 'btn-active'
-            : ''}"
-          onclick={() => (severityFilter = 'all')}>All</button
-        >
-        <button
-          class="btn join-item btn-xs {severityFilter === 'error'
-            ? 'btn-active'
-            : ''}"
-          onclick={() => (severityFilter = 'error')}>Errors</button
-        >
-        <button
-          class="btn join-item btn-xs {severityFilter === 'warning'
-            ? 'btn-active'
-            : ''}"
-          onclick={() => (severityFilter = 'warning')}>Warnings</button
-        >
-        <button
-          class="btn join-item btn-xs {severityFilter === 'healthy'
-            ? 'btn-active'
-            : ''}"
-          onclick={() => (severityFilter = 'healthy')}>Healthy</button
-        >
-      </div>
-      <span class="text-sm text-base-content/50"
+      <SegmentedControl
+        options={severityOptions}
+        bind:value={severityFilter}
+        size="xs"
+      />
+      <span class="font-mono text-xs text-base-content/55"
         >{filteredPorts.length} ports</span
       >
     </div>
@@ -164,28 +106,29 @@
     <div class="flex flex-col gap-2">
       {#each filteredPorts as port (port.port_uuid)}
         <div
-          class="rounded-lg border-l-4 bg-base-100 shadow-sm {severityColor(
-            port.overall,
-          )}"
+          class="rounded border border-l-2 border-base-300 bg-base-100 {accentBorderClass[
+            severityVariant(port.overall)
+          ]}"
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left hover:bg-base-200"
+            class="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left hover:bg-base-300/40"
             onclick={() => togglePort(port.port_uuid)}
           >
             <div class="flex items-center gap-3">
-              <span class="badge badge-sm {severityBadge(port.overall)}"
-                >{port.overall}</span
-              >
+              <Badge
+                text={port.overall}
+                variant={severityVariant(port.overall)}
+              />
               <div>
-                <span class="font-semibold">{port.port_name}</span>
+                <span class="font-mono font-semibold">{port.port_name}</span>
                 {#if port.port_type}
                   <span class="badge badge-ghost badge-xs ml-1"
                     >{port.port_type}</span
                   >
                 {/if}
                 {#if port.switch_name}
-                  <span class="ml-2 text-xs text-base-content/50"
+                  <span class="ml-2 font-mono text-xs text-base-content/50"
                     >on {port.switch_name}</span
                   >
                 {/if}
@@ -196,10 +139,10 @@
                 href={link(
                   `/correlated/logical-switch-ports/${port.port_uuid}`,
                 )}
-                class="btn btn-ghost btn-xs"
+                class="btn btn-ghost btn-xs border-base-300"
                 onclick={(e) => e.stopPropagation()}>View</a
               >
-              <span class="text-xs text-base-content/40"
+              <span class="font-mono text-xs text-base-content/40"
                 >{expandedPorts.has(port.port_uuid) ? '-' : '+'}</span
               >
             </div>
@@ -209,20 +152,24 @@
             <div class="border-t border-base-300 px-4 py-3">
               <div class="space-y-1">
                 {#each port.checks as check (check.name)}
-                  <div class="flex items-start gap-2 text-sm">
+                  <div class="flex items-start gap-2 font-mono text-sm">
                     <span
-                      class="badge badge-xs mt-0.5 {checkStatusBadge(
+                      class="badge badge-xs mt-0.5 {severityVariant(
                         check.status,
-                      )}"
+                      ) === 'error'
+                        ? 'badge-error'
+                        : severityVariant(check.status) === 'warning'
+                          ? 'badge-warning'
+                          : 'badge-success'}"
                     ></span>
-                    <span class="font-mono text-xs text-base-content/60"
+                    <span class="text-xs text-base-content/60"
                       >{check.name}</span
                     >
                     <span class="text-xs">{check.message}</span>
                   </div>
                 {/each}
               </div>
-              <div class="mt-2 text-xs text-base-content/40">
+              <div class="mt-2 font-mono text-xs text-base-content/40">
                 UUID: {port.port_uuid}
               </div>
             </div>
@@ -231,10 +178,13 @@
       {/each}
 
       {#if filteredPorts.length === 0}
-        <div class="py-8 text-center text-sm text-base-content/40">
-          No ports match the current filter
+        <div class="py-8 text-center">
+          <span class="font-mono text-sm text-base-content/40"
+            ><span class="text-base-content/30">//</span> no ports match the current
+            filter</span
+          >
         </div>
       {/if}
     </div>
   {/if}
-</div>
+</DataState>

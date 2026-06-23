@@ -1,8 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import SegmentedControl from '../components/ui/SegmentedControl.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import { severityVariant, type Variant } from '../lib/status';
 
   interface AuditFinding {
     type: string;
@@ -29,7 +33,14 @@
   let data: AuditResult | null = $state(null);
   let loading = $state(true);
   let error = $state('');
-  let typeFilter = $state<'all' | 'shadow' | 'conflict' | 'redundant'>('all');
+  let typeFilter = $state('all');
+
+  const typeOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'shadow', label: 'Shadow' },
+    { value: 'conflict', label: 'Conflict' },
+    { value: 'redundant', label: 'Redundant' },
+  ];
 
   let filtered = $derived(
     (data?.findings ?? []).filter(
@@ -49,103 +60,77 @@
     }
   }
 
-  function severityBadge(s: string): string {
-    return s === 'error'
-      ? 'badge-error'
-      : s === 'warning'
-        ? 'badge-warning'
-        : 'badge-info';
-  }
-
-  function typeBadge(t: string): string {
-    return t === 'shadow'
-      ? 'badge-error'
-      : t === 'conflict'
-        ? 'badge-warning'
-        : 'badge-info';
+  function typeVariant(t: string): Variant {
+    return t === 'shadow' ? 'error' : t === 'conflict' ? 'warning' : 'info';
   }
 
   onMount(() => load());
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">ACL Security Audit</h1>
-    <p class="text-sm text-base-content/60">
-      Detect shadowed, conflicting, and redundant ACL rules
-    </p>
-  </div>
+<PageHeader
+  eyebrow="Debug"
+  title="ACL Security Audit"
+  description="Detect shadowed, conflicting, and redundant ACL rules"
+/>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else if data}
-    <div class="stats mb-4 w-full border border-base-300 bg-base-100 shadow-sm">
-      <div class="stat">
-        <div class="stat-title">Total ACLs</div>
-        <div class="stat-value text-lg">{data.total_acls}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Shadows</div>
-        <div class="stat-value text-lg text-error">{data.summary.shadows}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Conflicts</div>
-        <div class="stat-value text-lg text-warning">
-          {data.summary.conflicts}
-        </div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">Redundant</div>
-        <div class="stat-value text-lg text-info">{data.summary.redundant}</div>
-      </div>
-    </div>
+<DataState {loading} {error} empty={!data} emptyMessage="no audit data">
+  {#if data}
+    <StatTiles
+      class="mb-4 w-full"
+      tiles={[
+        { label: 'Total ACLs', value: data.total_acls },
+        { label: 'Shadows', value: data.summary.shadows, variant: 'error' },
+        {
+          label: 'Conflicts',
+          value: data.summary.conflicts,
+          variant: 'warning',
+        },
+        {
+          label: 'Redundant',
+          value: data.summary.redundant,
+          variant: 'info',
+        },
+      ]}
+    />
 
     <div class="mb-4 flex items-center gap-3">
-      <div class="join">
-        {#each ['all', 'shadow', 'conflict', 'redundant'] as t (t)}
-          <button
-            class="btn join-item btn-xs {typeFilter === t ? 'btn-active' : ''}"
-            onclick={() => (typeFilter = t as typeof typeFilter)}
-            >{t === 'all'
-              ? 'All'
-              : t.charAt(0).toUpperCase() + t.slice(1)}</button
-          >
-        {/each}
-      </div>
-      <span class="text-sm text-base-content/50"
+      <SegmentedControl
+        options={typeOptions}
+        bind:value={typeFilter}
+        size="xs"
+      />
+      <span class="font-mono text-xs text-base-content/55"
         >{filtered.length} findings</span
       >
     </div>
 
     {#if filtered.length === 0}
-      <div class="py-8 text-center text-sm text-base-content/40">
-        {data.findings.length === 0
-          ? 'No issues found - all ACL rules look clean'
-          : 'No findings match the current filter'}
+      <div class="py-8 text-center">
+        <span class="font-mono text-sm text-base-content/40"
+          ><span class="text-base-content/30">//</span>
+          {data.findings.length === 0
+            ? 'no issues found — all ACL rules look clean'
+            : 'no findings match the current filter'}</span
+        >
       </div>
     {:else}
       <div class="flex flex-col gap-2">
         {#each filtered as finding, i (finding.acl_uuid + '-' + (finding.related_uuid ?? i))}
-          <div
-            class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm"
-          >
+          <div class="rounded border border-base-300 bg-base-100 p-4">
             <div class="mb-2 flex items-center gap-2">
-              <span class="badge badge-sm {typeBadge(finding.type)}"
-                >{finding.type}</span
-              >
-              <span class="badge badge-sm {severityBadge(finding.severity)}"
-                >{finding.severity}</span
-              >
+              <Badge text={finding.type} variant={typeVariant(finding.type)} />
+              <Badge
+                text={finding.severity}
+                variant={severityVariant(finding.severity)}
+              />
               {#if finding.context}
                 <span class="badge badge-ghost badge-sm">{finding.context}</span
                 >
               {/if}
             </div>
-            <p class="mb-2 text-sm">{finding.message}</p>
-            <div class="grid grid-cols-2 gap-2 text-xs">
-              <div class="rounded bg-base-200 p-2">
+            <p class="font-prose mb-2 text-sm">{finding.message}</p>
+            <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+              <div class="rounded border border-base-300 bg-base-200/60 p-2">
                 <div class="font-semibold">
                   ACL (priority {finding.acl_priority})
                 </div>
@@ -157,12 +142,12 @@
                     >{finding.acl_direction}</span
                   >
                 </div>
-                <div class="mt-1 font-mono text-base-content/60">
+                <div class="mt-1 text-base-content/60">
                   {finding.acl_match}
                 </div>
               </div>
               {#if finding.related_uuid}
-                <div class="rounded bg-base-200 p-2">
+                <div class="rounded border border-base-300 bg-base-200/60 p-2">
                   <div class="font-semibold">
                     Related (priority {finding.related_priority})
                   </div>
@@ -171,7 +156,7 @@
                       >{finding.related_action}</span
                     >
                   </div>
-                  <div class="mt-1 font-mono text-base-content/60">
+                  <div class="mt-1 text-base-content/60">
                     {finding.related_match}
                   </div>
                 </div>
@@ -182,4 +167,4 @@
       </div>
     {/if}
   {/if}
-</div>
+</DataState>

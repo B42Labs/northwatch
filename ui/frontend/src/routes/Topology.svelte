@@ -5,8 +5,8 @@
     type TopologyEdge,
   } from '../lib/api';
   import TopologyGraph from '../components/topology/TopologyGraph.svelte';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { subscribeToTables } from '../lib/eventStore';
   import { exportSVG, exportPNG, exportJSON } from '../lib/export';
@@ -215,16 +215,15 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <!-- Header -->
-  <div class="mb-3 flex items-center justify-between">
-    <div>
-      <h1 class="text-xl font-bold">Network Topology</h1>
-      <p class="text-sm text-base-content/60">
-        Interactive graph of logical switches, routers, and chassis
-      </p>
-    </div>
-    <div class="flex items-center gap-3">
-      <label class="flex cursor-pointer select-none items-center gap-2 text-sm">
+  <PageHeader
+    eyebrow="Visualize"
+    title="Network Topology"
+    description="Interactive graph of logical switches, routers, and chassis."
+  >
+    {#snippet actions()}
+      <label
+        class="flex cursor-pointer select-none items-center gap-2 font-mono text-2xs uppercase tracking-wider text-base-content/60"
+      >
         <input
           type="checkbox"
           bind:checked={liveUpdates}
@@ -232,7 +231,9 @@
         />
         Live updates
       </label>
-      <label class="flex cursor-pointer select-none items-center gap-2 text-sm">
+      <label
+        class="flex cursor-pointer select-none items-center gap-2 font-mono text-2xs uppercase tracking-wider text-base-content/60"
+      >
         <input
           type="checkbox"
           bind:checked={showVMs}
@@ -241,34 +242,39 @@
         Show VM ports
       </label>
       <button
-        class="btn btn-ghost btn-sm"
+        class="btn btn-ghost btn-sm border-base-300 font-mono normal-case"
         onclick={() => relayoutKey++}
         title="Re-Layout"
       >
         &#x21bb; Layout
       </button>
       <div class="dropdown dropdown-end">
-        <button tabindex="0" class="btn btn-ghost btn-sm">
+        <button
+          tabindex="0"
+          class="btn btn-ghost btn-sm border-base-300 font-mono normal-case"
+        >
           Export &#9662;
         </button>
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <ul
           tabindex="0"
-          class="menu dropdown-content z-50 w-44 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+          class="menu dropdown-content z-50 w-44 rounded border border-base-300 bg-base-100 p-2 font-mono text-sm shadow-lg"
         >
           <li><button onclick={handleExportSVG}>Download SVG</button></li>
           <li><button onclick={handleExportPNG}>Download PNG</button></li>
           <li><button onclick={handleExportJSON}>Download JSON</button></li>
         </ul>
       </div>
-    </div>
-  </div>
+    {/snippet}
+  </PageHeader>
 
   <!-- Filters -->
   <div class="mb-3 flex flex-wrap items-center gap-3">
     <!-- Network focus (searchable) -->
     <div class="flex items-center gap-1.5">
-      <span class="whitespace-nowrap text-xs text-base-content/60">Network</span
+      <span
+        class="whitespace-nowrap font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >Network</span
       >
       <div class="relative">
         <input
@@ -279,7 +285,7 @@
           }}
           onblur={handleNetworkBlur}
           placeholder="All networks"
-          class="input input-xs input-bordered w-48"
+          class="input input-xs input-bordered w-48 font-mono"
         />
         {#if focusNetwork}
           <button
@@ -289,11 +295,11 @@
         {/if}
         {#if networkDropdownOpen}
           <ul
-            class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+            class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded border border-base-300 bg-base-100 font-mono shadow-lg"
           >
             <li>
               <button
-                class="w-full px-3 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-200"
+                class="w-full px-3 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/40"
                 onclick={clearNetwork}
               >
                 All
@@ -302,7 +308,7 @@
             {#each filteredNetworks as opt (opt.id)}
               <li>
                 <button
-                  class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-200 {opt.id ===
+                  class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-300/40 {opt.id ===
                   focusNetwork
                     ? 'bg-primary/10 font-semibold'
                     : ''}"
@@ -327,7 +333,9 @@
 
     <!-- Chassis focus (searchable) -->
     <div class="flex items-center gap-1.5">
-      <span class="whitespace-nowrap text-xs text-base-content/60">Chassis</span
+      <span
+        class="whitespace-nowrap font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >Chassis</span
       >
       <div class="relative">
         <input
@@ -338,7 +346,7 @@
           }}
           onblur={handleChassisBlur}
           placeholder="All chassis"
-          class="input input-xs input-bordered w-48"
+          class="input input-xs input-bordered w-48 font-mono"
         />
         {#if focusChassis}
           <button
@@ -348,11 +356,11 @@
         {/if}
         {#if chassisDropdownOpen}
           <ul
-            class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+            class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded border border-base-300 bg-base-100 font-mono shadow-lg"
           >
             <li>
               <button
-                class="w-full px-3 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-200"
+                class="w-full px-3 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/40"
                 onclick={clearChassis}
               >
                 All
@@ -361,7 +369,7 @@
             {#each filteredChassis as opt (opt.id)}
               <li>
                 <button
-                  class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-200 {opt.id ===
+                  class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-300/40 {opt.id ===
                   focusChassis
                     ? 'bg-primary/10 font-semibold'
                     : ''}"
@@ -386,25 +394,31 @@
 
     <!-- Search highlight -->
     <div class="flex items-center gap-1.5">
-      <span class="text-xs text-base-content/60">Search</span>
+      <span
+        class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        >Search</span
+      >
       <input
         type="text"
         bind:value={searchQuery}
         placeholder="Name, UUID, IP..."
-        class="input input-xs input-bordered w-48"
+        class="input input-xs input-bordered w-48 font-mono"
       />
     </div>
 
     <!-- Clear -->
     {#if focusNetwork || focusChassis || searchQuery}
-      <button class="btn btn-ghost btn-xs" onclick={clearFilters}
-        >Clear filters</button
+      <button
+        class="btn btn-ghost btn-xs border-base-300 font-mono normal-case"
+        onclick={clearFilters}>Clear filters</button
       >
     {/if}
   </div>
 
   <!-- Legend -->
-  <div class="mb-3 flex gap-4 text-xs text-base-content/60">
+  <div
+    class="mb-3 flex gap-4 font-mono text-2xs uppercase tracking-wider text-base-content/55"
+  >
     <div class="flex items-center gap-1.5">
       <span class="inline-block h-3 w-4 rounded-sm bg-blue-500 opacity-85"
       ></span>
@@ -437,17 +451,14 @@
     {/if}
   </div>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else if allNodes.length === 0}
-    <div class="py-8 text-center text-base-content/50">
-      No topology data available
-    </div>
-  {:else}
+  <DataState
+    {loading}
+    {error}
+    empty={allNodes.length === 0}
+    emptyMessage="no topology data available"
+  >
     <div
-      class="flex-1 overflow-hidden rounded-lg border border-base-300 bg-base-100"
+      class="flex-1 overflow-hidden rounded border border-base-300 bg-base-100"
       style="min-height: 500px"
     >
       <TopologyGraph
@@ -458,5 +469,5 @@
         bind:svgRef={topologySvgRef}
       />
     </div>
-  {/if}
+  </DataState>
 </div>

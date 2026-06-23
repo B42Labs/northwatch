@@ -4,8 +4,9 @@
   import PropertyCard from '../../components/profile/PropertyCard.svelte';
   import BindingChain from '../../components/profile/BindingChain.svelte';
   import EnrichmentBadge from '../../components/profile/EnrichmentBadge.svelte';
-  import LoadingSpinner from '../../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../../components/ui/ErrorAlert.svelte';
+  import Badge from '../../components/ui/Badge.svelte';
+  import Card from '../../components/ui/Card.svelte';
+  import DataState from '../../components/ui/DataState.svelte';
   import { subscribeToTables } from '../../lib/eventStore';
 
   let { uuid }: { uuid: string } = $props();
@@ -58,82 +59,73 @@
   );
 </script>
 
-{#if loading}
-  <LoadingSpinner />
-{:else if error}
-  <ErrorAlert message={error} />
-{:else if data}
-  <EntityHeader
-    title={String(sw.name || 'Unnamed Switch')}
-    {uuid}
-    type="Logical Switch"
-    breadcrumbs={[
-      { label: 'Logical Switches', href: '/correlated/logical-switches' },
-    ]}
-    {enrichment}
-    rawHref={`/nb/logical-switches/${uuid}`}
-  />
-
-  <div class="flex flex-col gap-4">
-    <PropertyCard
-      title="Properties"
-      data={sw}
-      exclude={['_uuid', 'name', 'ports', 'enrichment']}
+<DataState {loading} {error} empty={!data} emptyMessage="switch not found">
+  {#if data}
+    <EntityHeader
+      title={String(sw.name || 'Unnamed Switch')}
+      {uuid}
+      type="Logical Switch"
+      breadcrumbs={[
+        { label: 'Correlated' },
+        { label: 'Logical Switches', href: '/correlated/logical-switches' },
+        { label: String(sw.name || 'switch') },
+      ]}
+      {enrichment}
+      rawHref={`/nb/logical-switches/${uuid}`}
     />
 
-    {#if dp}
+    <div class="flex flex-col gap-4">
       <PropertyCard
-        title="Datapath Binding (SB)"
-        data={dp}
-        exclude={['_uuid']}
+        title="Properties"
+        data={sw}
+        exclude={['_uuid', 'name', 'ports', 'enrichment']}
       />
-    {/if}
 
-    {#if enrichment}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <h2 class="card-title text-sm">Enrichment</h2>
+      {#if dp}
+        <PropertyCard title="Datapath Binding · SB" data={dp} exclude={['_uuid']} />
+      {/if}
+
+      {#if enrichment}
+        <Card title="Enrichment">
           <EnrichmentBadge data={enrichment} />
-        </div>
-      </div>
-    {/if}
+        </Card>
+      {/if}
 
-    {#if ports.length > 0}
-      <div>
-        <h2 class="mb-2 text-lg font-semibold">Ports ({ports.length})</h2>
-        <div class="flex flex-col gap-3">
-          {#each ports as port, i (i)}
-            <details class="collapse collapse-arrow bg-base-100 shadow-sm">
-              <summary class="collapse-title text-sm font-medium">
-                {#if port.logical_switch_port}
-                  {@const lsp = port.logical_switch_port as Record<
-                    string,
-                    unknown
-                  >}
-                  {lsp.name || lsp._uuid || 'Port'}
-                  {#if lsp.type}
-                    <span class="badge badge-ghost badge-sm ml-2"
-                      >{lsp.type}</span
-                    >
-                  {/if}
+      {#if ports.length > 0}
+        <div>
+          <div class="mb-2 flex items-center gap-2">
+            <h2
+              class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+            >
+              Ports
+            </h2>
+            <span class="font-mono text-2xs text-base-content/40">{ports.length}</span>
+          </div>
+          <div class="flex flex-col gap-2">
+            {#each ports as port, i (i)}
+              {@const lsp = (port.logical_switch_port ?? {}) as Record<string, unknown>}
+              <details class="group rounded border border-base-300 bg-base-100">
+                <summary
+                  class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-mono text-sm marker:content-none hover:bg-base-300/30"
+                >
+                  <span
+                    class="select-none text-primary transition-transform group-open:rotate-90"
+                    aria-hidden="true">▸</span
+                  >
+                  <span class="truncate">{lsp.name || lsp._uuid || 'Port'}</span>
+                  {#if lsp.type}<Badge text={String(lsp.type)} variant="ghost" />{/if}
                   {#if lsp.enrichment}
-                    <span class="ml-2">
-                      <EnrichmentBadge
-                        data={lsp.enrichment as Record<string, unknown>}
-                      />
-                    </span>
+                    <EnrichmentBadge data={lsp.enrichment as Record<string, unknown>} />
                   {/if}
-                {:else}
-                  Port
-                {/if}
-              </summary>
-              <div class="collapse-content">
-                <BindingChain chain={port} />
-              </div>
-            </details>
-          {/each}
+                </summary>
+                <div class="border-t border-base-300 p-3">
+                  <BindingChain chain={port} />
+                </div>
+              </details>
+            {/each}
+          </div>
         </div>
-      </div>
-    {/if}
-  </div>
-{/if}
+      {/if}
+    </div>
+  {/if}
+</DataState>

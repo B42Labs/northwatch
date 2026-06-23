@@ -2,7 +2,9 @@
   import { link } from '../../lib/router';
   import Badge from '../ui/Badge.svelte';
   import EnrichmentBadge from './EnrichmentBadge.svelte';
+  import PageHeader from '../ui/PageHeader.svelte';
 
+  // Thin wrapper over the shared PageHeader for entity profile pages.
   let {
     title,
     uuid,
@@ -20,36 +22,21 @@
   } = $props();
 </script>
 
-<div class="mb-4">
-  {#if breadcrumbs.length > 0}
-    <div class="breadcrumbs mb-1 text-sm">
-      <ul>
-        {#each breadcrumbs as crumb (crumb.label)}
-          <li>
-            {#if crumb.href}
-              <a href={link(crumb.href)} class="link-hover link"
-                >{crumb.label}</a
-              >
-            {:else}
-              {crumb.label}
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
-
-  <div class="flex flex-wrap items-center gap-3">
-    <h1 class="text-xl font-bold">{title}</h1>
+<PageHeader {title} {breadcrumbs}>
+  {#snippet meta()}
     {#if type}
       <Badge text={type} variant="primary" />
     {/if}
     {#if enrichment}
       <EnrichmentBadge data={enrichment} />
     {/if}
+    <span class="font-mono text-xs text-base-content/50 break-all">{uuid}</span>
+  {/snippet}
+  {#snippet actions()}
     {#if rawHref}
-      <a href={link(rawHref)} class="btn btn-ghost btn-xs">Raw</a>
+      <a href={link(rawHref)} class="btn btn-ghost btn-xs border-base-300"
+        >Raw</a
+      >
     {/if}
-  </div>
-  <p class="mt-1 font-mono text-xs text-base-content/50">{uuid}</p>
-</div>
+  {/snippet}
+</PageHeader>

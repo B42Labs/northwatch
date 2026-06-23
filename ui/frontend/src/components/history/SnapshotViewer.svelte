@@ -4,8 +4,7 @@
     type SnapshotMeta,
     type SnapshotRow,
   } from '../../lib/api';
-  import LoadingSpinner from '../ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../ui/ErrorAlert.svelte';
+  import DataState from '../ui/DataState.svelte';
 
   interface Props {
     snapshot: SnapshotMeta;
@@ -50,24 +49,28 @@
   });
 </script>
 
-<div class="rounded-lg border border-base-300 bg-base-100 p-4">
+<div class="rounded border border-base-300 bg-base-100 p-4">
   <div class="mb-3 flex items-center justify-between">
     <div>
-      <h3 class="text-lg font-semibold">
+      <h3
+        class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      >
         Snapshot #{snapshot.id}
       </h3>
-      <p class="text-sm text-base-content/60">
+      <p class="font-mono text-sm text-base-content/60">
         {new Date(snapshot.timestamp).toLocaleString()}
         {#if snapshot.label}— {snapshot.label}{/if}
       </p>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick={onClose}>Close</button>
+    <button class="btn btn-ghost btn-sm border-base-300" onclick={onClose}
+      >Close</button
+    >
   </div>
 
   <div class="mb-3 flex gap-2">
     <select
       bind:value={filterDb}
-      class="select select-bordered select-sm"
+      class="select select-bordered select-sm bg-base-200/60 font-mono"
       onchange={() => (filterTable = '')}
     >
       <option value="">All databases</option>
@@ -76,7 +79,10 @@
       {/each}
     </select>
 
-    <select bind:value={filterTable} class="select select-bordered select-sm">
+    <select
+      bind:value={filterTable}
+      class="select select-bordered select-sm bg-base-200/60 font-mono"
+    >
       <option value="">All tables</option>
       {#each filteredTables as t (t)}
         <option value={t.split('.')[1]}>{t}</option>
@@ -84,40 +90,47 @@
     </select>
   </div>
 
-  {#if error}
-    <ErrorAlert message={error} />
-  {:else if loading}
-    <LoadingSpinner />
-  {:else}
-    <div class="mb-2 text-sm text-base-content/60">{rows.length} rows</div>
-    <div class="max-h-96 overflow-auto">
-      <table class="table table-xs">
+  <DataState {loading} {error}>
+    <div class="mb-2 font-mono text-sm text-base-content/60">
+      {rows.length} rows
+    </div>
+    <div class="max-h-96 overflow-auto rounded border border-base-300">
+      <table class="table table-xs font-mono">
         <thead>
           <tr>
-            <th>Database</th>
-            <th>Table</th>
-            <th>UUID</th>
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Database</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Table</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >UUID</th
+            >
           </tr>
         </thead>
         <tbody>
           {#each rows as row (row.database + row.table + row.uuid)}
             {@const rowKey = row.database + '.' + row.table + '.' + row.uuid}
             <tr
-              class="hover cursor-pointer"
+              class="cursor-pointer border-base-300/60 hover:bg-base-300/40"
               onclick={() =>
                 (expandedRow = expandedRow === rowKey ? null : rowKey)}
             >
               <td>{row.database}</td>
               <td>{row.table}</td>
-              <td class="font-mono text-xs"
+              <td class="text-xs"
                 >{row.uuid ? row.uuid.slice(0, 12) : '—'}</td
               >
             </tr>
             {#if expandedRow === rowKey}
               <tr>
-                <td colspan="3">
+                <td colspan="3" class="bg-base-200/40">
                   <pre
-                    class="max-h-48 overflow-auto rounded bg-base-200 p-2 text-xs">{JSON.stringify(
+                    class="max-h-48 overflow-auto rounded bg-base-100 p-2 text-xs">{JSON.stringify(
                       row.data,
                       null,
                       2,
@@ -129,5 +142,5 @@
         </tbody>
       </table>
     </div>
-  {/if}
+  </DataState>
 </div>

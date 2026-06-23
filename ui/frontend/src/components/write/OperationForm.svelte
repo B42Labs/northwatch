@@ -1,6 +1,8 @@
 <script lang="ts">
   import { writableTables } from '../../lib/writableTables';
   import type { WriteOperation } from '../../lib/writeApi';
+  import Card from '../ui/Card.svelte';
+  import FormField from '../ui/FormField.svelte';
   import EntityPicker from './EntityPicker.svelte';
   import FieldsEditor from './FieldsEditor.svelte';
 
@@ -91,19 +93,14 @@
   }
 </script>
 
-<div class="card bg-base-100 shadow-sm">
-  <div class="card-body gap-3 p-4">
-    <h3 class="card-title text-sm">Add Operation</h3>
-
+<Card title="Add Operation">
+  <div class="flex flex-col gap-3">
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <!-- Action -->
-      <div class="form-control">
-        <label class="label py-0.5" for="op-action">
-          <span class="label-text text-xs">Action</span>
-        </label>
+      <FormField label="Action" forId="op-action">
         <select
           id="op-action"
-          class="select select-bordered select-sm"
+          class="select select-bordered select-sm bg-base-200/60 font-mono"
           bind:value={action}
           disabled={selectedTable?.deleteOnly}
         >
@@ -115,16 +112,13 @@
             <option value="delete">Delete</option>
           {/if}
         </select>
-      </div>
+      </FormField>
 
       <!-- Table -->
-      <div class="form-control">
-        <label class="label py-0.5" for="op-table">
-          <span class="label-text text-xs">Table</span>
-        </label>
+      <FormField label="Table" forId="op-table">
         <select
           id="op-table"
-          class="select select-bordered select-sm"
+          class="select select-bordered select-sm bg-base-200/60 font-mono"
           bind:value={table}
         >
           <option value="">-- select table --</option>
@@ -132,29 +126,23 @@
             <option value={t.ovsdbName}>{t.label} ({t.ovsdbName})</option>
           {/each}
         </select>
-      </div>
+      </FormField>
     </div>
 
     <!-- UUID (update/delete) -->
     {#if needsUuid && selectedTable}
-      <div class="form-control">
-        <span class="label py-0.5">
-          <span class="label-text text-xs">Entity UUID</span>
-        </span>
+      <FormField label="Entity UUID">
         <EntityPicker
           tableSlug={selectedTable.slug}
           value={uuid}
           onSelect={(v) => (uuid = v)}
         />
-      </div>
+      </FormField>
     {/if}
 
     <!-- Fields (create/update) -->
     {#if needsFields}
-      <div class="form-control">
-        <span class="label py-0.5">
-          <span class="label-text text-xs">Fields</span>
-        </span>
+      <FormField label="Fields">
         <FieldsEditor
           value={fieldsJson}
           onChange={(v) => (fieldsJson = v)}
@@ -163,31 +151,31 @@
           tableSlug={selectedTable?.slug}
           {uuid}
         />
-      </div>
+      </FormField>
     {/if}
 
     <!-- Reason -->
-    <div class="form-control">
-      <label class="label py-0.5" for="op-reason">
-        <span class="label-text text-xs">Reason (optional)</span>
-      </label>
+    <FormField label="Reason (optional)" forId="op-reason">
       <input
         id="op-reason"
         type="text"
-        class="input input-sm input-bordered"
+        class="input input-sm input-bordered font-mono"
         placeholder="Why this change?"
         bind:value={reason}
       />
-    </div>
+    </FormField>
 
     {#if jsonError}
-      <div role="alert" class="alert alert-warning py-2 text-xs">
+      <div
+        role="alert"
+        class="rounded border border-warning/40 bg-warning/10 px-3 py-2 font-mono text-sm text-warning"
+      >
         {jsonError}
       </div>
     {/if}
 
-    <button class="btn btn-primary btn-sm self-start" onclick={handleAdd}>
+    <button class="btn btn-primary btn-sm self-start font-mono" onclick={handleAdd}>
       Add to Batch
     </button>
   </div>
-</div>
+</Card>

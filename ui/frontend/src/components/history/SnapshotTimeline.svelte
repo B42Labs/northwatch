@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { SnapshotMeta } from '../../lib/api';
+  import Badge from '../ui/Badge.svelte';
+  import EmptyState from '../ui/EmptyState.svelte';
 
   interface Props {
     snapshots: SnapshotMeta[];
@@ -29,7 +31,7 @@
 <div class="flex flex-col gap-2">
   {#each snapshots as snap (snap.id)}
     <div
-      class="flex items-start gap-3 rounded-lg border border-base-300 bg-base-100 p-3 shadow-sm"
+      class="flex items-start gap-3 rounded border border-base-300 bg-base-100 p-3"
     >
       <input
         type="checkbox"
@@ -39,32 +41,34 @@
       />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <span
-            class="badge badge-sm {snap.trigger === 'auto'
-              ? 'badge-ghost'
-              : 'badge-primary'}"
-          >
-            {snap.trigger}
-          </span>
-          <span class="text-sm font-medium">
+          <Badge
+            text={snap.trigger}
+            variant={snap.trigger === 'auto' ? 'neutral' : 'primary'}
+          />
+          <span class="font-mono text-sm font-medium">
             {formatTime(snap.timestamp)}
           </span>
           {#if snap.label}
-            <span class="text-sm text-base-content/60">— {snap.label}</span>
+            <span class="font-mono text-sm text-base-content/60"
+              >— {snap.label}</span
+            >
           {/if}
         </div>
-        <div class="mt-1 flex gap-3 text-xs text-base-content/50">
+        <div class="mt-1 flex gap-3 font-mono text-xs text-base-content/55">
           <span>{totalRows(snap.row_counts)} rows</span>
           <span>{formatSize(snap.size_bytes)}</span>
           <span>{Object.keys(snap.row_counts).length} tables</span>
         </div>
       </div>
       <div class="flex gap-1">
-        <button class="btn btn-ghost btn-xs" onclick={() => onView(snap.id)}>
+        <button
+          class="btn btn-ghost btn-xs border-base-300"
+          onclick={() => onView(snap.id)}
+        >
           View
         </button>
         <button
-          class="btn btn-ghost btn-xs text-error"
+          class="btn btn-ghost btn-xs border-base-300 text-error"
           onclick={() => onDelete(snap.id)}
         >
           Delete
@@ -74,8 +78,9 @@
   {/each}
 
   {#if snapshots.length === 0}
-    <div class="py-8 text-center text-sm text-base-content/40">
-      No snapshots yet. Take one to get started.
-    </div>
+    <EmptyState
+      message="no snapshots yet"
+      hint="Take one to get started."
+    />
   {/if}
 </div>

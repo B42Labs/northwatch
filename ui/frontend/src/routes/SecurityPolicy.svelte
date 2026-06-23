@@ -1,7 +1,11 @@
 <script lang="ts">
   import { listTable } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import FilterInput from '../components/ui/FilterInput.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import type { Variant } from '../lib/status';
   import { subscribeToTables } from '../lib/eventStore';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
@@ -66,21 +70,21 @@
     return dir === 'to-lport' ? 'ingress' : 'egress';
   }
 
-  function directionVariant(dir: string): string {
-    return dir === 'to-lport' ? 'badge-info' : 'badge-warning';
+  function directionVariant(dir: string): Variant {
+    return dir === 'to-lport' ? 'info' : 'warning';
   }
 
-  function actionVariant(action: string): string {
+  function aclActionVariant(action: string): Variant {
     if (
       action === 'allow' ||
       action === 'allow-related' ||
       action === 'allow-stateless'
     ) {
-      return 'badge-success';
+      return 'success';
     }
-    if (action === 'drop') return 'badge-error';
-    if (action === 'reject') return 'badge-warning';
-    return 'badge-neutral';
+    if (action === 'drop') return 'error';
+    if (action === 'reject') return 'warning';
+    return 'neutral';
   }
 
   function toggleGroup(uuid: string) {
@@ -223,215 +227,192 @@
   });
 </script>
 
-<div>
-  <!-- Header -->
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Security Policy</h1>
-    <p class="text-sm text-base-content/60">
-      ACL rules and Port Groups — showing how traffic is filtered across logical
-      ports
-    </p>
+<PageHeader
+  eyebrow="Security"
+  title="Security Policy"
+  description="ACL rules and Port Groups — showing how traffic is filtered across logical ports."
+>
+  {#snippet actions()}
+    <StatTiles
+      tiles={[
+        { label: 'Port Groups', value: portGroups.length },
+        { label: 'ACL Rules', value: totalACLs },
+        ...(standaloneACLs.length > 0
+          ? [{ label: 'Standalone', value: standaloneACLs.length }]
+          : []),
+      ]}
+    />
+  {/snippet}
+</PageHeader>
+
+<DataState {loading} {error}>
+  <!-- Filter bar -->
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    <FilterInput
+      bind:value={filterText}
+      placeholder="filter by name, port, or match…"
+      width="w-72"
+    />
   </div>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else}
-    <!-- Summary + Filter bar -->
-    <div class="mb-4 flex flex-wrap items-center gap-4">
-      <div>
-        <input
-          type="text"
-          bind:value={filterText}
-          placeholder="Filter by name, port, or match..."
-          class="input input-sm input-bordered w-72"
-        />
-      </div>
-      <div
-        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
-      >
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Port Groups</div>
-          <div class="stat-value text-lg">{portGroups.length}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">ACL Rules</div>
-          <div class="stat-value text-lg">{totalACLs}</div>
-        </div>
-        {#if standaloneACLs.length > 0}
-          <div class="stat px-4 py-2">
-            <div class="stat-title text-xs">Standalone</div>
-            <div class="stat-value text-lg">{standaloneACLs.length}</div>
-          </div>
-        {/if}
-      </div>
-    </div>
-
-    <!-- Port Group cards -->
-    {#if filteredPortGroups.length > 0}
-      <div class="flex flex-col gap-4">
-        {#each filteredPortGroups as pg (pg.uuid)}
-          <div class="card border border-base-300 bg-base-100 shadow-sm">
-            <!-- Card header -->
-            <div class="card-body p-4">
-              <button
-                class="flex w-full cursor-pointer items-center gap-3 text-left"
-                onclick={() => toggleGroup(pg.uuid)}
-              >
-                <span
-                  class="transition-transform duration-200"
-                  class:rotate-90={expandedGroups.has(pg.uuid)}
-                >
-                  &#9654;
-                </span>
-                <div class="flex-1">
-                  <h2 class="text-base font-semibold">{pg.displayName}</h2>
-                  {#if pg.displayName !== pg.name}
-                    <p class="font-mono text-xs text-base-content/40">
-                      {pg.name}
-                    </p>
-                  {/if}
-                </div>
-                <div
-                  class="flex items-center gap-2 text-sm text-base-content/60"
-                >
-                  <span class="badge badge-ghost badge-sm">
-                    {pg.ports.length} port{pg.ports.length !== 1 ? 's' : ''}
-                  </span>
-                  <span class="badge badge-ghost badge-sm">
-                    {pg.acls.length} ACL{pg.acls.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              </button>
-
-              <!-- Expanded content -->
-              {#if expandedGroups.has(pg.uuid)}
-                <!-- Member ports -->
-                {#if pg.ports.length > 0}
-                  <div class="mt-3">
-                    <h3
-                      class="mb-1 text-xs font-semibold uppercase text-base-content/50"
-                    >
-                      Member Ports
-                    </h3>
-                    <div class="flex flex-wrap gap-1.5">
-                      {#each pg.ports as port (port.uuid)}
-                        <span class="badge badge-outline badge-sm font-mono">
-                          {port.name}
-                        </span>
-                      {/each}
-                    </div>
-                  </div>
-                {/if}
-
-                <!-- ACL rules table -->
-                {#if pg.acls.length > 0}
-                  <div class="mt-3">
-                    <h3
-                      class="mb-1 text-xs font-semibold uppercase text-base-content/50"
-                    >
-                      ACL Rules
-                    </h3>
-                    <div class="overflow-x-auto">
-                      <table class="table table-xs w-full">
-                        <thead>
-                          <tr>
-                            <th class="w-20">Priority</th>
-                            <th class="w-24">Direction</th>
-                            <th class="w-28">Action</th>
-                            <th>Match</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {#each pg.acls as acl, i (acl.uuid)}
-                            <tr class:bg-base-200={i % 2 === 1}>
-                              <td class="font-mono text-sm">{acl.priority}</td>
-                              <td>
-                                <span
-                                  class="badge badge-sm {directionVariant(
-                                    acl.direction,
-                                  )}"
-                                >
-                                  {directionLabel(acl.direction)}
-                                </span>
-                              </td>
-                              <td>
-                                <span
-                                  class="badge badge-sm {actionVariant(
-                                    acl.action,
-                                  )}"
-                                >
-                                  {acl.action}
-                                </span>
-                              </td>
-                              <td class="break-all font-mono text-xs"
-                                >{acl.match}</td
-                              >
-                            </tr>
-                          {/each}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                {:else}
-                  <p class="mt-3 text-sm text-base-content/50">No ACL rules</p>
-                {/if}
+  <!-- Port Group panels -->
+  {#if filteredPortGroups.length > 0}
+    <div class="flex flex-col gap-3">
+      {#each filteredPortGroups as pg (pg.uuid)}
+        <section class="overflow-hidden rounded border border-base-300 bg-base-100">
+          <!-- Panel header (collapse toggle) -->
+          <button
+            class="flex w-full cursor-pointer items-center gap-3 border-b border-base-300 bg-base-200/40 px-3 py-2 text-left hover:bg-base-200/70"
+            onclick={() => toggleGroup(pg.uuid)}
+          >
+            <span
+              class="select-none text-base-content/50 transition-transform duration-200"
+              class:rotate-90={expandedGroups.has(pg.uuid)}
+            >
+              &#9654;
+            </span>
+            <div class="min-w-0 flex-1">
+              <h2 class="truncate font-mono text-sm font-semibold text-base-content/85">
+                {pg.displayName}
+              </h2>
+              {#if pg.displayName !== pg.name}
+                <p class="truncate font-mono text-2xs text-base-content/40">
+                  {pg.name}
+                </p>
               {/if}
             </div>
-          </div>
-        {/each}
-      </div>
-    {:else if filterText}
-      <div class="py-8 text-center text-base-content/50">
-        No port groups match the filter
-      </div>
-    {/if}
+            <div class="flex flex-shrink-0 items-center gap-1.5">
+              <Badge
+                text="{pg.ports.length} port{pg.ports.length !== 1 ? 's' : ''}"
+                variant="ghost"
+              />
+              <Badge
+                text="{pg.acls.length} ACL{pg.acls.length !== 1 ? 's' : ''}"
+                variant="ghost"
+              />
+            </div>
+          </button>
 
-    <!-- Standalone ACLs section -->
-    {#if filteredStandaloneACLs.length > 0}
-      <div class="mt-6">
-        <h2 class="mb-2 text-lg font-bold">Standalone ACLs</h2>
-        <p class="mb-3 text-sm text-base-content/60">
-          ACL rules not assigned to any port group
-        </p>
-        <div class="overflow-x-auto rounded-lg border border-base-300">
-          <table class="table table-xs w-full">
-            <thead>
-              <tr>
-                <th class="w-20">Priority</th>
-                <th class="w-24">Direction</th>
-                <th class="w-28">Action</th>
-                <th>Match</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each filteredStandaloneACLs as acl, i (acl.uuid)}
-                <tr class:bg-base-200={i % 2 === 1}>
-                  <td class="font-mono text-sm">{acl.priority}</td>
-                  <td>
-                    <span
-                      class="badge badge-sm {directionVariant(acl.direction)}"
-                    >
-                      {directionLabel(acl.direction)}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="badge badge-sm {actionVariant(acl.action)}">
-                      {acl.action}
-                    </span>
-                  </td>
-                  <td class="break-all font-mono text-xs">{acl.match}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {:else if !filterText && standaloneACLs.length === 0 && portGroups.length === 0}
-      <div class="py-8 text-center text-base-content/50">
-        No security policy data available
-      </div>
-    {/if}
+          <!-- Expanded content -->
+          {#if expandedGroups.has(pg.uuid)}
+            <div class="p-3">
+              <!-- Member ports -->
+              {#if pg.ports.length > 0}
+                <div class="mb-3">
+                  <h3
+                    class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
+                  >
+                    Member Ports
+                  </h3>
+                  <div class="flex flex-wrap gap-1.5">
+                    {#each pg.ports as port (port.uuid)}
+                      <Badge text={port.name} variant="neutral" outline />
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              <!-- ACL rules table -->
+              {#if pg.acls.length > 0}
+                <div>
+                  <h3
+                    class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
+                  >
+                    ACL Rules
+                  </h3>
+                  <div class="overflow-x-auto rounded border border-base-300">
+                    <table class="table table-xs w-full font-mono">
+                      <thead>
+                        <tr>
+                          <th class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Priority</th>
+                          <th class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Direction</th>
+                          <th class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Action</th>
+                          <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Match</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each pg.acls as acl (acl.uuid)}
+                          <tr class="border-base-300/60">
+                            <td class="text-sm">{acl.priority}</td>
+                            <td>
+                              <Badge
+                                text={directionLabel(acl.direction)}
+                                variant={directionVariant(acl.direction)}
+                              />
+                            </td>
+                            <td>
+                              <Badge
+                                text={acl.action}
+                                variant={aclActionVariant(acl.action)}
+                              />
+                            </td>
+                            <td class="break-all text-xs">{acl.match}</td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              {:else}
+                <span class="font-mono text-sm text-base-content/40">
+                  <span class="text-base-content/30">//</span> no ACL rules
+                </span>
+              {/if}
+            </div>
+          {/if}
+        </section>
+      {/each}
+    </div>
+  {:else if filterText}
+    <div class="py-8 text-center font-mono text-sm text-base-content/40">
+      <span class="text-base-content/30">//</span> no port groups match the filter
+    </div>
   {/if}
-</div>
+
+  <!-- Standalone ACLs section -->
+  {#if filteredStandaloneACLs.length > 0}
+    <div class="mt-6">
+      <h2
+        class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      >
+        Standalone ACLs
+      </h2>
+      <p class="mb-3 font-prose text-sm text-base-content/55">
+        ACL rules not assigned to any port group
+      </p>
+      <div class="overflow-x-auto rounded border border-base-300">
+        <table class="table table-xs w-full font-mono">
+          <thead>
+            <tr>
+              <th class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Priority</th>
+              <th class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Direction</th>
+              <th class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Action</th>
+              <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Match</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredStandaloneACLs as acl (acl.uuid)}
+              <tr class="border-base-300/60">
+                <td class="text-sm">{acl.priority}</td>
+                <td>
+                  <Badge
+                    text={directionLabel(acl.direction)}
+                    variant={directionVariant(acl.direction)}
+                  />
+                </td>
+                <td>
+                  <Badge text={acl.action} variant={aclActionVariant(acl.action)} />
+                </td>
+                <td class="break-all text-xs">{acl.match}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {:else if !filterText && standaloneACLs.length === 0 && portGroups.length === 0}
+    <div class="py-8 text-center font-mono text-sm text-base-content/40">
+      <span class="text-base-content/30">//</span> no security policy data available
+    </div>
+  {/if}
+</DataState>

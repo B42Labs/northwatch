@@ -1,6 +1,11 @@
 <script lang="ts">
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import Card from '../components/ui/Card.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import FilterInput from '../components/ui/FilterInput.svelte';
+  import StatTiles from '../components/ui/StatTiles.svelte';
+  import type { Variant } from '../lib/status';
   import { link } from '../lib/router';
 
   interface NatRule {
@@ -142,16 +147,16 @@
     });
   });
 
-  function typeBadgeClass(type: string): string {
+  function typeVariant(type: string): Variant {
     switch (type) {
       case 'dnat_and_snat':
-        return 'bg-purple-600 text-white';
+        return 'secondary';
       case 'snat':
-        return 'bg-blue-600 text-white';
+        return 'info';
       case 'dnat':
-        return 'bg-green-600 text-white';
+        return 'success';
       default:
-        return 'badge-ghost';
+        return 'ghost';
     }
   }
 
@@ -188,176 +193,137 @@
   }
 </script>
 
-<div>
-  <!-- Header -->
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">NAT Overview</h1>
-    <p class="text-sm text-base-content/60">
-      NAT rules and static routes grouped by logical router
-    </p>
+<PageHeader
+  eyebrow="Routing"
+  title="NAT Overview"
+  description="NAT rules and static routes grouped by logical router."
+>
+  {#snippet actions()}
+    <StatTiles
+      tiles={[
+        { label: 'NAT Rules', value: natRules.length },
+        { label: 'SNAT', value: snatCount, variant: 'info' },
+        { label: 'DNAT', value: dnatCount + dnatAndSnatCount, variant: 'success' },
+        { label: 'Routers', value: routersWithNat },
+      ]}
+    />
+  {/snippet}
+</PageHeader>
+
+<DataState {loading} {error}>
+  <!-- Filter bar -->
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    <FilterInput
+      bind:value={searchQuery}
+      placeholder="filter by IP, router, type…"
+      width="w-72"
+    />
   </div>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else}
-    <!-- Summary bar -->
-    <div class="mb-4 flex flex-wrap items-center gap-4">
-      <div>
-        <input
-          type="text"
-          bind:value={searchQuery}
-          placeholder="Filter by IP, router, type..."
-          class="input input-sm input-bordered w-72"
-        />
-      </div>
-      <div
-        class="stats stats-horizontal ml-auto border border-base-300 bg-base-100 shadow-sm"
-      >
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">NAT Rules</div>
-          <div class="stat-value text-lg">{natRules.length}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">SNAT</div>
-          <div class="stat-value text-lg">{snatCount}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">DNAT</div>
-          <div class="stat-value text-lg">{dnatCount + dnatAndSnatCount}</div>
-        </div>
-        <div class="stat px-4 py-2">
-          <div class="stat-title text-xs">Routers</div>
-          <div class="stat-value text-lg">{routersWithNat}</div>
-        </div>
-      </div>
+  {#if filteredRouterGroups.length === 0}
+    <div class="py-8 text-center font-mono text-sm text-base-content/40">
+      <span class="text-base-content/30">//</span>
+      {#if searchQuery}
+        no results matching "{searchQuery}"
+      {:else}
+        no NAT rules or static routes found
+      {/if}
     </div>
+  {:else}
+    <div class="flex flex-col gap-4">
+      {#each filteredRouterGroups as group (group.router._uuid)}
+        <Card accent="success" subtitle={group.router._uuid.slice(0, 8)}>
+          {#snippet actions()}
+            {#if group.nats.length > 0}
+              <Badge
+                text="{group.nats.length} NAT {group.nats.length === 1
+                  ? 'rule'
+                  : 'rules'}"
+                variant="neutral"
+                outline
+              />
+            {/if}
+          {/snippet}
 
-    {#if filteredRouterGroups.length === 0}
-      <div class="py-8 text-center text-base-content/50">
-        {#if searchQuery}
-          No results matching "{searchQuery}"
-        {:else}
-          No NAT rules or static routes found
-        {/if}
-      </div>
-    {:else}
-      <div class="flex flex-col gap-6">
-        {#each filteredRouterGroups as group (group.router._uuid)}
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <!-- Router header -->
-              <div class="flex items-center gap-2">
-                <span
-                  class="inline-block h-3 w-3 rotate-45 rounded-sm bg-green-500 opacity-85"
-                ></span>
-                <h2 class="card-title text-sm">
-                  <a
-                    href={link(
-                      `/correlated/logical-routers/${group.router._uuid}`,
-                    )}
-                    class="link-hover link-primary"
-                  >
-                    {group.router.name || group.router._uuid.slice(0, 8)}
-                  </a>
-                </h2>
-                <span class="text-xs text-base-content/40">
-                  {group.router._uuid.slice(0, 8)}
-                </span>
-                {#if group.nats.length > 0}
-                  <span class="badge badge-outline badge-sm">
-                    {group.nats.length} NAT {group.nats.length === 1
-                      ? 'rule'
-                      : 'rules'}
-                  </span>
-                {/if}
-              </div>
+          <!-- Router header -->
+          <h2 class="mb-2 font-mono text-sm font-semibold">
+            <a
+              href={link(`/correlated/logical-routers/${group.router._uuid}`)}
+              class="link-hover link-primary"
+            >
+              {group.router.name || group.router._uuid.slice(0, 8)}
+            </a>
+          </h2>
 
-              <!-- NAT rules table -->
-              {#if group.nats.length > 0}
-                <div class="mt-2 overflow-x-auto">
-                  <table class="table table-zebra table-xs">
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>External IP</th>
-                        <th class="text-center">Dir</th>
-                        <th>Logical IP</th>
-                        <th>Logical Port</th>
-                        <th>Gateway Port</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each group.nats as nat (nat._uuid)}
-                        <tr>
-                          <td>
-                            <span
-                              class="badge badge-sm whitespace-nowrap {typeBadgeClass(
-                                nat.type,
-                              )}"
-                            >
-                              {typeBadgeLabel(nat.type)}
-                            </span>
-                          </td>
-                          <td class="font-mono text-xs"
-                            >{nat.external_ip || '-'}</td
-                          >
-                          <td class="text-center text-base-content/60"
-                            >{typeArrow(nat.type)}</td
-                          >
-                          <td class="font-mono text-xs"
-                            >{nat.logical_ip || '-'}</td
-                          >
-                          <td class="text-xs">{formatPort(nat.logical_port)}</td
-                          >
-                          <td class="text-xs">{formatPort(nat.gateway_port)}</td
-                          >
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-              {/if}
-
-              <!-- Static routes -->
-              {#if group.routes.length > 0}
-                <div class="mt-3">
-                  <h3 class="mb-1 text-xs font-semibold text-base-content/60">
-                    Static Routes ({group.routes.length})
-                  </h3>
-                  <div class="overflow-x-auto">
-                    <table class="table table-zebra table-xs">
-                      <thead>
-                        <tr>
-                          <th>Prefix</th>
-                          <th>Nexthop</th>
-                          <th>Output Port</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each group.routes as route (route._uuid)}
-                          <tr>
-                            <td class="font-mono text-xs"
-                              >{route.ip_prefix || '-'}</td
-                            >
-                            <td class="font-mono text-xs"
-                              >{route.nexthop || '-'}</td
-                            >
-                            <td class="text-xs"
-                              >{formatPort(route.output_port)}</td
-                            >
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              {/if}
+          <!-- NAT rules table -->
+          {#if group.nats.length > 0}
+            <div class="overflow-x-auto rounded border border-base-300">
+              <table class="table table-xs font-mono">
+                <thead>
+                  <tr>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Type</th>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">External IP</th>
+                    <th class="bg-base-200 text-center text-2xs uppercase tracking-wider text-base-content/55">Dir</th>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical IP</th>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Logical Port</th>
+                    <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Gateway Port</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each group.nats as nat (nat._uuid)}
+                    <tr class="border-base-300/60">
+                      <td>
+                        <Badge
+                          text={typeBadgeLabel(nat.type)}
+                          variant={typeVariant(nat.type)}
+                        />
+                      </td>
+                      <td class="text-xs">{nat.external_ip || '-'}</td>
+                      <td class="text-center text-base-content/60"
+                        >{typeArrow(nat.type)}</td
+                      >
+                      <td class="text-xs">{nat.logical_ip || '-'}</td>
+                      <td class="text-xs text-base-content/70">{formatPort(nat.logical_port)}</td>
+                      <td class="text-xs text-base-content/70">{formatPort(nat.gateway_port)}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
             </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
+          {/if}
+
+          <!-- Static routes -->
+          {#if group.routes.length > 0}
+            <div class="mt-3">
+              <h3
+                class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+              >
+                Static Routes ({group.routes.length})
+              </h3>
+              <div class="overflow-x-auto rounded border border-base-300">
+                <table class="table table-xs font-mono">
+                  <thead>
+                    <tr>
+                      <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Prefix</th>
+                      <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Nexthop</th>
+                      <th class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55">Output Port</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each group.routes as route (route._uuid)}
+                      <tr class="border-base-300/60">
+                        <td class="text-xs">{route.ip_prefix || '-'}</td>
+                        <td class="text-xs">{route.nexthop || '-'}</td>
+                        <td class="text-xs text-base-content/70">{formatPort(route.output_port)}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {/if}
+        </Card>
+      {/each}
+    </div>
   {/if}
-</div>
+</DataState>

@@ -5,8 +5,11 @@
     listLogicalSwitchPorts,
     type ConnectivityResult,
   } from '../lib/api';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import FormField from '../components/ui/FormField.svelte';
+  import Badge from '../components/ui/Badge.svelte';
+  import type { Variant } from '../lib/status';
 
   let ports: Record<string, unknown>[] = $state([]);
   let portsLoading = $state(true);
@@ -50,16 +53,16 @@
       : portOptions,
   );
 
-  function statusBadge(status: string): { cls: string; label: string } {
+  function statusInfo(status: string): { variant: Variant; label: string } {
     switch (status) {
       case 'pass':
-        return { cls: 'badge-success', label: 'Pass' };
+        return { variant: 'success', label: 'Pass' };
       case 'fail':
-        return { cls: 'badge-error', label: 'Fail' };
+        return { variant: 'error', label: 'Fail' };
       case 'warning':
-        return { cls: 'badge-warning', label: 'Warning' };
+        return { variant: 'warning', label: 'Warning' };
       default:
-        return { cls: 'badge-ghost', label: 'Skipped' };
+        return { variant: 'ghost', label: 'Skipped' };
     }
   }
 
@@ -109,156 +112,143 @@
   });
 </script>
 
-<div>
-  <div class="mb-4">
-    <h1 class="text-xl font-bold">Connectivity Checker</h1>
-    <p class="text-sm text-base-content/60">
-      Analyze L2/L3 connectivity, ACL rules, and physical realization between
-      two logical ports
-    </p>
+<PageHeader
+  eyebrow="Debug"
+  title="Connectivity Checker"
+  description="Analyze L2/L3 connectivity, ACL rules, and physical realization between two logical ports"
+/>
+
+<DataState loading={portsLoading} error={error && !result ? error : ''}>
+  <!-- Port selectors -->
+  <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+    <FormField label="Source Port" forId="src-port">
+      <input
+        id="src-port"
+        type="text"
+        bind:value={srcFilter}
+        placeholder="Filter ports..."
+        class="input input-sm input-bordered mb-1 w-full font-mono"
+      />
+      <select
+        bind:value={srcUuid}
+        class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
+      >
+        <option value="">Select source port...</option>
+        {#each filteredSrcPorts as p (p.uuid)}
+          <option value={p.uuid}>{p.name}</option>
+        {/each}
+      </select>
+    </FormField>
+    <FormField label="Destination Port" forId="dst-port">
+      <input
+        id="dst-port"
+        type="text"
+        bind:value={dstFilter}
+        placeholder="Filter ports..."
+        class="input input-sm input-bordered mb-1 w-full font-mono"
+      />
+      <select
+        bind:value={dstUuid}
+        class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
+      >
+        <option value="">Select destination port...</option>
+        {#each filteredDstPorts as p (p.uuid)}
+          <option value={p.uuid}>{p.name}</option>
+        {/each}
+      </select>
+    </FormField>
   </div>
 
-  {#if error && !result}
-    <ErrorAlert message={error} />
-  {/if}
+  <button
+    class="btn btn-primary btn-sm mb-6"
+    disabled={!srcUuid || !dstUuid || checking}
+    onclick={runCheck}
+  >
+    {#if checking}
+      <span class="loading loading-spinner loading-xs"></span>
+    {/if}
+    Check Connectivity
+  </button>
 
-  {#if portsLoading}
-    <LoadingSpinner />
-  {:else}
-    <!-- Port selectors -->
+  {#if result}
+    <!-- Overall status -->
+    <div
+      class="alert mb-4 {result.overall === 'pass'
+        ? 'alert-success'
+        : result.overall === 'fail'
+          ? 'alert-error'
+          : 'alert-warning'}"
+    >
+      <span class="font-semibold"
+        >Overall: {statusInfo(result.overall).label}</span
+      >
+    </div>
+
+    <!-- Source/destination info -->
     <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div>
-        <label class="label" for="src-port">
-          <span class="label-text font-semibold">Source Port</span>
-        </label>
-        <input
-          id="src-port"
-          type="text"
-          bind:value={srcFilter}
-          placeholder="Filter ports..."
-          class="input input-sm input-bordered mb-1 w-full"
-        />
-        <select
-          bind:value={srcUuid}
-          class="select select-bordered select-sm w-full"
+      <div class="rounded border border-base-300 bg-base-100 p-3">
+        <div
+          class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
         >
-          <option value="">Select source port...</option>
-          {#each filteredSrcPorts as p (p.uuid)}
-            <option value={p.uuid}>{p.name}</option>
-          {/each}
-        </select>
+          Source
+        </div>
+        <div class="font-semibold">{result.source.name}</div>
+        {#if result.source.switch_name}
+          <div class="font-mono text-xs text-base-content/60">
+            Switch: {result.source.switch_name}
+          </div>
+        {/if}
+        {#if result.source.addresses?.length}
+          <div class="font-mono text-xs text-base-content/60">
+            {result.source.addresses.join(', ')}
+          </div>
+        {/if}
       </div>
-      <div>
-        <label class="label" for="dst-port">
-          <span class="label-text font-semibold">Destination Port</span>
-        </label>
-        <input
-          id="dst-port"
-          type="text"
-          bind:value={dstFilter}
-          placeholder="Filter ports..."
-          class="input input-sm input-bordered mb-1 w-full"
-        />
-        <select
-          bind:value={dstUuid}
-          class="select select-bordered select-sm w-full"
+      <div class="rounded border border-base-300 bg-base-100 p-3">
+        <div
+          class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
         >
-          <option value="">Select destination port...</option>
-          {#each filteredDstPorts as p (p.uuid)}
-            <option value={p.uuid}>{p.name}</option>
-          {/each}
-        </select>
+          Destination
+        </div>
+        <div class="font-semibold">{result.destination.name}</div>
+        {#if result.destination.switch_name}
+          <div class="font-mono text-xs text-base-content/60">
+            Switch: {result.destination.switch_name}
+          </div>
+        {/if}
+        {#if result.destination.addresses?.length}
+          <div class="font-mono text-xs text-base-content/60">
+            {result.destination.addresses.join(', ')}
+          </div>
+        {/if}
       </div>
     </div>
 
-    <button
-      class="btn btn-primary btn-sm mb-6"
-      disabled={!srcUuid || !dstUuid || checking}
-      onclick={runCheck}
-    >
-      {#if checking}
-        <span class="loading loading-spinner loading-xs"></span>
-      {/if}
-      Check Connectivity
-    </button>
-
-    {#if result}
-      <!-- Overall status -->
-      <div
-        class="alert mb-4 {result.overall === 'pass'
-          ? 'alert-success'
-          : result.overall === 'fail'
-            ? 'alert-error'
-            : 'alert-warning'}"
-      >
-        <span class="font-semibold"
-          >Overall: {statusBadge(result.overall).label}</span
+    <!-- Check results -->
+    <div class="flex flex-col gap-2">
+      {#each result.checks as check (check.name)}
+        <div
+          class="flex items-start gap-3 rounded border border-l-4 border-base-300 bg-base-100 px-4 py-2 {categoryColor(
+            check.category,
+          )}"
         >
-      </div>
-
-      <!-- Source/destination info -->
-      <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div class="rounded-lg border border-base-300 bg-base-100 p-3">
-          <div
-            class="mb-1 text-xs font-semibold uppercase text-base-content/50"
-          >
-            Source
+          <span class="mt-0.5">
+            <Badge
+              text={statusInfo(check.status).label}
+              variant={statusInfo(check.status).variant}
+            />
+          </span>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs text-base-content/55"
+                >{check.name}</span
+              >
+              <span class="badge badge-ghost badge-xs">{check.category}</span>
+            </div>
+            <div class="font-prose text-sm">{check.message}</div>
           </div>
-          <div class="font-semibold">{result.source.name}</div>
-          {#if result.source.switch_name}
-            <div class="text-xs text-base-content/60">
-              Switch: {result.source.switch_name}
-            </div>
-          {/if}
-          {#if result.source.addresses?.length}
-            <div class="text-xs text-base-content/60">
-              {result.source.addresses.join(', ')}
-            </div>
-          {/if}
         </div>
-        <div class="rounded-lg border border-base-300 bg-base-100 p-3">
-          <div
-            class="mb-1 text-xs font-semibold uppercase text-base-content/50"
-          >
-            Destination
-          </div>
-          <div class="font-semibold">{result.destination.name}</div>
-          {#if result.destination.switch_name}
-            <div class="text-xs text-base-content/60">
-              Switch: {result.destination.switch_name}
-            </div>
-          {/if}
-          {#if result.destination.addresses?.length}
-            <div class="text-xs text-base-content/60">
-              {result.destination.addresses.join(', ')}
-            </div>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Check results -->
-      <div class="flex flex-col gap-2">
-        {#each result.checks as check (check.name)}
-          <div
-            class="flex items-start gap-3 rounded-lg border-l-4 bg-base-100 px-4 py-2 shadow-sm {categoryColor(
-              check.category,
-            )}"
-          >
-            <span class="badge badge-sm mt-0.5 {statusBadge(check.status).cls}"
-              >{statusBadge(check.status).label}</span
-            >
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <span class="font-mono text-xs text-base-content/50"
-                  >{check.name}</span
-                >
-                <span class="badge badge-ghost badge-xs">{check.category}</span>
-              </div>
-              <div class="text-sm">{check.message}</div>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
+      {/each}
+    </div>
   {/if}
-</div>
+</DataState>

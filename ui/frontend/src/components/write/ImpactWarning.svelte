@@ -22,7 +22,10 @@
   });
 </script>
 
-<div role="alert" class="alert alert-warning shadow-sm">
+<div
+  role="alert"
+  class="flex gap-2 rounded border border-warning/40 bg-warning/10 px-3 py-2 font-mono text-sm text-warning"
+>
   <svg
     xmlns="http://www.w3.org/2000/svg"
     class="h-5 w-5 shrink-0"
@@ -39,14 +42,14 @@
   </svg>
 
   <div class="flex flex-col gap-1">
-    <span class="text-sm font-semibold">
+    <span class="font-semibold">
       Delete impacts {totalAffected} dependent object{totalAffected !== 1
         ? 's'
         : ''}
     </span>
 
     <div class="flex flex-wrap gap-1.5">
-      {#each tableBreakdown as [table, count]}
+      {#each tableBreakdown as [table, count] (table)}
         <Badge text="{count} {table}" variant="ghost" />
       {/each}
       {#if entries.some((e) => e.result.summary.truncated)}
@@ -55,14 +58,14 @@
     </div>
 
     <button
-      class="btn btn-ghost btn-xs mt-1 w-fit"
+      class="btn btn-ghost btn-xs mt-1 w-fit border-base-300 font-mono"
       onclick={() => (showTree = !showTree)}
     >
       {showTree ? 'Hide' : 'Show'} dependency tree
     </button>
 
     {#if showTree}
-      <div class="mt-2 rounded-lg bg-base-100 p-3">
+      <div class="mt-2 rounded border border-base-300 bg-base-100 p-3 text-base-content">
         {#each entries as entry (entry.operation_index)}
           <ImpactTree node={entry.result.root} />
         {/each}

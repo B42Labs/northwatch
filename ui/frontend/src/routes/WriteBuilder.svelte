@@ -7,6 +7,9 @@
     type Plan,
   } from '../lib/writeApi';
   import { link } from '../lib/router';
+  import PageContainer from '../components/ui/PageContainer.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
+  import FormField from '../components/ui/FormField.svelte';
   import OperationForm from '../components/write/OperationForm.svelte';
   import OperationList from '../components/write/OperationList.svelte';
   import PlanReview from '../components/write/PlanReview.svelte';
@@ -106,16 +109,22 @@
   let stepIndex = $derived(step === 'build' ? 0 : step === 'review' ? 1 : 2);
 </script>
 
-<div class="mx-auto max-w-5xl">
-  <h1 class="mb-1 text-xl font-bold">Write Operations</h1>
-  <p class="mb-4 text-sm text-base-content/60">
-    Build, preview, and apply changes to OVN Northbound tables
-  </p>
+<PageContainer width="prose">
+  <PageHeader
+    eyebrow="Write"
+    title="Write Operations"
+    description="Build, preview, and apply changes to OVN Northbound tables."
+  />
 
   <!-- Stepper -->
   <ul class="steps steps-horizontal mb-6 w-full">
     {#each stepLabels as label, i (i)}
-      <li class="step" class:step-primary={i <= stepIndex}>{label}</li>
+      <li
+        class="step font-mono text-2xs uppercase tracking-wider"
+        class:step-primary={i <= stepIndex}
+      >
+        {label}
+      </li>
     {/each}
   </ul>
 
@@ -136,7 +145,9 @@
       />
 
       <div>
-        <h2 class="mb-2 text-sm font-semibold">
+        <h2
+          class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        >
           Batch ({operations.length} operation{operations.length !== 1
             ? 's'
             : ''})
@@ -146,20 +157,19 @@
 
       {#if operations.length > 0}
         <div class="flex items-end gap-3">
-          <div class="form-control flex-1">
-            <label class="label py-0.5" for="batch-reason">
-              <span class="label-text text-xs">Batch Reason (optional)</span>
-            </label>
-            <input
-              id="batch-reason"
-              type="text"
-              class="input input-sm input-bordered"
-              placeholder="Overall reason for this batch"
-              bind:value={reason}
-            />
+          <div class="flex-1">
+            <FormField label="Batch Reason (optional)" forId="batch-reason">
+              <input
+                id="batch-reason"
+                type="text"
+                class="input input-sm input-bordered w-full font-mono"
+                placeholder="Overall reason for this batch"
+                bind:value={reason}
+              />
+            </FormField>
           </div>
           <button
-            class="btn btn-primary btn-sm"
+            class="btn btn-primary btn-sm font-mono"
             disabled={loading}
             onclick={handlePreview}
           >
@@ -187,33 +197,34 @@
 
     <!-- Step 3: Result -->
   {:else if step === 'result'}
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body p-6 text-center">
-        {#if applyResult?.success}
-          <div class="mb-2 text-4xl">&#10003;</div>
-          <h2 class="text-lg font-bold text-success">Changes Applied</h2>
-          <p class="mt-1 text-sm text-base-content/60">
-            All operations were applied successfully.
-          </p>
-          {#if applyResult.auditId}
-            <a
-              href={link(`/write/audit/${applyResult.auditId}`)}
-              class="btn btn-outline btn-sm mt-3"
-            >
-              View Audit Entry
-            </a>
-          {/if}
-        {:else}
-          <div class="mb-2 text-4xl">&#10007;</div>
-          <h2 class="text-lg font-bold text-error">Apply Failed</h2>
-          <p class="mt-1 text-sm text-base-content/60">
-            {applyResult?.error || 'Unknown error'}
-          </p>
+    <div class="rounded border border-base-300 bg-base-100 p-6 text-center">
+      {#if applyResult?.success}
+        <div class="mb-2 text-4xl text-success">&#10003;</div>
+        <h2 class="font-mono text-lg font-bold text-success">Changes Applied</h2>
+        <p class="mt-1 font-prose text-sm text-base-content/60">
+          All operations were applied successfully.
+        </p>
+        {#if applyResult.auditId}
+          <a
+            href={link(`/write/audit/${applyResult.auditId}`)}
+            class="btn btn-outline btn-sm mt-3 border-base-300 font-mono"
+          >
+            View Audit Entry
+          </a>
         {/if}
-        <button class="btn btn-primary btn-sm mt-4" onclick={handleReset}>
-          New Operation
-        </button>
-      </div>
+      {:else}
+        <div class="mb-2 text-4xl text-error">&#10007;</div>
+        <h2 class="font-mono text-lg font-bold text-error">Apply Failed</h2>
+        <p class="mt-1 font-prose text-sm text-base-content/60">
+          {applyResult?.error || 'Unknown error'}
+        </p>
+      {/if}
+      <button
+        class="btn btn-primary btn-sm mt-4 font-mono"
+        onclick={handleReset}
+      >
+        New Operation
+      </button>
     </div>
   {/if}
-</div>
+</PageContainer>

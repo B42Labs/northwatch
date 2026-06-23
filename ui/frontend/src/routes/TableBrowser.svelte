@@ -3,8 +3,8 @@
   import { push, link } from '../lib/router';
   import { findTable, type TableDef, ovsdbTableName } from '../lib/tables';
   import DataTable from '../components/table/DataTable.svelte';
-  import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
-  import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import DataState from '../components/ui/DataState.svelte';
+  import PageHeader from '../components/ui/PageHeader.svelte';
   import { getCorrelatedListRoute } from '../lib/tables';
   import { subscribeToTable } from '../lib/eventStore';
   import { changedUuids as changedUuidsStore } from '../lib/eventStore';
@@ -94,36 +94,26 @@
   let correlatedRoute = $derived(getCorrelatedListRoute(db, table));
 </script>
 
-<div>
-  <div class="mb-4 flex items-center gap-3">
-    <div>
-      <h1 class="text-xl font-bold">{tableDef?.label ?? table}</h1>
-      <p class="text-sm text-base-content/60">
-        {db === 'nb' ? 'Northbound' : 'Southbound'}
-      </p>
-    </div>
+<PageHeader
+  eyebrow={db === 'nb' ? 'Northbound' : 'Southbound'}
+  title={tableDef?.label ?? table}
+>
+  {#snippet actions()}
     {#if correlatedRoute}
-      <a
-        href={link(correlatedRoute)}
-        class="btn btn-outline btn-primary btn-sm"
-      >
-        Correlated View
+      <a href={link(correlatedRoute)} class="btn btn-outline btn-primary btn-sm">
+        Correlated view
       </a>
     {/if}
-  </div>
+  {/snippet}
+</PageHeader>
 
-  {#if loading}
-    <LoadingSpinner />
-  {:else if error}
-    <ErrorAlert message={error} />
-  {:else}
-    <DataTable
-      {rows}
-      columns={primaryColumns}
-      {allColumns}
-      onRowClick={handleRowClick}
-      refHref={getRefHref}
-      changedUuids={currentChangedUuids}
-    />
-  {/if}
-</div>
+<DataState {loading} {error} empty={rows.length === 0} emptyMessage="no rows">
+  <DataTable
+    {rows}
+    columns={primaryColumns}
+    {allColumns}
+    onRowClick={handleRowClick}
+    refHref={getRefHref}
+    changedUuids={currentChangedUuids}
+  />
+</DataState>
