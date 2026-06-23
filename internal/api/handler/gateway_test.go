@@ -1,0 +1,68 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/b42labs/northwatch/internal/gateway"
+	"github.com/b42labs/northwatch/internal/testutil"
+)
+
+func TestGatewayHealth(t *testing.T) {
+	nbc := testutil.SetupNBTestClient(t)
+	sbc := testutil.SetupSBTestClient(t)
+	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
+
+	mux := http.NewServeMux()
+	RegisterGatewayHealth(mux, nbc, sbc)
+
+	getReport := func(t *testing.T) gateway.Report {
+		t.Helper()
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/api/v1/topology/gateway",
+			nil,
+		)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var rep gateway.Report
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &rep))
+		return rep
+	}
+
+	t.Run("empty", func(t *testing.T) {
+		rep := getReport(t)
+		assert.Equal(t, 0, rep.Total)
+		assert.Empty(t, rep.Gateways)
+	})
+
+	t.Run("detects stuck failover", func(t *testing.T) {
+		ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
+		ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+		grp := testutil.InsertHAChassisGroup(t, sbc, "grp-ext", []testutil.HAChassisEntry{
+			{ChassisUUID: ch1, Priority: 30},
+			{ChassisUUID: ch2, Priority: 20},
+		})
+		// Active on the lower-priority chassis -> failover stuck.
+		testutil.InsertChassisRedirectBinding(t, sbc, "cr-lrp-ext", &ch2, grp.GroupUUID)
+		testutil.InsertGatewayRouter(t, nbc, "router-ext", "lrp-ext", []string{"10.10.141.1/24"}, []string{"10.10.141.24"})
+
+		rep := getReport(t)
+		require.Equal(t, 1, rep.Total)
+		assert.Equal(t, 1, rep.Error)
+		require.Len(t, rep.Gateways, 1)
+		gw := rep.Gateways[0]
+		assert.Equal(t, gateway.StatusFailoverStuck, gw.Status)
+		assert.Equal(t, "netnode-1", gw.DesiredChassis)
+		assert.Equal(t, "netnode-2", gw.ActualChassis)
+		assert.Contains(t, gw.ServedIPs, "10.10.141.24")
+	})
+}

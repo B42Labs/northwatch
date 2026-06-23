@@ -4,6 +4,7 @@
   import StatTiles from '../components/ui/StatTiles.svelte';
   import FilterInput from '../components/ui/FilterInput.svelte';
   import Badge from '../components/ui/Badge.svelte';
+  import GatewayHealthPanel from '../components/gateway/GatewayHealthPanel.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { writeEnabled } from '../lib/capabilitiesStore';
   import {
@@ -569,6 +570,10 @@
     />
   {/snippet}
 </PageHeader>
+
+<!-- Read-only detection: highest-priority-alive (desired) vs Port_Binding.chassis
+     (actual) for every chassisredirect port. Works regardless of write mode. -->
+<GatewayHealthPanel />
 
 <DataState {loading} {error}>
   <!-- Summary + Search bar + Evacuate -->
