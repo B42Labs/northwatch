@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,30 @@ import (
 type OVNDatabases struct {
 	NB client.Client
 	SB client.Client
+}
+
+// MonitorOptions tunes how the initial libovsdb monitor is built when
+// populating the cache. The zero value reproduces the original behavior: a
+// single MonitorAll request covering every table and column at once.
+//
+// In very large OVN deployments that one atomic request forces the (often
+// single-threaded) ovsdb-server to serialize the entire database into one
+// reply, which is the main source of load when Northwatch starts or captures a
+// snapshot. These options let an operator spread that work out and/or skip the
+// largest tables.
+type MonitorOptions struct {
+	// BatchDelay, when > 0, switches from one MonitorAll request to staged
+	// per-table monitor requests, sleeping BatchDelay between each. Each table's
+	// initial dump then arrives as its own smaller reply instead of one giant
+	// one, bounding peak memory on both the server and Northwatch — at the cost
+	// of a slower startup. On a libovsdb reconnect the monitors are re-issued
+	// without the delay, but they remain separate (small) replies.
+	BatchDelay time.Duration
+
+	// SkipTables lists table names that are never monitored. Use it to exclude
+	// the largest Southbound tables (e.g. Logical_Flow, MAC_Binding, FDB) in
+	// huge deployments. Features that read a skipped table will see it as empty.
+	SkipTables []string
 }
 
 func newBackoff() *backoff.ExponentialBackOff {
@@ -41,8 +66,10 @@ func splitEndpoints(addr string) []client.Option {
 
 // Connect dials both the Northbound and Southbound OVSDB servers, populates
 // the libovsdb monitor cache, and returns a ready-to-use OVNDatabases handle.
-// On any failure, it closes the partially-opened clients before returning.
-func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.ClientDBModel) (*OVNDatabases, error) {
+// The mon options control how the initial cache is built; pass the zero value
+// for the default single-request MonitorAll behavior. On any failure, it closes
+// the partially-opened clients before returning.
+func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.ClientDBModel, mon MonitorOptions) (*OVNDatabases, error) {
 	// Create clients sequentially to avoid race in libovsdb's stdr.SetVerbosity.
 	// Each client gets its own backoff instance since ExponentialBackOff is stateful.
 	nbOpts := append(splitEndpoints(nbAddr), client.WithReconnect(10*time.Second, newBackoff()))
@@ -67,11 +94,11 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		nbErr = connectAndMonitor(ctx, nbClient, nbAddr)
+		nbErr = connectAndMonitor(ctx, nbClient, nbAddr, nbModel, mon)
 	}()
 	go func() {
 		defer wg.Done()
-		sbErr = connectAndMonitor(ctx, sbClient, sbAddr)
+		sbErr = connectAndMonitor(ctx, sbClient, sbAddr, sbModel, mon)
 	}()
 	wg.Wait()
 
@@ -87,17 +114,86 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 	return &OVNDatabases{NB: nbClient, SB: sbClient}, nil
 }
 
-func connectAndMonitor(ctx context.Context, c client.Client, addr string) error {
+func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbModel model.ClientDBModel, mon MonitorOptions) error {
 	if err := c.Connect(ctx); err != nil {
 		return fmt.Errorf("connecting to %s: %w", addr, err)
 	}
 
-	if _, err := c.MonitorAll(ctx); err != nil {
+	if err := startMonitor(ctx, c, dbModel, mon); err != nil {
 		c.Close()
 		return fmt.Errorf("monitoring %s: %w", addr, err)
 	}
 
 	return nil
+}
+
+// startMonitor populates the client cache. With the default (zero) options it
+// issues a single MonitorAll — every table and column in one request, exactly
+// as before. When MonitorOptions asks to skip tables or to batch, it builds
+// explicit per-table monitors instead so the initial dump is split into smaller
+// replies and, optionally, spread over time.
+func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBModel, mon MonitorOptions) error {
+	// Fast path: unchanged behavior when nothing is customized.
+	if mon.BatchDelay <= 0 && len(mon.SkipTables) == 0 {
+		_, err := c.MonitorAll(ctx)
+		return err
+	}
+
+	tables := monitoredTables(dbModel, mon.SkipTables)
+	if len(tables) == 0 {
+		return fmt.Errorf("no tables left to monitor after applying skip list")
+	}
+
+	// Skip list but no batching: a single monitor over the remaining tables,
+	// matching MonitorAll's one-request semantics minus the excluded tables.
+	if mon.BatchDelay <= 0 {
+		m := c.NewMonitor()
+		for _, t := range tables {
+			m.Tables = append(m.Tables, client.TableMonitor{Table: t})
+		}
+		_, err := c.Monitor(ctx, m)
+		return err
+	}
+
+	// Staged: one monitor request per table, sleeping between them so the server
+	// serializes and ships each table's initial dump separately over time.
+	for i, t := range tables {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(mon.BatchDelay):
+			}
+		}
+		m := c.NewMonitor()
+		m.Tables = append(m.Tables, client.TableMonitor{Table: t})
+		if _, err := c.Monitor(ctx, m); err != nil {
+			return fmt.Errorf("monitoring table %s: %w", t, err)
+		}
+	}
+	return nil
+}
+
+// monitoredTables returns the sorted table names of a database model, excluding
+// any whose name appears in skip. Sorting keeps the monitor order deterministic.
+func monitoredTables(dbModel model.ClientDBModel, skip []string) []string {
+	skipSet := make(map[string]struct{}, len(skip))
+	for _, s := range skip {
+		if s = strings.TrimSpace(s); s != "" {
+			skipSet[s] = struct{}{}
+		}
+	}
+
+	types := dbModel.Types()
+	tables := make([]string, 0, len(types))
+	for name := range types {
+		if _, skipped := skipSet[name]; skipped {
+			continue
+		}
+		tables = append(tables, name)
+	}
+	sort.Strings(tables)
+	return tables
 }
 
 // Ready reports whether both NB and SB clients currently have an active

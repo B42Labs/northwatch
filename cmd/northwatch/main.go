@@ -65,6 +65,17 @@ func runSnapshot(args []string) error {
 	out := "northwatch-snapshot.json"
 	fs.StringVar(&out, "output", out, "Output file path for the snapshot")
 	fs.StringVar(&out, "o", out, "Output file path for the snapshot (shorthand)")
+	// Same initial-monitor tuning as the server, so capturing a snapshot from a
+	// huge deployment doesn't overload the OVN databases in one request. Capture
+	// is a live connection, so it shares the server's staged default.
+	defBatchDelay := config.DefaultMonitorBatchDelay
+	if v := os.Getenv("NORTHWATCH_MONITOR_BATCH_DELAY"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			defBatchDelay = d
+		}
+	}
+	monitorBatchDelay := fs.Duration("monitor-batch-delay", defBatchDelay, "Delay between staged per-table monitor requests (e.g. 100ms, 1s); 0 loads all tables in a single request")
+	monitorSkipTables := fs.String("monitor-skip-tables", os.Getenv("NORTHWATCH_MONITOR_SKIP_TABLES"), "Comma-separated OVN table names to never capture (e.g. Logical_Flow,MAC_Binding,FDB)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -88,7 +99,11 @@ func runSnapshot(args []string) error {
 	defer cancel()
 
 	fmt.Println("Connecting to OVN databases...")
-	dbs, err := ovndb.Connect(ctx, *nbAddr, *sbAddr, nbModel, sbModel)
+	mon := ovndb.MonitorOptions{
+		BatchDelay: *monitorBatchDelay,
+		SkipTables: config.SplitCSV(*monitorSkipTables),
+	}
+	dbs, err := ovndb.Connect(ctx, *nbAddr, *sbAddr, nbModel, sbModel, mon)
 	if err != nil {
 		return fmt.Errorf("connecting to OVN: %w", err)
 	}
@@ -286,6 +301,11 @@ func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error
 		OVNSBAddr: servers.SBAddr,
 	}}
 
+	// Offline replay connects to local in-memory servers, so there is nothing to
+	// protect: disable staged monitoring to keep the offline mode fast,
+	// regardless of the --monitor-batch-delay default.
+	cfg.MonitorBatchDelay = 0
+
 	info := &handler.SnapshotInfo{CreatedAt: snap.CreatedAt}
 	if snap.Source != nil {
 		info.NBAddr = snap.Source.NBAddr
@@ -311,7 +331,11 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 		return nil, nil, fmt.Errorf("cluster %q: creating SB model: %w", cc.Name, err)
 	}
 
-	dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel)
+	mon := ovndb.MonitorOptions{
+		BatchDelay: cfg.MonitorBatchDelay,
+		SkipTables: cfg.MonitorSkipTables,
+	}
+	dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel, mon)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
 	}

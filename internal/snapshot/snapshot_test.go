@@ -51,7 +51,7 @@ func TestRoundTrip(t *testing.T) {
 	defer servers.Close()
 
 	ctx := context.Background()
-	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel)
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{})
 	require.NoError(t, err)
 	defer dbs.Close()
 
