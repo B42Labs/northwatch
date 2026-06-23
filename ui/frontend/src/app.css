@@ -145,6 +145,11 @@
     box-shadow: 0 0 0 0 oklch(var(--su) / 0);
   }
 }
+/* Snapshot mode: a static orange dot — frozen, captured data, not live. */
+.nw-dot-snapshot {
+  background-color: oklch(0.72 0.18 55);
+  box-shadow: 0 0 0 3px oklch(0.72 0.18 55 / 0.18);
+}
 
 /* Row that just changed over the websocket — amber phosphor flash. */
 .recently-changed {

@@ -123,12 +123,14 @@ func run() error {
 	// Stage 2 of the offline workflow: when --snapshot is set, spin up local
 	// in-memory OVSDB servers from the file and point the cluster at them, so
 	// every downstream subsystem runs unchanged against the offline copy.
+	var snapInfo *handler.SnapshotInfo
 	if cfg.SnapshotFile != "" {
-		closeSnapshot, err := setupSnapshotMode(cfg)
+		info, closeSnapshot, err := setupSnapshotMode(cfg)
 		if err != nil {
 			return err
 		}
 		defer closeSnapshot()
+		snapInfo = info
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -212,7 +214,7 @@ func run() error {
 	traceStore := handler.NewTraceStore(1 * time.Hour)
 
 	wsOrigins := handler.ParseWSAllowedOrigins(cfg.WSAllowedOrigins)
-	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster)
+	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster, snapInfo)
 
 	// Multi-cluster: register cluster-prefixed routes
 	if multiCluster {
@@ -247,33 +249,34 @@ func run() error {
 
 // setupSnapshotMode loads the snapshot file referenced by cfg.SnapshotFile,
 // starts in-memory OVSDB servers backing it, and rewrites cfg.Clusters to a
-// single cluster pointing at those local sockets. The returned function shuts
-// the servers down and must be called on exit.
-func setupSnapshotMode(cfg *config.Config) (func(), error) {
+// single cluster pointing at those local sockets. It returns the snapshot
+// metadata (for the UI mode indicator) and a function that shuts the servers
+// down, which must be called on exit.
+func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error) {
 	fmt.Printf("Loading snapshot from %s...\n", cfg.SnapshotFile)
 	// The snapshot path is an operator-provided CLI argument (like --config-file),
 	// not untrusted input, so reading it directly is intentional.
 	data, err := os.ReadFile(cfg.SnapshotFile) // #nosec G703
 	if err != nil {
-		return nil, fmt.Errorf("opening snapshot: %w", err)
+		return nil, nil, fmt.Errorf("opening snapshot: %w", err)
 	}
 	snap, err := snapshot.Load(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("reading snapshot: %w", err)
+		return nil, nil, fmt.Errorf("reading snapshot: %w", err)
 	}
 
 	nbModel, err := nb.FullDatabaseModel()
 	if err != nil {
-		return nil, fmt.Errorf("creating NB model: %w", err)
+		return nil, nil, fmt.Errorf("creating NB model: %w", err)
 	}
 	sbModel, err := sb.FullDatabaseModel()
 	if err != nil {
-		return nil, fmt.Errorf("creating SB model: %w", err)
+		return nil, nil, fmt.Errorf("creating SB model: %w", err)
 	}
 
 	servers, err := snapshot.Serve(snap, nbModel, sbModel, nb.Schema(), sb.Schema())
 	if err != nil {
-		return nil, fmt.Errorf("serving snapshot: %w", err)
+		return nil, nil, fmt.Errorf("serving snapshot: %w", err)
 	}
 
 	cfg.Clusters = []config.ClusterConfig{{
@@ -283,8 +286,14 @@ func setupSnapshotMode(cfg *config.Config) (func(), error) {
 		OVNSBAddr: servers.SBAddr,
 	}}
 
+	info := &handler.SnapshotInfo{CreatedAt: snap.CreatedAt}
+	if snap.Source != nil {
+		info.NBAddr = snap.Source.NBAddr
+		info.SBAddr = snap.Source.SBAddr
+	}
+
 	fmt.Printf("Snapshot loaded (NB: %d rows, SB: %d rows); serving offline copy\n", snap.NB.RowCount(), snap.SB.RowCount())
-	return servers.Close, nil
+	return info, servers.Close, nil
 }
 
 // buildCluster initializes all subsystems for a single OVN cluster and
@@ -382,9 +391,10 @@ func registerDefaultRoutes(
 	traceStore *handler.TraceStore,
 	wsOrigins []string,
 	multiCluster bool,
+	snapInfo *handler.SnapshotInfo,
 ) {
 	handler.RegisterHealth(mux, def.DBs)
-	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster)
+	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster, snapInfo)
 	handler.RegisterNB(mux, def.DBs.NB)
 	handler.RegisterSB(mux, def.DBs.SB)
 	handler.RegisterCorrelated(mux, def.Correlator, def.Enricher)
