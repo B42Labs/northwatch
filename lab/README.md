@@ -111,6 +111,18 @@ Northbound over OVSDB using the project's generated NB models.
 > port it creates, so the lab stays healthy. (`make lab-unbind` reverses it, to
 > demo the alert on purpose.)
 
+> **The HA_Chassis_Group gateway showing "no active chassis" (no-owner) is
+> expected here.** ovn-controller elects the active chassis for a multi-member
+> HA group via BFD between the chassis, and BFD never converges over the OVS
+> *userspace* datapath (no real inter-chassis tunnel traffic) — the same
+> limitation the upstream e2e lab documents (it uses the kernel datapath, which
+> isn't available on Docker Desktop). So the multi-member HA gateway stays
+> unbound and Northwatch correctly flags it; this actually demonstrates the tool
+> catching a stuck failover. The single-candidate gateways (`Gateway_Chassis`,
+> odd routers) bind fine. The failover *simulation* still works regardless: the
+> `ha.failover` action swaps member priorities and the gateway view's "desired"
+> chassis moves accordingly.
+
 Every object `ovnsim` creates is tagged (`external_ids:nw-sim="1"`) and named
 `nw-…`, and `run`/`clean` only ever touch those rows — so pointing it at a
 database that already has other content is safe.
