@@ -1,6 +1,6 @@
 .PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
 	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
-	lab-compose-up lab-compose-down lab-compose
+	lab-compose-up lab-compose-build lab-compose-down lab-compose
 
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
@@ -118,10 +118,16 @@ lab-multi-down:
 	containerlab destroy -t $(LAB_MULTI)
 
 # Docker Compose variant — no containerlab needed (works on macOS / Docker Desktop).
-# --build keeps the images in sync with the Dockerfiles/entrypoints (fast when
-# nothing changed, thanks to the layer cache). NB/SB are published to the host.
+# Reuses existing images (building only missing ones); does NOT force a rebuild,
+# so it works without Docker Hub access once the images exist. Only the chassis/
+# central images contain OVN/OVS + entrypoints — ovnsim/seed changes are
+# host-side and need no rebuild. Rebuild explicitly after changing a Dockerfile
+# or entrypoint with `make lab-compose-build` (needs registry access).
 lab-compose-up:
-	docker compose -f $(LAB_COMPOSE) up -d --build
+	docker compose -f $(LAB_COMPOSE) up -d
+
+lab-compose-build:
+	docker compose -f $(LAB_COMPOSE) build
 
 lab-compose-down:
 	docker compose -f $(LAB_COMPOSE) down
