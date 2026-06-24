@@ -1,0 +1,87 @@
+# Docker Compose variant of the Northwatch local OVN lab.
+#
+# Same topology as topology.clab.yml (1 central + 3 chassis), but runs directly
+# on Docker / Docker Desktop without containerlab — handy on macOS, where
+# containerlab needs a Linux VM. We can use plain Compose here because the lab
+# has no point-to-point links: it is just four containers on one bridge network
+# with NB/SB published to the host.
+#
+# Container names are pinned to the `clab-nw-lab-*` scheme so the same Makefile
+# helpers (lab-nbctl/lab-sbctl) and `ovnsim --bind-ports` work unchanged.
+#
+#   docker compose -f lab/docker-compose.yml up -d      # or: make lab-compose-up
+#   docker compose -f lab/docker-compose.yml down        #     make lab-compose-down
+
+name: nw-lab
+
+services:
+  central:
+    image: northwatch/lab-central:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.central
+    container_name: clab-nw-lab-central
+    hostname: central
+    ports:
+      - "6641:6641"
+      - "6642:6642"
+    networks: [nwlab]
+    healthcheck:
+      test: ["CMD-SHELL", "ovn-nbctl --db=tcp:127.0.0.1:6641 show >/dev/null 2>&1 && ovn-sbctl --db=tcp:127.0.0.1:6642 show >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  chassis-1:
+    image: northwatch/lab-chassis:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.chassis
+    container_name: clab-nw-lab-chassis-1
+    hostname: chassis-1
+    # OVS (userspace datapath) + ovn-controller need network-admin level access.
+    privileged: true
+    environment:
+      CHASSIS_NAME: chassis-1
+      OVN_SB_REMOTE: tcp:central:6642
+    depends_on:
+      central:
+        condition: service_healthy
+    networks: [nwlab]
+
+  chassis-2:
+    image: northwatch/lab-chassis:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.chassis
+    container_name: clab-nw-lab-chassis-2
+    hostname: chassis-2
+    privileged: true
+    environment:
+      CHASSIS_NAME: chassis-2
+      OVN_SB_REMOTE: tcp:central:6642
+    depends_on:
+      central:
+        condition: service_healthy
+    networks: [nwlab]
+
+  chassis-3:
+    image: northwatch/lab-chassis:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.chassis
+    container_name: clab-nw-lab-chassis-3
+    hostname: chassis-3
+    privileged: true
+    environment:
+      CHASSIS_NAME: chassis-3
+      OVN_SB_REMOTE: tcp:central:6642
+    depends_on:
+      central:
+        condition: service_healthy
+    networks: [nwlab]
+
+networks:
+  nwlab:
+    name: nw-lab-mgmt

@@ -1,5 +1,6 @@
 .PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
-	ovnsim lab-images lab-up lab-down lab lab-seed lab-sim lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down
+	ovnsim lab-images lab-up lab-down lab lab-seed lab-sim lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
+	lab-compose-up lab-compose-down lab-compose
 
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
@@ -10,6 +11,7 @@ OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
 LAB_NAME    ?= nw-lab
 LAB_TOPO    ?= lab/topology.clab.yml
 LAB_MULTI   ?= lab/topology-multi.clab.yml
+LAB_COMPOSE ?= lab/docker-compose.yml
 NB          ?= tcp:127.0.0.1:6641
 SB          ?= tcp:127.0.0.1:6642
 CENTRAL     := clab-$(LAB_NAME)-central
@@ -100,6 +102,24 @@ lab-multi-up: lab-images
 
 lab-multi-down:
 	containerlab destroy -t $(LAB_MULTI)
+
+# Docker Compose variant — no containerlab needed (works on macOS / Docker Desktop).
+# Builds the images on first run and publishes NB/SB on the host.
+lab-compose-up:
+	docker compose -f $(LAB_COMPOSE) up -d
+
+lab-compose-down:
+	docker compose -f $(LAB_COMPOSE) down
+
+# One-shot: Compose lab up, wait for the chassis to register, then seed.
+lab-compose: lab-compose-up
+	@echo "Waiting for OVN to come up..."
+	@until docker exec $(CENTRAL) ovn-nbctl --timeout=2 show >/dev/null 2>&1; do sleep 1; done
+	$(MAKE) lab-seed
+	@echo ""
+	@echo "Lab is up and seeded. Start Northwatch against it with:"
+	@echo "  make build && ./bin/northwatch --ovn-nb-addr $(NB) --ovn-sb-addr $(SB)"
+	@echo "Then open http://localhost:8080 and run 'make lab-sim' for continuous change."
 
 # Install containerlab. On macOS, run the lab inside a Linux VM (Colima/OrbStack/Lima);
 # containerlab itself needs a Linux Docker host.

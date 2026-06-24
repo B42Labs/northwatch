@@ -143,9 +143,11 @@ make lab-sim     # continuous create/delete of switches, routers, ports, NAT, AC
 make lab-down    # tear down
 ```
 
-Requires a Linux Docker host (on macOS run it inside a Linux VM such as
-Colima/OrbStack). See [`lab/README.md`](lab/README.md) for details, the
-`ovnsim` subcommands, and the optional second cluster (`make lab-multi-up`).
+`make lab-up` uses [containerlab](https://containerlab.dev) (Linux). On
+**macOS / Docker Desktop**, use the Docker Compose variant instead — same
+topology, no extra tooling: `make lab-compose-up` (then `lab-seed` / `lab-sim`
+as above, `lab-compose-down` to stop). See [`lab/README.md`](lab/README.md) for
+details, the `ovnsim` subcommands, and the optional second cluster.
 
 ## Capabilities
 
