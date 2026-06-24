@@ -1,5 +1,6 @@
 <script lang="ts">
   import { location, resolveRoute } from './lib/router';
+  import { activeCluster } from './lib/clusterStore';
   import AppShell from './components/layout/AppShell.svelte';
   import Home from './routes/Home.svelte';
   import NotFound from './routes/NotFound.svelte';
@@ -39,79 +40,83 @@
 </script>
 
 <AppShell>
-  {#if route.component === 'home'}
-    <Home />
-  {:else if route.component === 'topology'}
-    <Topology />
-  {:else if route.component === 'flow-pipeline'}
-    <FlowPipeline />
-  {:else if route.component === 'security-policy'}
-    <SecurityPolicy />
-  {:else if route.component === 'nat-overview'}
-    <NatOverview />
-  {:else if route.component === 'ha-failover'}
-    <HaFailover />
-  {:else if route.component === 'mac-table'}
-    <MacTable />
-  {:else if route.component === 'packet-trace'}
-    <PacketTrace />
-  {:else if route.component === 'flow-diff'}
-    <FlowDiff />
-  {:else if route.component === 'connectivity-checker'}
-    <ConnectivityChecker />
-  {:else if route.component === 'port-diagnostics'}
-    <PortDiagnostics />
-  {:else if route.component === 'history'}
-    <History />
-  {:else if route.component === 'events'}
-    <Events />
-  {:else if route.component === 'table-browser'}
-    <TableBrowser db={route.db!} table={route.params.table} />
-  {:else if route.component === 'raw-detail'}
-    <RawDetail
-      db={route.db!}
-      table={route.params.table}
-      uuid={route.params.uuid}
-    />
-  {:else if route.component === 'search'}
-    <SearchResults query={route.query.q || ''} />
-  {:else if route.component === 'switch-list'}
-    <SwitchList />
-  {:else if route.component === 'switch-profile'}
-    <SwitchProfile uuid={route.params.uuid} />
-  {:else if route.component === 'router-list'}
-    <RouterList />
-  {:else if route.component === 'router-profile'}
-    <RouterProfile uuid={route.params.uuid} />
-  {:else if route.component === 'chassis-list'}
-    <ChassisList />
-  {:else if route.component === 'chassis-profile'}
-    <ChassisProfile uuid={route.params.uuid} />
-  {:else if route.component === 'lsp-profile'}
-    <LSPProfile uuid={route.params.uuid} />
-  {:else if route.component === 'lrp-profile'}
-    <LRPProfile uuid={route.params.uuid} />
-  {:else if route.component === 'port-binding-profile'}
-    <PortBindingProfile uuid={route.params.uuid} />
-  {:else if route.component === 'write-builder'}
-    <WriteBuilder query={route.query} />
-  {:else if route.component === 'audit-log'}
-    <AuditLog />
-  {:else if route.component === 'audit-detail'}
-    <AuditLog entryId={route.params.id} />
-  {:else if route.component === 'acl-audit'}
-    <AclAudit />
-  {:else if route.component === 'stale-entries'}
-    <StaleEntries />
-  {:else if route.component === 'nexthop-mac'}
-    <NextHopMac />
-  {:else if route.component === 'load-balancers'}
-    <LoadBalancers />
-  {:else if route.component === 'raft-health'}
-    <RaftHealth />
-  {:else if route.component === 'propagation-timeline'}
-    <PropagationTimeline />
-  {:else}
-    <NotFound />
-  {/if}
+  <!-- Re-key on the active cluster so switching data source (incl. loading or
+       ejecting a snapshot) remounts the current view and refetches its data. -->
+  {#key $activeCluster}
+    {#if route.component === 'home'}
+      <Home />
+    {:else if route.component === 'topology'}
+      <Topology />
+    {:else if route.component === 'flow-pipeline'}
+      <FlowPipeline />
+    {:else if route.component === 'security-policy'}
+      <SecurityPolicy />
+    {:else if route.component === 'nat-overview'}
+      <NatOverview />
+    {:else if route.component === 'ha-failover'}
+      <HaFailover />
+    {:else if route.component === 'mac-table'}
+      <MacTable />
+    {:else if route.component === 'packet-trace'}
+      <PacketTrace />
+    {:else if route.component === 'flow-diff'}
+      <FlowDiff />
+    {:else if route.component === 'connectivity-checker'}
+      <ConnectivityChecker />
+    {:else if route.component === 'port-diagnostics'}
+      <PortDiagnostics />
+    {:else if route.component === 'history'}
+      <History />
+    {:else if route.component === 'events'}
+      <Events />
+    {:else if route.component === 'table-browser'}
+      <TableBrowser db={route.db!} table={route.params.table} />
+    {:else if route.component === 'raw-detail'}
+      <RawDetail
+        db={route.db!}
+        table={route.params.table}
+        uuid={route.params.uuid}
+      />
+    {:else if route.component === 'search'}
+      <SearchResults query={route.query.q || ''} />
+    {:else if route.component === 'switch-list'}
+      <SwitchList />
+    {:else if route.component === 'switch-profile'}
+      <SwitchProfile uuid={route.params.uuid} />
+    {:else if route.component === 'router-list'}
+      <RouterList />
+    {:else if route.component === 'router-profile'}
+      <RouterProfile uuid={route.params.uuid} />
+    {:else if route.component === 'chassis-list'}
+      <ChassisList />
+    {:else if route.component === 'chassis-profile'}
+      <ChassisProfile uuid={route.params.uuid} />
+    {:else if route.component === 'lsp-profile'}
+      <LSPProfile uuid={route.params.uuid} />
+    {:else if route.component === 'lrp-profile'}
+      <LRPProfile uuid={route.params.uuid} />
+    {:else if route.component === 'port-binding-profile'}
+      <PortBindingProfile uuid={route.params.uuid} />
+    {:else if route.component === 'write-builder'}
+      <WriteBuilder query={route.query} />
+    {:else if route.component === 'audit-log'}
+      <AuditLog />
+    {:else if route.component === 'audit-detail'}
+      <AuditLog entryId={route.params.id} />
+    {:else if route.component === 'acl-audit'}
+      <AclAudit />
+    {:else if route.component === 'stale-entries'}
+      <StaleEntries />
+    {:else if route.component === 'nexthop-mac'}
+      <NextHopMac />
+    {:else if route.component === 'load-balancers'}
+      <LoadBalancers />
+    {:else if route.component === 'raft-health'}
+      <RaftHealth />
+    {:else if route.component === 'propagation-timeline'}
+      <PropagationTimeline />
+    {:else}
+      <NotFound />
+    {/if}
+  {/key}
 </AppShell>

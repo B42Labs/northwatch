@@ -18,6 +18,40 @@ export async function get<T>(path: string): Promise<T> {
   return res.json();
 }
 
+// Global requests target the main mux directly, bypassing clusterPath(). Use
+// them for resources that exist only at the top level — history snapshots,
+// events, capabilities, the cluster list — which a snapshot cluster's sub-mux
+// does not serve (it would return 404 when such a cluster is active).
+async function getGlobal<T>(path: string): Promise<T> {
+  const res = await fetch(path);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.error || res.statusText);
+  }
+  return res.json();
+}
+
+async function postGlobal<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.error || res.statusText);
+  }
+  return res.json();
+}
+
+async function delGlobal(path: string): Promise<void> {
+  const res = await fetch(path, { method: 'DELETE' });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.error || res.statusText);
+  }
+}
+
 // Raw table endpoints
 export function listTable(
   db: string,
@@ -65,7 +99,9 @@ export interface CapabilitiesResponse {
 }
 
 export async function getCapabilities(): Promise<CapabilitiesResponse> {
-  const data = await get<Partial<CapabilitiesResponse>>('/api/v1/capabilities');
+  const data = await getGlobal<Partial<CapabilitiesResponse>>(
+    '/api/v1/capabilities',
+  );
   return {
     capabilities: data.capabilities ?? [],
     mode: data.mode ?? 'live',
@@ -500,15 +536,15 @@ export interface EventRecord {
 }
 
 export function listSnapshots(): Promise<SnapshotMeta[]> {
-  return get('/api/v1/snapshots');
+  return getGlobal('/api/v1/snapshots');
 }
 
 export function createSnapshot(label?: string): Promise<SnapshotMeta> {
-  return post('/api/v1/snapshots', label ? { label } : {});
+  return postGlobal('/api/v1/snapshots', label ? { label } : {});
 }
 
 export function getSnapshotDetail(id: number): Promise<SnapshotMeta> {
-  return get(`/api/v1/snapshots/${id}`);
+  return getGlobal(`/api/v1/snapshots/${id}`);
 }
 
 export function getSnapshotRows(
@@ -519,11 +555,43 @@ export function getSnapshotRows(
   if (opts?.database) params.set('database', opts.database);
   if (opts?.table) params.set('table', opts.table);
   const qs = params.toString();
-  return get(`/api/v1/snapshots/${id}/rows${qs ? '?' + qs : ''}`);
+  return getGlobal(`/api/v1/snapshots/${id}/rows${qs ? '?' + qs : ''}`);
 }
 
 export function deleteSnapshot(id: number): Promise<void> {
-  return del(`/api/v1/snapshots/${id}`);
+  return delGlobal(`/api/v1/snapshots/${id}`);
+}
+
+export interface LoadedSnapshot {
+  cluster: string;
+  label: string;
+  mode: 'snapshot';
+  snapshot?: {
+    sourceId: number;
+    createdAt?: string;
+    nbAddr?: string;
+    sbAddr?: string;
+  };
+}
+
+// loadSnapshot / unloadSnapshot manage snapshot clusters, a global action that
+// always targets the main mux. They deliberately bypass clusterPath() so they
+// are not rewritten onto whichever cluster happens to be active.
+export async function loadSnapshot(id: number): Promise<LoadedSnapshot> {
+  const res = await fetch(`/api/v1/snapshots/${id}/load`, { method: 'POST' });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.error || res.statusText);
+  }
+  return res.json();
+}
+
+export async function unloadSnapshot(id: number): Promise<void> {
+  const res = await fetch(`/api/v1/snapshots/${id}/unload`, { method: 'POST' });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.error || res.statusText);
+  }
 }
 
 export function diffSnapshots(
@@ -535,7 +603,7 @@ export function diffSnapshots(
   params.set('from', String(from));
   params.set('to', String(to));
   if (table) params.set('table', table);
-  return get(`/api/v1/snapshots/diff?${params.toString()}`);
+  return getGlobal(`/api/v1/snapshots/diff?${params.toString()}`);
 }
 
 export function queryEvents(opts?: {
@@ -554,7 +622,7 @@ export function queryEvents(opts?: {
   if (opts?.type) params.set('type', opts.type);
   if (opts?.limit) params.set('limit', String(opts.limit));
   const qs = params.toString();
-  return get(`/api/v1/events${qs ? '?' + qs : ''}`);
+  return getGlobal(`/api/v1/events${qs ? '?' + qs : ''}`);
 }
 
 // --- Propagation Timeline ---

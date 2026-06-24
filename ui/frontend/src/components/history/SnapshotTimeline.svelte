@@ -6,12 +6,29 @@
   interface Props {
     snapshots: SnapshotMeta[];
     selectedIds: Set<number>;
+    loadedIds: Set<number>;
+    /** Snapshot id currently being loaded/ejected, or null when idle. */
+    busyId: number | null;
     onToggle: (id: number) => void;
     onView: (id: number) => void;
+    onLoad: (id: number) => void;
+    onUnload: (id: number) => void;
     onDelete: (id: number) => void;
   }
 
-  let { snapshots, selectedIds, onToggle, onView, onDelete }: Props = $props();
+  let {
+    snapshots,
+    selectedIds,
+    loadedIds,
+    busyId,
+    onToggle,
+    onView,
+    onLoad,
+    onUnload,
+    onDelete,
+  }: Props = $props();
+
+  let busy = $derived(busyId !== null);
 
   function formatTime(ts: string): string {
     return new Date(ts).toLocaleString();
@@ -45,6 +62,9 @@
             text={snap.trigger}
             variant={snap.trigger === 'auto' ? 'neutral' : 'primary'}
           />
+          {#if loadedIds.has(snap.id)}
+            <Badge text="loaded" variant="success" />
+          {/if}
           <span class="font-mono text-sm font-medium">
             {formatTime(snap.timestamp)}
           </span>
@@ -61,6 +81,31 @@
         </div>
       </div>
       <div class="flex gap-1">
+        {#if loadedIds.has(snap.id)}
+          <button
+            class="btn btn-ghost btn-xs border-base-300"
+            onclick={() => onUnload(snap.id)}
+            disabled={busy}
+            title="Unload this snapshot and free its resources"
+          >
+            {#if busyId === snap.id}
+              <span class="loading loading-spinner loading-xs"></span>
+            {/if}
+            Unload
+          </button>
+        {:else}
+          <button
+            class="btn btn-ghost btn-xs border-base-300 text-success"
+            onclick={() => onLoad(snap.id)}
+            disabled={busy}
+            title="Load this snapshot as a data source and switch to it"
+          >
+            {#if busyId === snap.id}
+              <span class="loading loading-spinner loading-xs"></span>
+            {/if}
+            Load
+          </button>
+        {/if}
         <button
           class="btn btn-ghost btn-xs border-base-300"
           onclick={() => onView(snap.id)}

@@ -2,7 +2,7 @@
   import { location, link } from '../../lib/router';
   import { databases } from '../../lib/tables';
   import { navSections, isActiveLink, type NavLink } from '../../lib/nav';
-  import { writeEnabled } from '../../lib/capabilitiesStore';
+  import { writeEnabled, snapshotMode } from '../../lib/capabilitiesStore';
 
   // Database groups carry a lot of tables, so they start collapsed; the
   // curated sections above stay open.
@@ -12,8 +12,17 @@
     collapsed[key] = !collapsed[key];
   }
 
+  // In snapshot mode, hide sections and links that depend on live-change
+  // tracking (telemetry, propagation, flow diff) — the snapshot serves a static
+  // point in time and those endpoints would 404.
   let sections = $derived(
-    navSections.filter((s) => !s.requiresWrite || $writeEnabled),
+    navSections
+      .filter((s) => !s.requiresWrite || $writeEnabled)
+      .filter((s) => !s.liveOnly || !$snapshotMode)
+      .map((s) => ({
+        ...s,
+        links: s.links.filter((l) => !l.liveOnly || !$snapshotMode),
+      })),
   );
 
   // The database tables expressed as nav links.
