@@ -143,6 +143,13 @@ func cmdRun(args []string) error {
 		if *bindPorts {
 			cfg.Binder = ovnsim.NewBinder(*labName, splitCSV(*chassis))
 			log.Printf("port binding enabled via docker exec on lab %q", *labName)
+			// Bind any already-unbound VIFs up front (e.g. freshly seeded ones)
+			// so the lab starts healthy; the loop then keeps new ports bound.
+			if n, err := ovnsim.BindAll(ctx, c, cfg.Binder); err != nil {
+				log.Printf("initial bind: %v", err)
+			} else if n > 0 {
+				log.Printf("bound %d pre-existing unbound VIFs", n)
+			}
 		}
 		sim := ovnsim.NewSimulator(c, cfg)
 

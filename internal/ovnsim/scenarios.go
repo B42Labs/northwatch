@@ -123,7 +123,12 @@ func chooseAction(rng *rand.Rand, switches, target int, hasBinder bool) string {
 		actions = append(actions, wa{"switch.create", 3}, wa{"switch.delete", 3})
 	}
 	if hasBinder {
-		actions = append(actions, wa{"bind", 4}, wa{"migrate", 3}, wa{"unbind", 2})
+		// New ports are bound on creation (see addPort/createSwitch), so the
+		// standalone bind action only mops up stragglers; migrate moves a binding
+		// to another chassis. There is deliberately no random "unbind" action — it
+		// would leave VIFs unbound and flood the dashboard with health alerts. Use
+		// `ovnsim unbind` / `make lab-unbind` to demo unbinding explicitly.
+		actions = append(actions, wa{"bind", 2}, wa{"migrate", 4})
 	}
 
 	total := 0
@@ -174,8 +179,6 @@ func (s *Simulator) run(ctx context.Context, action string) (string, error) {
 		return s.bindPort(ctx)
 	case "migrate":
 		return s.migratePort(ctx)
-	case "unbind":
-		return s.unbindPort(ctx)
 	default:
 		return "noop", nil
 	}
@@ -191,6 +194,26 @@ func (s *Simulator) createSwitch(ctx context.Context) (string, error) {
 	idx := freeIndex(usedIndices(switchNames(sws), NamePrefix+"ls-"))
 	if err := seedSwitch(ctx, s.c, s.opts, idx, newSeedResult()); err != nil {
 		return "", err
+	}
+
+	// Bind the new switch's VIFs immediately when binding is enabled, so a fresh
+	// switch never shows up as a wall of "unbound VIF" alerts.
+	bound := 0
+	if s.binder != nil && len(s.binder.Chassis) > 0 {
+		for p := 1; p <= s.opts.PortsPerSwitch; p++ {
+			name := vifName(idx, p)
+			chassis := s.binder.Chassis[s.rng.Intn(len(s.binder.Chassis))]
+			if err := s.binder.Bind(ctx, chassis, name); err != nil {
+				return "", err
+			}
+			if err := recordBoundChassisByName(ctx, s.c, name, chassis); err != nil {
+				return "", err
+			}
+			bound++
+		}
+	}
+	if bound > 0 {
+		return fmt.Sprintf("create switch %s (%d ports bound)", switchName(idx), bound), nil
 	}
 	return "create switch " + switchName(idx), nil
 }
@@ -275,6 +298,14 @@ func (s *Simulator) addPort(ctx context.Context) (string, error) {
 	sw := sws[s.rng.Intn(len(sws))]
 	name := fmt.Sprintf("%s-p%d", sw.Name, s.nextSeq())
 
+	// When binding is enabled, mark the new port bound up front and bind it after
+	// commit, so it never lingers as an unbound VIF.
+	ids := ownedIDs("vif")
+	chassis := s.pickBindChassis()
+	if chassis != "" {
+		ids[boundChassisKey] = chassis
+	}
+
 	t := newTxn(s.c)
 	lspUUID := t.namedUUID()
 	t.add(&nb.LogicalSwitchPort{
@@ -282,7 +313,7 @@ func (s *Simulator) addPort(ctx context.Context) (string, error) {
 		Name:        name,
 		Addresses:   []string{"dynamic"},
 		Enabled:     ptr(true),
-		ExternalIDs: ownedIDs("vif"),
+		ExternalIDs: ids,
 	})
 	ls := &nb.LogicalSwitch{UUID: sw.UUID}
 	t.addOps(s.c.Where(ls).Mutate(ls, model.Mutation{
@@ -293,7 +324,23 @@ func (s *Simulator) addPort(ctx context.Context) (string, error) {
 	if err := t.commit(ctx); err != nil {
 		return "", err
 	}
+
+	if chassis != "" {
+		if err := s.binder.Bind(ctx, chassis, name); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("add port %s to %s (bound to %s)", name, sw.Name, chassis), nil
+	}
 	return fmt.Sprintf("add port %s to %s", name, sw.Name), nil
+}
+
+// pickBindChassis returns a random chassis to bind a new port onto, or "" when
+// port binding is disabled.
+func (s *Simulator) pickBindChassis() string {
+	if s.binder == nil || len(s.binder.Chassis) == 0 {
+		return ""
+	}
+	return s.binder.Chassis[s.rng.Intn(len(s.binder.Chassis))]
 }
 
 func (s *Simulator) removePort(ctx context.Context) (string, error) {
@@ -538,42 +585,44 @@ func (s *Simulator) migratePort(ctx context.Context) (string, error) {
 	return fmt.Sprintf("migrate %s from %s to %s", vif.Name, from, to), nil
 }
 
-func (s *Simulator) unbindPort(ctx context.Context) (string, error) {
-	vif, ok, err := s.randomVIFWhere(ctx, func(p nb.LogicalSwitchPort) bool {
-		return p.ExternalIDs[boundChassisKey] != ""
-	})
-	if err != nil || !ok {
-		return "skip unbind (no bound vifs)", err
-	}
-	chassis := vif.ExternalIDs[boundChassisKey]
-	if err := s.binder.Unbind(ctx, chassis, vif.Name); err != nil {
-		return "", err
-	}
-	if err := s.setBoundChassis(ctx, vif.UUID, ""); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("unbind %s from %s", vif.Name, chassis), nil
-}
-
 // setBoundChassis records (or clears, when chassis == "") the chassis a VIF is
 // bound to.
 func (s *Simulator) setBoundChassis(ctx context.Context, uuid, chassis string) error {
 	return recordBoundChassis(ctx, s.c, uuid, chassis)
 }
 
-// recordBoundChassis rewrites a VIF's external_ids to note (or clear, when
-// chassis == "") which chassis it is bound to, preserving the ownership markers.
+// recordBoundChassis rewrites a VIF's external_ids (selected by UUID) to note
+// (or clear, when chassis == "") which chassis it is bound to, preserving the
+// ownership markers.
 func recordBoundChassis(ctx context.Context, c client.Client, uuid, chassis string) error {
-	ids := ownedIDs("vif")
-	if chassis != "" {
-		ids[boundChassisKey] = chassis
-	}
-	lsp := &nb.LogicalSwitchPort{UUID: uuid, ExternalIDs: ids}
+	lsp := &nb.LogicalSwitchPort{UUID: uuid, ExternalIDs: boundIDs(chassis)}
 	ops, err := c.Where(lsp).Update(lsp, &lsp.ExternalIDs)
 	if err != nil {
 		return err
 	}
 	return transact(ctx, c, ops)
+}
+
+// recordBoundChassisByName is like recordBoundChassis but selects the VIF by its
+// (indexed) name — used right after creating a port, when its real UUID is not
+// yet known locally.
+func recordBoundChassisByName(ctx context.Context, c client.Client, name, chassis string) error {
+	lsp := &nb.LogicalSwitchPort{Name: name, ExternalIDs: boundIDs(chassis)}
+	ops, err := c.Where(lsp).Update(lsp, &lsp.ExternalIDs)
+	if err != nil {
+		return err
+	}
+	return transact(ctx, c, ops)
+}
+
+// boundIDs returns the external_ids for a VIF, including the bound-chassis marker
+// when chassis is non-empty.
+func boundIDs(chassis string) map[string]string {
+	ids := ownedIDs("vif")
+	if chassis != "" {
+		ids[boundChassisKey] = chassis
+	}
+	return ids
 }
 
 // --- helpers --------------------------------------------------------------

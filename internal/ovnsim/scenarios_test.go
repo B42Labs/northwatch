@@ -61,13 +61,17 @@ func TestChooseActionBinderGate(t *testing.T) {
 	assert.False(t, sawBind, "binder actions must not appear without a binder")
 
 	sawBind = false
+	sawUnbind := false
 	for i := 0; i < 500; i++ {
-		if a := chooseAction(rng, 6, 6, true); a == "bind" || a == "migrate" || a == "unbind" {
+		switch chooseAction(rng, 6, 6, true) {
+		case "bind", "migrate":
 			sawBind = true
-			break
+		case "unbind":
+			sawUnbind = true
 		}
 	}
 	assert.True(t, sawBind, "binder actions should appear with a binder")
+	assert.False(t, sawUnbind, "unbind is not a random action (would flood unbound-VIF alerts)")
 }
 
 // TestSimulatorStepsMutate runs many steps against a seeded database and checks
