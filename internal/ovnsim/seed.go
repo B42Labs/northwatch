@@ -251,11 +251,13 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 		res.add("Logical_Switch", 1)
 	}
 
+	// Default route via the external gateway network (reachable through the
+	// gateway port), so northd can resolve it.
 	routeUUID := t.namedUUID()
 	t.add(&nb.LogicalRouterStaticRoute{
 		UUID:        routeUUID,
 		IPPrefix:    "0.0.0.0/0",
-		Nexthop:     "10.255.255.254",
+		Nexthop:     "192.0.2.254",
 		ExternalIDs: ownedIDs("route"),
 	})
 	res.add("Logical_Router_Static_Route", 1)
@@ -270,6 +272,11 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 	})
 	res.add("Logical_Router_Policy", 1)
 
+	// NOTE: do NOT set options:chassis here. Its mere presence turns the router
+	// into a centralized L3 gateway router, which cannot host distributed gateway
+	// ports — northd then rejects the gateway port ("Bad configuration:
+	// distributed gateway port configured on ... L3 gateway router") and never
+	// creates the chassisredirect port the HA failover view needs.
 	t.add(&nb.LogicalRouter{
 		UUID:         t.namedUUID(),
 		Name:         routerName(r),
@@ -277,7 +284,6 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 		Nat:          nats,
 		StaticRoutes: []string{routeUUID},
 		Policies:     []string{policyUUID},
-		Options:      map[string]string{"chassis": ""},
 		ExternalIDs:  ownedIDs("router"),
 	})
 	res.add("Logical_Router", 1)
