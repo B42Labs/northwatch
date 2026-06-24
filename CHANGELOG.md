@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chassis so they bind in SB (clearing the "VIF not bound to any chassis"
   alerts), and `clean` removes everything it created. All objects are tagged so
   it only ever touches its own rows.
+- `ovnsim` now seeds `HA_Chassis_Group`s (even-numbered routers reference one,
+  odd-numbered routers use per-port `Gateway_Chassis`) and simulates gateway
+  failover at runtime by swapping HA group member priorities and adding/removing
+  members.
 - Configurable WebSocket Origin allowlist via `--ws-allowed-origins` /
   `NORTHWATCH_WS_ALLOWED_ORIGINS`. When unset, origin checking is disabled
   (single-tenant deployment default).

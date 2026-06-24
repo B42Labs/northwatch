@@ -112,6 +112,7 @@ func chooseAction(rng *rand.Rand, switches, target int, hasBinder bool) string {
 		{"nat.add", 2}, {"nat.remove", 2},
 		{"acl.toggle", 2},
 		{"lb.vip.add", 2}, {"lb.vip.remove", 1},
+		{"ha.failover", 3}, {"ha.member", 2},
 	}
 	switch {
 	case switches < target:
@@ -165,6 +166,10 @@ func (s *Simulator) run(ctx context.Context, action string) (string, error) {
 		return s.addLBVip(ctx)
 	case "lb.vip.remove":
 		return s.removeLBVip(ctx)
+	case "ha.failover":
+		return s.haFailover(ctx)
+	case "ha.member":
+		return s.haMemberChurn(ctx)
 	case "bind":
 		return s.bindPort(ctx)
 	case "migrate":

@@ -102,6 +102,15 @@ func Clean(ctx context.Context, c client.Client) (int, error) {
 			})
 		},
 		func() (int, error) {
+			u, err := ownedUUIDs(ctx, c, func(r *nb.HAChassisGroup) (map[string]string, string) { return r.ExternalIDs, r.UUID })
+			if err != nil {
+				return 0, err
+			}
+			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
+				return must(c.Where(&nb.HAChassisGroup{UUID: id}).Delete())
+			})
+		},
+		func() (int, error) {
 			// Load_Balancer_Group has no external_ids; match by name prefix.
 			var rows []nb.LoadBalancerGroup
 			if err := c.List(ctx, &rows); err != nil {
