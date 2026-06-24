@@ -1,5 +1,5 @@
 .PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
-	ovnsim lab-images lab-up lab-down lab lab-seed lab-sim lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
+	ovnsim lab-images lab-up lab-down lab lab-seed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
 	lab-compose-up lab-compose-down lab-compose
 
 OVN_VERSION := v24.09.0
@@ -84,6 +84,15 @@ lab-seed:
 # Runs in the foreground — Ctrl-C to stop.
 lab-sim:
 	go run ./cmd/ovnsim run --nb $(NB) --bind-ports --lab-name $(LAB_NAME)
+
+# Bind every seeded VIF onto a chassis (creates real OVS interfaces), so ports
+# bind in SB and the "VIF not bound to any chassis" health alerts clear.
+lab-bind:
+	go run ./cmd/ovnsim bind --nb $(NB) --lab-name $(LAB_NAME)
+
+# Reverse of lab-bind: remove the chassis binding from every seeded VIF.
+lab-unbind:
+	go run ./cmd/ovnsim unbind --nb $(NB) --lab-name $(LAB_NAME)
 
 # Remove everything ovnsim created (leaves the lab containers running).
 lab-clean:

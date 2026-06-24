@@ -44,6 +44,7 @@ enough:
 ```sh
 make lab-compose-up    # build images + start (1 central + 3 chassis), NB/SB on :6641/:6642
 make lab-seed          # seed the baseline topology (runs on the host)
+make lab-bind          # bind the seeded VIFs onto chassis (clears "unbound VIF" alerts)
 make build && ./bin/northwatch --ovn-nb-addr tcp:127.0.0.1:6641 --ovn-sb-addr tcp:127.0.0.1:6642
 make lab-sim           # continuous change (Ctrl-C to stop)
 make lab-compose-down  # tear down
@@ -91,7 +92,18 @@ Northbound over OVSDB using the project's generated NB models.
   object set stays lively but bounded. With `--bind-ports` it also creates real
   OVS interfaces on the chassis (`docker exec … ovs-vsctl`) and migrates them
   between chassis, so `Port_Binding.chassis` actually moves in the dashboard.
+- `ovnsim bind` / `ovnsim unbind` — bind every seeded VIF onto a chassis
+  round-robin (creating real OVS interfaces), or remove those bindings. Use
+  `bind` right after `seed` to make the baseline look like a fully-running
+  deployment — see the note on the "VIF not bound" alert below.
 - `ovnsim clean` — delete everything `ovnsim` created.
+
+> **"VIF port not bound to any chassis" health alerts after seeding are
+> expected.** `seed` only creates the *logical* NB ports; with no backing OVS
+> interface on any chassis, `ovn-controller` never binds them, so `Port_Binding`
+> has no chassis and Northwatch correctly flags them. Run `make lab-bind`
+> (or `ovnsim bind`) to bind them onto the chassis and clear the alerts, or
+> `make lab-sim` to bind/migrate a few continuously.
 
 Every object `ovnsim` creates is tagged (`external_ids:nw-sim="1"`) and named
 `nw-…`, and `run`/`clean` only ever touch those rows — so pointing it at a

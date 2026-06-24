@@ -551,18 +551,24 @@ func (s *Simulator) unbindPort(ctx context.Context) (string, error) {
 }
 
 // setBoundChassis records (or clears, when chassis == "") the chassis a VIF is
-// bound to by rewriting its external_ids, preserving the ownership markers.
+// bound to.
 func (s *Simulator) setBoundChassis(ctx context.Context, uuid, chassis string) error {
+	return recordBoundChassis(ctx, s.c, uuid, chassis)
+}
+
+// recordBoundChassis rewrites a VIF's external_ids to note (or clear, when
+// chassis == "") which chassis it is bound to, preserving the ownership markers.
+func recordBoundChassis(ctx context.Context, c client.Client, uuid, chassis string) error {
 	ids := ownedIDs("vif")
 	if chassis != "" {
 		ids[boundChassisKey] = chassis
 	}
 	lsp := &nb.LogicalSwitchPort{UUID: uuid, ExternalIDs: ids}
-	ops, err := s.c.Where(lsp).Update(lsp, &lsp.ExternalIDs)
+	ops, err := c.Where(lsp).Update(lsp, &lsp.ExternalIDs)
 	if err != nil {
 		return err
 	}
-	return transact(ctx, s.c, ops)
+	return transact(ctx, c, ops)
 }
 
 // --- helpers --------------------------------------------------------------

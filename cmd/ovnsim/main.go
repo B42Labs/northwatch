@@ -40,6 +40,10 @@ func main() {
 		err = cmdSeed(args)
 	case "run":
 		err = cmdRun(args)
+	case "bind":
+		err = cmdBind(args, false)
+	case "unbind":
+		err = cmdBind(args, true)
 	case "clean":
 		err = cmdClean(args)
 	case "-h", "--help", "help":
@@ -61,9 +65,11 @@ func usage() {
 	fmt.Fprint(os.Stderr, `ovnsim — OVN Northbound load generator for the Northwatch lab
 
 Usage:
-  ovnsim seed  [flags]   create an idempotent baseline topology
-  ovnsim run   [flags]   continuously create/delete switches, routers, ports, NAT, ACLs, LB VIPs
-  ovnsim clean [flags]   delete every object ovnsim created
+  ovnsim seed   [flags]   create an idempotent baseline topology
+  ovnsim run    [flags]   continuously create/delete switches, routers, ports, NAT, ACLs, LB VIPs
+  ovnsim bind   [flags]   bind every seeded VIF onto a chassis (clears "unbound VIF" alerts)
+  ovnsim unbind [flags]   remove the chassis binding from every seeded VIF
+  ovnsim clean  [flags]   delete every object ovnsim created
 
 Run "ovnsim <command> -h" for command-specific flags.
 `)
@@ -155,6 +161,29 @@ func cmdRun(args []string) error {
 			return err
 		}
 		return nil
+	})
+}
+
+func cmdBind(args []string, unbind bool) error {
+	name := "bind"
+	if unbind {
+		name = "unbind"
+	}
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	nb := fs.String("nb", envOr("NORTHWATCH_OVN_NB_ADDR", "tcp:127.0.0.1:6641"), "OVN Northbound OVSDB address")
+	labName := fs.String("lab-name", "nw-lab", "containerlab/compose lab name (used to address chassis containers)")
+	chassis := fs.String("chassis", "chassis-1,chassis-2,chassis-3", "comma-separated chassis names")
+
+	return withNB(fs, args, nb, func(ctx context.Context, c client.Client) error {
+		binder := ovnsim.NewBinder(*labName, splitCSV(*chassis))
+		if unbind {
+			n, err := ovnsim.UnbindAll(ctx, c, binder)
+			log.Printf("unbound %d VIFs", n)
+			return err
+		}
+		n, err := ovnsim.BindAll(ctx, c, binder)
+		log.Printf("bound %d VIFs across chassis %v", n, splitCSV(*chassis))
+		return err
 	})
 }
 
