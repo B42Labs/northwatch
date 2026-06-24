@@ -6,6 +6,9 @@ export interface NavLink {
   href: string;
   /** Match only on exact path (for parents whose children share the prefix). */
   exact?: boolean;
+  /** Hidden in snapshot mode — depends on live-change tracking that a static
+   * snapshot does not serve (e.g. flow diff). */
+  liveOnly?: boolean;
 }
 
 export interface NavSection {
@@ -16,6 +19,9 @@ export interface NavSection {
   links: NavLink[];
   /** Only shown when the backend has write operations enabled. */
   requiresWrite?: boolean;
+  /** Hidden in snapshot mode — the whole section depends on live data the
+   * snapshot does not serve (e.g. telemetry/propagation). */
+  liveOnly?: boolean;
 }
 
 export const navSections: NavSection[] = [
@@ -49,7 +55,7 @@ export const navSections: NavSection[] = [
     description: 'Packet tracing, diagnostics, and audit tools.',
     links: [
       { label: 'Packet Trace', href: '/debug/trace' },
-      { label: 'Flow Diff', href: '/debug/flow-diff' },
+      { label: 'Flow Diff', href: '/debug/flow-diff', liveOnly: true },
       { label: 'Connectivity', href: '/debug/connectivity' },
       { label: 'Port Diagnostics', href: '/debug/port-diagnostics' },
       { label: 'ACL Audit', href: '/debug/acl-audit' },
@@ -70,6 +76,7 @@ export const navSections: NavSection[] = [
     key: 'monitoring',
     label: 'Monitoring',
     description: 'Cluster health and RAFT consensus status.',
+    liveOnly: true,
     links: [
       { label: 'Raft Health', href: '/raft-health' },
       { label: 'Propagation Timeline', href: '/propagation-timeline' },

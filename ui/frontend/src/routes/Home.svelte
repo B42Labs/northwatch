@@ -1,12 +1,24 @@
 <script lang="ts">
   import { link } from '../lib/router';
-  import { capabilities, writeEnabled } from '../lib/capabilitiesStore';
+  import {
+    capabilities,
+    writeEnabled,
+    snapshotMode,
+  } from '../lib/capabilitiesStore';
   import { navSections } from '../lib/nav';
   import PageContainer from '../components/ui/PageContainer.svelte';
   import Badge from '../components/ui/Badge.svelte';
 
+  // Mirror the sidebar: hide write-only sections without write, and live-only
+  // sections/links in snapshot mode.
   let sections = $derived(
-    navSections.filter((s) => !s.requiresWrite || $writeEnabled),
+    navSections
+      .filter((s) => !s.requiresWrite || $writeEnabled)
+      .filter((s) => !s.liveOnly || !$snapshotMode)
+      .map((s) => ({
+        ...s,
+        links: s.links.filter((l) => !l.liveOnly || !$snapshotMode),
+      })),
   );
 </script>
 

@@ -1,18 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { SvelteSet } from 'svelte/reactivity';
   import {
     listSnapshots,
     createSnapshot,
     deleteSnapshot,
     diffSnapshots,
+    loadSnapshot,
+    unloadSnapshot,
     type SnapshotMeta,
     type DiffResult,
   } from '../lib/api';
+  import {
+    loadClusters,
+    activeCluster,
+    loadedSnapshots,
+    firstLiveClusterName,
+  } from '../lib/clusterStore';
+  import { push } from '../lib/router';
   import PageContainer from '../components/ui/PageContainer.svelte';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
+  import LoadingOverlay from '../components/ui/LoadingOverlay.svelte';
   import SnapshotTimeline from '../components/history/SnapshotTimeline.svelte';
   import SnapshotViewer from '../components/history/SnapshotViewer.svelte';
   import DiffView from '../components/history/DiffView.svelte';
@@ -29,6 +40,22 @@
 
   // Viewing a single snapshot
   let viewingSnapshot: SnapshotMeta | null = $state(null);
+
+  // Load/eject can take a while (the backend materializes the snapshot or
+  // reloads live tables). Track which snapshot is busy so we can show a blocking
+  // overlay and prevent repeated clicks.
+  let busyId: number | null = $state(null);
+  let busyLabel = $state('');
+
+  // IDs of snapshots currently loaded as data sources, derived from the cluster
+  // list so the timeline stays in sync as snapshots are loaded/unloaded.
+  let loadedIds = $derived(
+    new SvelteSet(
+      $loadedSnapshots
+        .map((c) => c.snapshot?.sourceId)
+        .filter((id): id is number => id !== undefined),
+    ),
+  );
 
   async function loadSnapshots() {
     loading = true;
@@ -86,6 +113,44 @@
     if (snap) {
       viewingSnapshot = snap;
       diff = null;
+    }
+  }
+
+  // Load a stored snapshot as a read-only data source and switch the whole UI to
+  // it. Navigating home remounts the views so they fetch the snapshot's state.
+  async function handleLoad(id: number) {
+    if (busyId !== null) return; // already loading/ejecting something
+    error = '';
+    busyId = id;
+    busyLabel = 'loading snapshot…';
+    try {
+      const res = await loadSnapshot(id);
+      await loadClusters();
+      activeCluster.set(res.cluster);
+      push('/');
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to load snapshot';
+    } finally {
+      busyId = null;
+    }
+  }
+
+  async function handleUnload(id: number) {
+    if (busyId !== null) return;
+    error = '';
+    busyId = id;
+    busyLabel = 'ejecting snapshot…';
+    const wasActive = get(activeCluster) === `snapshot-${id}`;
+    try {
+      // Unload first: the backend resumes the live OVN connection and reloads
+      // its tables. Only then switch the UI to live, so it shows fresh data.
+      await unloadSnapshot(id);
+      await loadClusters();
+      if (wasActive) activeCluster.set(firstLiveClusterName());
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to unload snapshot';
+    } finally {
+      busyId = null;
     }
   }
 
@@ -179,10 +244,16 @@
       <SnapshotTimeline
         {snapshots}
         {selectedIds}
+        {loadedIds}
+        {busyId}
         onToggle={handleToggle}
         onView={handleView}
+        onLoad={handleLoad}
+        onUnload={handleUnload}
         onDelete={handleDelete}
       />
     </DataState>
   {/if}
 </PageContainer>
+
+<LoadingOverlay show={busyId !== null} message={busyLabel} />

@@ -151,6 +151,53 @@
   box-shadow: 0 0 0 3px oklch(0.72 0.18 55 / 0.18);
 }
 
+/* ── Loading radar: a rotating sweep, on-theme for a monitoring console ─── */
+.nw-radar {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: 1px solid oklch(var(--p) / 0.4);
+  /* center blip */
+  background: radial-gradient(
+    circle at center,
+    oklch(var(--p) / 0.95) 0 1.5px,
+    transparent 2.5px
+  );
+  box-shadow:
+    0 0 14px oklch(var(--p) / 0.3),
+    inset 0 0 10px oklch(var(--p) / 0.12);
+}
+/* concentric inner ring */
+.nw-radar::before {
+  content: '';
+  position: absolute;
+  inset: 24%;
+  border-radius: 9999px;
+  border: 1px solid oklch(var(--p) / 0.22);
+}
+/* rotating sweep wedge with a fading trail; masked clear at the center */
+.nw-radar::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    oklch(var(--p) / 0) 0deg 210deg,
+    oklch(var(--p) / 0.4) 330deg,
+    oklch(var(--p) / 0.95) 360deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 0 16%, #000 18%);
+  mask: radial-gradient(circle, transparent 0 16%, #000 18%);
+  animation: nw-radar-sweep 1.3s linear infinite;
+}
+@keyframes nw-radar-sweep {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 /* Row that just changed over the websocket — amber phosphor flash. */
 .recently-changed {
   animation: nw-row-flash 2s ease-out;
@@ -174,5 +221,8 @@
   }
   .nw-scanlines {
     display: none;
+  }
+  .nw-radar::after {
+    animation: none;
   }
 }
