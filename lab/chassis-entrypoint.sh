@@ -26,11 +26,24 @@ BRIDGE_MAPPING="${BRIDGE_MAPPING:-physnet1:br-ex}"
 DATAPATH_TYPE="${DATAPATH_TYPE:-netdev}"
 
 start_ovs() {
-    log "starting Open vSwitch (${DATAPATH_TYPE} datapath)"
+    log "starting Open vSwitch (${DATAPATH_TYPE} datapath, no kernel module)"
     mkdir -p /var/run/openvswitch /var/log/openvswitch /etc/openvswitch
-    # ovs-ctl honours an existing conf.db and creates one otherwise, so re-runs
-    # on container restart are idempotent.
-    /usr/share/openvswitch/scripts/ovs-ctl --system-id="${CHASSIS_NAME}" start
+
+    # Start ovsdb-server only (ovs-ctl honours an existing conf.db and creates
+    # one otherwise, so re-runs are idempotent). We deliberately pass
+    # --no-ovs-vswitchd: ovs-ctl's vswitchd startup tries to insert the
+    # `openvswitch` kernel module, which does not exist in container kernels
+    # (e.g. Docker Desktop's LinuxKit) and makes `ovs-ctl start` fail. We only
+    # use the userspace (netdev) datapath, so no kernel module is needed.
+    /usr/share/openvswitch/scripts/ovs-ctl --system-id="${CHASSIS_NAME}" --no-ovs-vswitchd start
+    ovs-vsctl --no-wait init
+
+    # Start ovs-vswitchd ourselves, in userspace — it never touches the kernel
+    # module as long as every bridge uses datapath_type=netdev (see below).
+    log "starting ovs-vswitchd (userspace)"
+    ovs-vswitchd --pidfile --detach --log-file=/var/log/openvswitch/ovs-vswitchd.log \
+        unix:/var/run/openvswitch/db.sock
+
     for _ in $(seq 1 30); do
         if ovs-vsctl show >/dev/null 2>&1; then
             return 0
