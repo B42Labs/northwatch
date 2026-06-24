@@ -162,8 +162,8 @@ lab-install-tools:
 # Run Northwatch against the OSISM testbed control plane with OpenStack name
 # resolution. NB/SB are read from the three control-plane nodes (failover);
 # OpenStack credentials mirror clouds.yaml and the Keystone API is verified
-# against testbed.pem (the clouds.yaml `cacert`). Override any value on the
-# command line, e.g. `make testbed TESTBED_CP1=10.0.0.1 OS_PASSWORD=secret`,
+# against contrib/testbed.pem (the clouds.yaml `cacert`). Override any value on
+# the command line, e.g. `make testbed TESTBED_CP1=10.0.0.1 OS_PASSWORD=secret`,
 # or source an openrc beforehand (the OS_* defaults below honour the
 # environment via ?=).
 TESTBED_CP1 ?= 192.168.16.10
@@ -179,7 +179,7 @@ OS_PASSWORD         ?= password
 OS_PROJECT_NAME     ?= admin
 OS_USER_DOMAIN_NAME ?= default
 OS_REGION_NAME      ?= RegionOne
-OS_CACERT           ?= $(CURDIR)/testbed.pem
+OS_CACERT           ?= $(CURDIR)/contrib/testbed.pem
 
 testbed: build
 	@test -f "$(OS_CACERT)" || { echo "error: CA cert $(OS_CACERT) not found (clouds.yaml 'cacert')"; exit 1; }
