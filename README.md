@@ -127,6 +127,26 @@ Two knobs bound this load. Both apply to live server mode **and** snapshot captu
 
 For the lowest possible impact on the primary DB, also point Northwatch at an **OVSDB relay or a standby/follower** rather than the Raft leader (the comma-separated `--ovn-sb-addr` already supports multiple endpoints).
 
+## Local OVN lab
+
+For development and demos, [`lab/`](lab/) provides a self-contained OVN
+deployment via [containerlab](https://containerlab.dev) — one `central` node
+(`ovn-northd` + NB/SB) and three `chassis` nodes (OVS + `ovn-controller`) — plus
+`ovnsim`, a load generator that seeds a realistic topology and continuously
+mutates it so the dashboard, history, events and alerts have live data.
+
+```sh
+make lab-up      # build images + deploy (1 central + 3 chassis), NB/SB on :6641/:6642
+make lab-seed    # create a baseline topology across every major NB table
+make build && ./bin/northwatch --ovn-nb-addr tcp:127.0.0.1:6641 --ovn-sb-addr tcp:127.0.0.1:6642
+make lab-sim     # continuous create/delete of switches, routers, ports, NAT, ACLs, LB VIPs
+make lab-down    # tear down
+```
+
+Requires a Linux Docker host (on macOS run it inside a Linux VM such as
+Colima/OrbStack). See [`lab/README.md`](lab/README.md) for details, the
+`ovnsim` subcommands, and the optional second cluster (`make lab-multi-up`).
+
 ## Capabilities
 
 Northwatch uses a capability-based access model instead of exclusive operating modes. Capabilities can be combined freely and are selected at the UI/API level. There is no built-in user management or authentication -- access control should be handled at the network/reverse-proxy level.
