@@ -41,10 +41,10 @@ func TestSeedCreatesBaseline(t *testing.T) {
 	assert.Equal(t, 4, res.Created["Logical_Router_Port"])
 	assert.Equal(t, 4, res.Created["NAT"])
 	assert.Equal(t, 4, res.Created["DHCP_Options"])
-	// Redundancy split across routers: odd router (1) uses per-port
-	// Gateway_Chassis (2 ports), even router (2) uses one HA_Chassis_Group
-	// with one member per chassis.
-	assert.Equal(t, 2, res.Created["Gateway_Chassis"])
+	// Each router has exactly one distributed gateway port: odd router (1) uses a
+	// single Gateway_Chassis, even router (2) uses one HA_Chassis_Group with one
+	// member per chassis. The other router ports are plain patch ports.
+	assert.Equal(t, 1, res.Created["Gateway_Chassis"])
 	assert.Equal(t, 1, res.Created["HA_Chassis_Group"])
 	assert.Equal(t, 3, res.Created["HA_Chassis"])
 	assert.Equal(t, 6, res.Created["ACL"]) // 1 per switch + 2 in the port group
