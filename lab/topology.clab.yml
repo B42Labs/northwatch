@@ -1,0 +1,66 @@
+# Containerlab topology for the Northwatch local OVN lab.
+#
+#   central        — ovn-northd + NB/SB ovsdb-server (NB on 6641, SB on 6642)
+#   chassis-{1..3} — Open vSwitch (userspace datapath) + ovn-controller
+#
+# Unlike a production / agent E2E lab this topology exists purely to give
+# Northwatch something to *observe*: it needs rich NB/SB control-plane state
+# (Logical_Switch/Router, Chassis, Port_Binding, Logical_Flow, ...), not real
+# packet forwarding. We therefore:
+#
+#   * use the OVS userspace datapath (datapath_type=netdev) so the lab needs
+#     no host kernel modules and runs on any Linux Docker host,
+#   * skip FRR / BGP / VRF / upstream routers / reachability clients entirely,
+#   * publish NB (6641) and SB (6642) on the host so Northwatch, running on the
+#     host, can connect with `--ovn-nb-addr tcp:127.0.0.1:6641` /
+#     `--ovn-sb-addr tcp:127.0.0.1:6642`.
+#
+# Each chassis registers itself as a Chassis row in SB on startup; the
+# `ovnsim` load generator then fills NB with switches/routers/ports/etc. and
+# (optionally) binds ports onto these chassis. See lab/README.md.
+#
+# Bring it up with `make lab-up`; the image tags below match the Makefile.
+
+name: nw-lab
+
+mgmt:
+  network: nw-lab-mgmt
+  ipv4-subnet: 172.31.0.0/24
+
+topology:
+  defaults:
+    env:
+      # Every chassis points ovn-controller at the central SB over the
+      # containerlab management network, where `central` resolves by name.
+      OVN_SB_REMOTE: tcp:central:6642
+
+  nodes:
+    central:
+      kind: linux
+      image: northwatch/lab-central:latest
+      # Expose NB/SB to the host so host-side Northwatch can connect.
+      ports:
+        - 6641:6641/tcp
+        - 6642:6642/tcp
+
+    chassis-1:
+      kind: linux
+      image: northwatch/lab-chassis:latest
+      env:
+        CHASSIS_NAME: chassis-1
+
+    chassis-2:
+      kind: linux
+      image: northwatch/lab-chassis:latest
+      env:
+        CHASSIS_NAME: chassis-2
+
+    chassis-3:
+      kind: linux
+      image: northwatch/lab-chassis:latest
+      env:
+        CHASSIS_NAME: chassis-3
+
+  # No `links:` block: geneve tunnels between chassis ride the management
+  # network and never have to carry real traffic, so point-to-point underlay
+  # links are unnecessary for an observability lab.

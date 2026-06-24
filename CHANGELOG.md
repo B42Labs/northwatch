@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Local OVN lab under `lab/`: a containerlab topology (1 `central` running
+  ovn-northd + NB/SB, 3 `chassis` running OVS userspace datapath +
+  ovn-controller) plus `make lab-*` targets (`lab-up`, `lab-down`, `lab-seed`,
+  `lab-sim`, `lab-clean`, `lab-nbctl`/`lab-sbctl`, `lab-multi-up`) to spin up a
+  complete test environment for the dashboard.
+- `ovnsim` load generator (`cmd/ovnsim`, `internal/ovnsim`): `seed` creates an
+  idempotent baseline across every major NB table, `run` continuously mutates
+  the topology (create/delete switches, routers, ports, NAT, ACLs, LB VIPs;
+  optional real port binding/migration onto chassis via `--bind-ports`), and
+  `clean` removes everything it created. All objects are tagged so it only ever
+  touches its own rows.
 - Configurable WebSocket Origin allowlist via `--ws-allowed-origins` /
   `NORTHWATCH_WS_ALLOWED_ORIGINS`. When unset, origin checking is disabled
   (single-tenant deployment default).

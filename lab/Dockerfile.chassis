@@ -1,0 +1,39 @@
+# Chassis (hypervisor) image for the Northwatch local lab.
+#
+# A minimal OVN compute node: Open vSwitch + ovn-controller. No agent, no FRR,
+# no nftables — the lab only needs each chassis to register in SB and bind
+# logical ports so Northwatch has Chassis / Port_Binding / Encap state to show.
+#
+# Build (driven by `make lab-images`):
+#   docker build -f lab/Dockerfile.chassis -t northwatch/lab-chassis:latest lab
+
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:${UBUNTU_VERSION}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Same OVN source as the central image so the SB schema matches.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        software-properties-common \
+        ubuntu-cloud-keyring \
+ && add-apt-repository -y cloud-archive:flamingo \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+        openvswitch-switch \
+        ovn-host \
+        iproute2 \
+ && apt-get purge -y software-properties-common \
+ && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
+           /usr/share/doc /usr/share/man /usr/share/locale
+
+COPY chassis-entrypoint.sh /usr/local/bin/chassis-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/chassis-entrypoint.sh
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD ovs-vsctl show >/dev/null 2>&1 \
+        && pgrep -x ovn-controller >/dev/null
+
+ENTRYPOINT ["/usr/local/bin/chassis-entrypoint.sh"]

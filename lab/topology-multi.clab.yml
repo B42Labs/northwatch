@@ -1,0 +1,39 @@
+# Optional second OVN cluster for exercising Northwatch's multi-cluster view.
+#
+# Independent of the default `nw-lab` topology: its own management subnet, its
+# own central, and NB/SB published on different host ports (6643/6644) so both
+# clusters can run at once. Point Northwatch at both via a --config-file with
+# two clusters (see lab/README.md), or run it twice.
+#
+# Bring it up with `make lab-multi-up` (and `make lab-multi-down` to remove it).
+
+name: nw-lab2
+
+mgmt:
+  network: nw-lab2-mgmt
+  ipv4-subnet: 172.32.0.0/24
+
+topology:
+  defaults:
+    env:
+      OVN_SB_REMOTE: tcp:central2:6642
+
+  nodes:
+    central2:
+      kind: linux
+      image: northwatch/lab-central:latest
+      ports:
+        - 6643:6641/tcp
+        - 6644:6642/tcp
+
+    chassis-2a:
+      kind: linux
+      image: northwatch/lab-chassis:latest
+      env:
+        CHASSIS_NAME: chassis-2a
+
+    chassis-2b:
+      kind: linux
+      image: northwatch/lab-chassis:latest
+      env:
+        CHASSIS_NAME: chassis-2b
