@@ -583,6 +583,7 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 				OpenStackProjectName: cc.Enrichment.OpenStackProjectName,
 				OpenStackDomainName:  cc.Enrichment.OpenStackDomainName,
 				OpenStackRegionName:  cc.Enrichment.OpenStackRegionName,
+				OpenStackCACert:      cc.Enrichment.OpenStackCACert,
 			}
 			provider, err := enrich.NewOpenStackProvider(ctx, osCfg)
 			if err != nil {

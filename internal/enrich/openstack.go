@@ -2,7 +2,11 @@ package enrich
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net/http"
+	"os"
 
 	"github.com/b42labs/northwatch/internal/config"
 	"github.com/gophercloud/gophercloud/v2"
@@ -28,8 +32,24 @@ func NewOpenStackProvider(ctx context.Context, cfg *config.Config) (*OpenStackPr
 		TenantName:       cfg.OpenStackProjectName,
 	}
 
-	provider, err := openstack.AuthenticatedClient(ctx, opts)
+	provider, err := openstack.NewClient(opts.IdentityEndpoint)
 	if err != nil {
+		return nil, fmt.Errorf("creating OpenStack client: %w", err)
+	}
+
+	// Trust a custom CA bundle (e.g. a private testbed CA referenced as
+	// clouds.yaml `cacert`) when one is configured. This scopes the trust to the
+	// OpenStack API client rather than the whole process. AuthenticatedClient
+	// uses the default HTTP client, so we authenticate explicitly here instead.
+	if cfg.OpenStackCACert != "" {
+		httpClient, err := caCertHTTPClient(cfg.OpenStackCACert)
+		if err != nil {
+			return nil, err
+		}
+		provider.HTTPClient = *httpClient
+	}
+
+	if err := openstack.Authenticate(ctx, provider, opts); err != nil {
 		return nil, fmt.Errorf("authenticating with OpenStack: %w", err)
 	}
 
@@ -61,6 +81,33 @@ func NewOpenStackProvider(ctx context.Context, cfg *config.Config) (*OpenStackPr
 				return "", err
 			}
 			return proj.Name, nil
+		},
+	}, nil
+}
+
+// caCertHTTPClient builds an http.Client whose TLS root pool is the system
+// pool plus the PEM bundle at caCertPath. Used to verify OpenStack APIs fronted
+// by a private CA (e.g. an OSISM testbed's testbed.pem).
+func caCertHTTPClient(caCertPath string) (*http.Client, error) {
+	pem, err := os.ReadFile(caCertPath) // #nosec G304 -- operator-supplied CA cert path (flag/env), not attacker input
+	if err != nil {
+		return nil, fmt.Errorf("reading OpenStack CA cert %q: %w", caCertPath, err)
+	}
+
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("no PEM certificates found in OpenStack CA cert %q", caCertPath)
+	}
+
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    pool,
+				MinVersion: tls.VersionTLS12,
+			},
 		},
 	}, nil
 }
