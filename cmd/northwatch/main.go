@@ -33,6 +33,7 @@ import (
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/search"
 	"github.com/b42labs/northwatch/internal/snapshot"
+	"github.com/b42labs/northwatch/internal/snapshotsession"
 	"github.com/b42labs/northwatch/internal/telemetry"
 	"github.com/b42labs/northwatch/internal/write"
 	northwatchUI "github.com/b42labs/northwatch/ui"
@@ -231,13 +232,44 @@ func run() error {
 	wsOrigins := handler.ParseWSAllowedOrigins(cfg.WSAllowedOrigins)
 	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster, snapInfo)
 
-	// Multi-cluster: register cluster-prefixed routes
+	// The cluster proxy serves /api/v1/clusters/{name}/... for every cluster. It
+	// is always registered — even with a single live cluster — so a snapshot
+	// loaded at runtime becomes reachable as an additional cluster without a
+	// restart.
+	proxy := handler.RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
+		registerClusterRoutes(subMux, c, traceStore, wsOrigins)
+	})
 	if multiCluster {
-		handler.RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
-			registerClusterRoutes(subMux, c, traceStore, wsOrigins)
-		})
 		fmt.Printf("Multi-cluster mode enabled with %d clusters\n", reg.Len())
 	}
+
+	// Snapshot loading: a stored history snapshot can be loaded from the UI as a
+	// read-only snapshot cluster, served by its own in-memory OVSDB servers.
+	nbModel, err := nb.FullDatabaseModel()
+	if err != nil {
+		return fmt.Errorf("creating NB model: %w", err)
+	}
+	sbModel, err := sb.FullDatabaseModel()
+	if err != nil {
+		return fmt.Errorf("creating SB model: %w", err)
+	}
+	snapManager := snapshotsession.New(
+		historyStore, reg, nbModel, sbModel, nb.Schema(), sb.Schema(),
+		func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
+			bctx, bcancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer bcancel()
+			return buildSnapshotCluster(bctx, name, label, nbAddr, sbAddr)
+		},
+		func(c *cluster.Cluster) {
+			subMux := http.NewServeMux()
+			registerSnapshotClusterRoutes(subMux, c, traceStore)
+			proxy.Add(c.Name, subMux)
+		},
+		proxy.Remove,
+		def.DBs, // live OVN: suspended while a snapshot is loaded, resumed on eject
+	)
+	defer snapManager.Close()
+	handler.RegisterSnapshotLoad(mux, snapManager)
 
 	handler.RegisterAPICatchAll(mux)
 	handler.RegisterUI(mux, northwatchUI.DistFS)
@@ -334,6 +366,9 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 	mon := ovndb.MonitorOptions{
 		BatchDelay: cfg.MonitorBatchDelay,
 		SkipTables: cfg.MonitorSkipTables,
+		// Startup --snapshot mode connects to in-memory servers with no "_Server"
+		// database; skip the Raft monitors to avoid noisy connect warnings.
+		SkipServerMonitors: cfg.SnapshotFile != "",
 	}
 	dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel, mon)
 	if err != nil {
@@ -463,6 +498,63 @@ func registerClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore
 	handler.RegisterAlerts(subMux, c.AlertEngine)
 	handler.RegisterTelemetry(subMux, c.Telemetry, nil, c.PropagationStore)
 	handler.RegisterWS(subMux, c.EventHub, wsOrigins)
+	handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser, c.ACLAuditor, c.StaleDetector)
+	handler.RegisterTrace(subMux, c.DBs.SB, traceStore)
+	handler.RegisterExport(subMux, c.DBs.NB, c.DBs.SB, traceStore)
+}
+
+// buildSnapshotCluster connects read-only clients to the in-memory OVSDB servers
+// backing a loaded snapshot and assembles a cluster with only the browsing
+// subsystems. Live-tracking subsystems (alerts, flow diff, telemetry,
+// propagation) are intentionally omitted — a snapshot is a static point in time,
+// so there is nothing for them to track and they would only add background load.
+func buildSnapshotCluster(ctx context.Context, name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
+	nbModel, err := nb.FullDatabaseModel()
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating NB model: %w", err)
+	}
+	sbModel, err := sb.FullDatabaseModel()
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating SB model: %w", err)
+	}
+
+	// The servers are local in-memory copies: load everything in one request and
+	// skip the "_Server" Raft monitors (the snapshot exposes no "_Server" DB).
+	dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	if err != nil {
+		return nil, nil, fmt.Errorf("connecting to snapshot servers: %w", err)
+	}
+
+	c := &cluster.Cluster{
+		Name:                name,
+		Label:               label,
+		Mode:                "snapshot",
+		DBs:                 dbs,
+		Correlator:          &correlate.Correlator{NB: dbs.NB, SB: dbs.SB},
+		Enricher:            enrich.NewEnricher(nil, 0),
+		SearchEngine:        search.NewEngine(buildNBSearchTables(dbs), buildSBSearchTables(dbs)),
+		ConnectivityChecker: &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB},
+		PortDiagnoser:       &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB},
+		ACLAuditor:          &debug.ACLAuditor{NB: dbs.NB},
+		StaleDetector:       &debug.StaleDetector{NB: dbs.NB, SB: dbs.SB},
+	}
+	return c, nil, nil
+}
+
+// registerSnapshotClusterRoutes wires the read-only browsing routes for a loaded
+// snapshot cluster. Live-only routes (alerts, telemetry, flow diff, websocket)
+// are intentionally omitted, matching the subsystems buildSnapshotCluster builds.
+func registerSnapshotClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore *handler.TraceStore) {
+	handler.RegisterNB(subMux, c.DBs.NB)
+	handler.RegisterSB(subMux, c.DBs.SB)
+	handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
+	handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterNATTopology(subMux, c.DBs.NB)
+	handler.RegisterLBTopology(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterGatewayHealth(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterNextHopMAC(subMux, c.DBs.NB, c.DBs.SB)
+	handler.RegisterFlows(subMux, c.DBs.SB)
+	handler.RegisterSearch(subMux, c.SearchEngine)
 	handler.RegisterDebug(subMux, c.ConnectivityChecker, c.PortDiagnoser, c.ACLAuditor, c.StaleDetector)
 	handler.RegisterTrace(subMux, c.DBs.SB, traceStore)
 	handler.RegisterExport(subMux, c.DBs.NB, c.DBs.SB, traceStore)
