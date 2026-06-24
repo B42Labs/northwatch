@@ -3,8 +3,13 @@
     getTopology,
     type TopologyNode,
     type TopologyEdge,
+    type EventRecord,
   } from '../lib/api';
   import TopologyGraph from '../components/topology/TopologyGraph.svelte';
+  import TopologyEventStream, {
+    type StreamEvent,
+  } from '../components/topology/TopologyEventStream.svelte';
+  import EventDetailPanel from '../components/history/EventDetailPanel.svelte';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import { SvelteSet } from 'svelte/reactivity';
@@ -23,6 +28,26 @@
   let liveUpdates = $state(false);
   let refetchTimer: ReturnType<typeof setTimeout> | null = null;
   let topologySvgRef: SVGSVGElement | undefined = $state(undefined);
+
+  // Live event stream — captures the WebSocket changes that drive live
+  // updates so they can be shown as an add/change/delete feed over the graph.
+  const MAX_STREAM_EVENTS = 100;
+  let liveEvents: StreamEvent[] = $state([]);
+  let streamSeq = 0;
+  let selectedEvent: EventRecord | null = $state(null);
+
+  function showEventDetail(e: StreamEvent) {
+    selectedEvent = {
+      id: e.seq,
+      timestamp: new Date(e.ts).toISOString(),
+      type: e.type,
+      database: e.database,
+      table: e.table,
+      uuid: e.uuid,
+      row: e.row as Record<string, unknown> | undefined,
+      old_row: e.old_row as Record<string, unknown> | undefined,
+    };
+  }
 
   function handleExportSVG() {
     if (topologySvgRef) exportSVG(topologySvgRef, 'northwatch-topology.svg');
@@ -104,7 +129,10 @@
   });
 
   $effect(() => {
-    if (!liveUpdates) return;
+    if (!liveUpdates) {
+      liveEvents = [];
+      return;
+    }
     const unsubscribe = subscribeToTables(
       '*',
       [
@@ -115,7 +143,11 @@
         'Chassis',
         'Port_Binding',
       ],
-      () => {
+      (event) => {
+        liveEvents = [{ ...event, seq: ++streamSeq }, ...liveEvents].slice(
+          0,
+          MAX_STREAM_EVENTS,
+        );
         if (refetchTimer) clearTimeout(refetchTimer);
         refetchTimer = setTimeout(() => {
           if (!loading) load();
@@ -458,7 +490,7 @@
     emptyMessage="no topology data available"
   >
     <div
-      class="flex-1 overflow-hidden rounded border border-base-300 bg-base-100"
+      class="relative flex-1 overflow-hidden rounded border border-base-300 bg-base-100"
       style="min-height: 500px"
     >
       <TopologyGraph
@@ -468,6 +500,20 @@
         {relayoutKey}
         bind:svgRef={topologySvgRef}
       />
+      {#if liveUpdates}
+        <TopologyEventStream
+          events={liveEvents}
+          onSelect={showEventDetail}
+          onClear={() => (liveEvents = [])}
+        />
+      {/if}
     </div>
   </DataState>
 </div>
+
+{#if selectedEvent}
+  <EventDetailPanel
+    event={selectedEvent}
+    onClose={() => (selectedEvent = null)}
+  />
+{/if}
