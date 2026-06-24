@@ -26,6 +26,26 @@ func TestRegistry_RegisterAndGet(t *testing.T) {
 	assert.Equal(t, "Production", got.Label)
 }
 
+func TestRegistry_Unregister(t *testing.T) {
+	reg := NewRegistry()
+	def := &Cluster{Name: "default"}
+	reg.Register("default", def)
+	reg.Register("snapshot-1", &Cluster{Name: "snapshot-1", Mode: "snapshot"})
+	require.Equal(t, 2, reg.Len())
+
+	reg.Unregister("snapshot-1")
+	assert.Equal(t, 1, reg.Len())
+	_, ok := reg.Get("snapshot-1")
+	assert.False(t, ok)
+	// The default (first-registered) cluster stays the default.
+	assert.Same(t, def, reg.Default())
+	assert.Equal(t, []*Cluster{def}, reg.List())
+
+	// Unregistering an unknown name is a no-op.
+	reg.Unregister("does-not-exist")
+	assert.Equal(t, 1, reg.Len())
+}
+
 func TestRegistry_GetMissing(t *testing.T) {
 	reg := NewRegistry()
 	_, ok := reg.Get("nonexistent")
