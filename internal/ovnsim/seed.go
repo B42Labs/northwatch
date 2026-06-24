@@ -152,6 +152,14 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 		res.add("HA_Chassis_Group", 1)
 	}
 
+	// A router has exactly ONE distributed gateway port (the first port created),
+	// matching real OVN topologies. Only that port carries the redundancy config
+	// (HA group / gateway chassis), so ovn-northd realizes a single
+	// chassisredirect (cr-) port per router in SB — which is what the gateway / HA
+	// failover view is built from. The remaining tenant ports are plain patch
+	// ports. (Making every tenant port a distributed gateway port — the previous
+	// behaviour — is abnormal and kept the chassisredirect ports from appearing.)
+	gwAssigned := false
 	for s := 1; s <= opts.Switches; s++ {
 		if routerForSwitch(s, opts.Routers) != r {
 			continue
@@ -166,21 +174,25 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 			Networks:    []string{fmt.Sprintf("10.%d.0.1/24", o)},
 			ExternalIDs: ownedIDs("router-port"),
 		}
-		switch {
-		case useHA:
-			lrp.HaChassisGroup = ptr(haGroupUUID)
-		case len(opts.Chassis) > 0:
-			ch := opts.Chassis[(s-1)%len(opts.Chassis)]
-			gcUUID := t.namedUUID()
-			t.add(&nb.GatewayChassis{
-				UUID:        gcUUID,
-				Name:        fmt.Sprintf("%s-gc", lrp.Name),
-				ChassisName: ch,
-				Priority:    10 + (s%3)*10,
-				ExternalIDs: ownedIDs("gateway-chassis"),
-			})
-			lrp.GatewayChassis = []string{gcUUID}
-			res.add("Gateway_Chassis", 1)
+		if !gwAssigned {
+			switch {
+			case useHA:
+				lrp.HaChassisGroup = ptr(haGroupUUID)
+				gwAssigned = true
+			case len(opts.Chassis) > 0:
+				ch := opts.Chassis[0]
+				gcUUID := t.namedUUID()
+				t.add(&nb.GatewayChassis{
+					UUID:        gcUUID,
+					Name:        fmt.Sprintf("%s-gc", lrp.Name),
+					ChassisName: ch,
+					Priority:    30,
+					ExternalIDs: ownedIDs("gateway-chassis"),
+				})
+				lrp.GatewayChassis = []string{gcUUID}
+				res.add("Gateway_Chassis", 1)
+				gwAssigned = true
+			}
 		}
 		t.add(lrp)
 		ports = append(ports, lrpUUID)

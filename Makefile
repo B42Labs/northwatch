@@ -1,5 +1,5 @@
 .PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
-	ovnsim lab-images lab-up lab-down lab lab-seed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
+	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
 	lab-compose-up lab-compose-down lab-compose
 
 OVN_VERSION := v24.09.0
@@ -79,6 +79,11 @@ lab: lab-up lab-seed
 # Create the baseline OVN objects (the dashboard "Grundlast").
 lab-seed:
 	go run ./cmd/ovnsim seed --nb $(NB)
+
+# Force a clean baseline: remove all simulator objects, re-seed, bind VIFs.
+# Use this when re-seeding does not seem to apply new topology (seed is
+# idempotent by name, so it skips objects that already exist).
+lab-reseed: lab-clean lab-seed lab-bind
 
 # Continuously mutate the topology; --bind-ports also binds ports onto chassis.
 # Runs in the foreground — Ctrl-C to stop.
