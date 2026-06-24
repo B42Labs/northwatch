@@ -127,6 +127,26 @@ func InsertNBGlobal(t *testing.T, c client.Client, nbCfg, sbCfg, hvCfg int) {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+// InsertNBGlobalWithOptions inserts an NB_Global row carrying the given options
+// (e.g. mac_binding_age_threshold) with zero config generations.
+func InsertNBGlobalWithOptions(t *testing.T, c client.Client, options map[string]string) {
+	t.Helper()
+	if options == nil {
+		options = map[string]string{}
+	}
+	g := &nb.NBGlobal{ExternalIDs: map[string]string{}, Options: options}
+	ops, err := c.Create(g)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	uuid := reply[0].UUID.GoUUID
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &nb.NBGlobal{UUID: uuid}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 // InsertLogicalSwitch inserts a Logical_Switch row.
 func InsertLogicalSwitch(t *testing.T, c client.Client, name string) string {
 	t.Helper()
@@ -468,6 +488,135 @@ func InsertGatewayRouter(t *testing.T, c client.Client, routerName, lrpName stri
 		}
 		return false
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// StaticRouteSpec describes one Logical_Router_Static_Route for
+// InsertRouterWithStaticRoutes.
+type StaticRouteSpec struct {
+	IPPrefix   string
+	Nexthop    string
+	OutputPort *string
+}
+
+// InsertRouterWithStaticRoutes creates a Logical_Router with one
+// Logical_Router_Port and the given static routes in a single transaction. The
+// router port and static routes are non-root tables, so they must be created
+// together with their referencing root (the Logical_Router). Returns the
+// router UUID.
+func InsertRouterWithStaticRoutes(t *testing.T, c client.Client, routerName, lrpName string, networks []string, options map[string]string, routes []StaticRouteSpec) string {
+	t.Helper()
+	if len(networks) == 0 {
+		networks = []string{"0.0.0.0/0"}
+	}
+	if options == nil {
+		options = map[string]string{}
+	}
+
+	var allOps []ovsdb.Operation
+
+	lrpNamed := "lrp_" + lrpName
+	lrp := &nb.LogicalRouterPort{
+		UUID:          lrpNamed,
+		Name:          lrpName,
+		Networks:      networks,
+		MAC:           "00:00:00:00:00:01",
+		ExternalIDs:   map[string]string{},
+		Options:       map[string]string{},
+		Ipv6RaConfigs: map[string]string{},
+		Status:        map[string]string{},
+	}
+	ops, err := c.Create(lrp)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	routeNamed := make([]string, len(routes))
+	for i, rs := range routes {
+		routeNamed[i] = fmt.Sprintf("route_%s_%d", lrpName, i)
+		r := &nb.LogicalRouterStaticRoute{
+			UUID:        routeNamed[i],
+			IPPrefix:    rs.IPPrefix,
+			Nexthop:     rs.Nexthop,
+			OutputPort:  rs.OutputPort,
+			ExternalIDs: map[string]string{},
+			Options:     map[string]string{},
+		}
+		ops, err := c.Create(r)
+		require.NoError(t, err)
+		allOps = append(allOps, ops...)
+	}
+
+	lr := &nb.LogicalRouter{
+		Name:         routerName,
+		Ports:        []string{lrpNamed},
+		StaticRoutes: routeNamed,
+		Options:      options,
+		ExternalIDs:  map[string]string{},
+	}
+	ops, err = c.Create(lr)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	reply, err := c.Transact(context.Background(), allOps...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, allOps)
+	require.NoError(t, err)
+	routerUUID := reply[len(reply)-1].UUID.GoUUID
+
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &nb.LogicalRouter{UUID: routerUUID}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+	return routerUUID
+}
+
+// InsertMACBinding inserts a dynamic SB MAC_Binding row (an entry in a logical
+// router's ARP/ND cache). timestampMillis is the libovsdb timestamp column in
+// epoch milliseconds; pass 0 to leave it unset.
+func InsertMACBinding(t *testing.T, c client.Client, logicalPort, ip, mac string, timestampMillis int) string {
+	t.Helper()
+	dpUUID := InsertDatapathBinding(t, c)
+	m := &sb.MACBinding{
+		Datapath:    dpUUID,
+		LogicalPort: logicalPort,
+		IP:          ip,
+		MAC:         mac,
+		Timestamp:   timestampMillis,
+	}
+	ops, err := c.Create(m)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	uuid := reply[0].UUID.GoUUID
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &sb.MACBinding{UUID: uuid}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+	return uuid
+}
+
+// InsertStaticMACBinding inserts an SB Static_MAC_Binding row pinning a
+// next-hop MAC for a (logical_port, ip) pair.
+func InsertStaticMACBinding(t *testing.T, c client.Client, logicalPort, ip, mac string, override bool) string {
+	t.Helper()
+	dpUUID := InsertDatapathBinding(t, c)
+	s := &sb.StaticMACBinding{
+		Datapath:           dpUUID,
+		LogicalPort:        logicalPort,
+		IP:                 ip,
+		MAC:                mac,
+		OverrideDynamicMAC: override,
+	}
+	ops, err := c.Create(s)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	uuid := reply[0].UUID.GoUUID
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &sb.StaticMACBinding{UUID: uuid}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+	return uuid
 }
 
 // HAChassisEntry describes a single HA_Chassis member for InsertHAChassisGroup.

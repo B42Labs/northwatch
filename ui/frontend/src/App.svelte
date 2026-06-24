@@ -31,6 +31,7 @@
   import AuditLog from './routes/AuditLog.svelte';
   import AclAudit from './routes/AclAudit.svelte';
   import StaleEntries from './routes/StaleEntries.svelte';
+  import NextHopMac from './routes/NextHopMac.svelte';
   import LoadBalancers from './routes/LoadBalancers.svelte';
   import RaftHealth from './routes/RaftHealth.svelte';
   import PropagationTimeline from './routes/PropagationTimeline.svelte';
@@ -102,6 +103,8 @@
     <AclAudit />
   {:else if route.component === 'stale-entries'}
     <StaleEntries />
+  {:else if route.component === 'nexthop-mac'}
+    <NextHopMac />
   {:else if route.component === 'load-balancers'}
     <LoadBalancers />
   {:else if route.component === 'raft-health'}

@@ -54,6 +54,7 @@ export const navSections: NavSection[] = [
       { label: 'Port Diagnostics', href: '/debug/port-diagnostics' },
       { label: 'ACL Audit', href: '/debug/acl-audit' },
       { label: 'Stale Entries', href: '/debug/stale-entries' },
+      { label: 'Next-Hop MAC', href: '/debug/nexthop-mac' },
     ],
   },
   {
