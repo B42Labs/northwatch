@@ -35,10 +35,10 @@ func TestSeedCreatesBaseline(t *testing.T) {
 	require.NoError(t, err)
 
 	// Result counts reflect what was created.
-	assert.Equal(t, 4, res.Created["Logical_Switch"])
-	assert.Equal(t, 2, res.Created["Logical_Router"])
-	assert.Equal(t, 16, res.Created["Logical_Switch_Port"]) // (3 vif + 1 uplink) * 4
-	assert.Equal(t, 4, res.Created["Logical_Router_Port"])
+	assert.Equal(t, 6, res.Created["Logical_Switch"])           // 4 tenant + 2 external (one per router)
+	assert.Equal(t, 2, res.Created["Logical_Router"])           //
+	assert.Equal(t, 20, res.Created["Logical_Switch_Port"])     // (3 vif + 1 uplink)*4 tenant + (localnet + uplink)*2 external
+	assert.Equal(t, 6, res.Created["Logical_Router_Port"])      // 4 tenant + 2 gateway ports
 	assert.Equal(t, 4, res.Created["NAT"])
 	assert.Equal(t, 4, res.Created["DHCP_Options"])
 	// Each router has exactly one distributed gateway port: odd router (1) uses a
@@ -56,9 +56,9 @@ func TestSeedCreatesBaseline(t *testing.T) {
 	// The rows actually landed in the database. (Counts are checked via
 	// eventuallyCount because the libovsdb cache reflects each transaction
 	// slightly after it commits.)
-	eventuallyCount[nb.LogicalSwitch](t, c, 4)
+	eventuallyCount[nb.LogicalSwitch](t, c, 6)
 	eventuallyCount[nb.LogicalRouter](t, c, 2)
-	eventuallyCount[nb.LogicalSwitchPort](t, c, 16)
+	eventuallyCount[nb.LogicalSwitchPort](t, c, 20)
 	eventuallyCount[nb.LoadBalancer](t, c, 2)
 
 	// Non-root children survived garbage collection because a root references them.

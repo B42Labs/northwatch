@@ -41,20 +41,20 @@ func TestSeedCreatesHAGroupOnEvenRouter(t *testing.T) {
 	assert.Equal(t, haGroupName(2), groups[0].Name)
 	assert.Len(t, groups[0].HaChassis, 3)
 
-	// The even router's port references the HA group; the odd router's port uses
-	// a per-port Gateway_Chassis instead.
+	// The even router's distributed gateway port references the HA group; the odd
+	// router's gateway port uses a Gateway_Chassis instead.
 	var lrps []nb.LogicalRouterPort
 	require.NoError(t, c.List(context.Background(), &lrps))
 	byName := map[string]nb.LogicalRouterPort{}
 	for _, p := range lrps {
 		byName[p.Name] = p
 	}
-	even := byName[lrpName(2, 2)]
+	even := byName[gwLrpName(2)]
 	require.NotNil(t, even.HaChassisGroup)
 	assert.Equal(t, groups[0].UUID, *even.HaChassisGroup)
 	assert.Empty(t, even.GatewayChassis)
 
-	odd := byName[lrpName(1, 1)]
+	odd := byName[gwLrpName(1)]
 	assert.Nil(t, odd.HaChassisGroup)
 	assert.NotEmpty(t, odd.GatewayChassis)
 }
