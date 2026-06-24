@@ -2,8 +2,20 @@ package enrich
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,4 +158,59 @@ func TestOpenStackProvider_EnrichNAT(t *testing.T) {
 func TestOpenStackProvider_Name(t *testing.T) {
 	p := &OpenStackProvider{}
 	assert.Equal(t, "openstack", p.Name())
+}
+
+func TestCACertHTTPClient(t *testing.T) {
+	t.Run("missing file", func(t *testing.T) {
+		_, err := caCertHTTPClient(filepath.Join(t.TempDir(), "nope.pem"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "reading OpenStack CA cert")
+	})
+
+	t.Run("non-PEM content", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "garbage.pem")
+		require.NoError(t, os.WriteFile(path, []byte("not a certificate"), 0o600))
+
+		_, err := caCertHTTPClient(path)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no PEM certificates")
+	})
+
+	t.Run("valid CA cert", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "ca.pem")
+		require.NoError(t, os.WriteFile(path, generateTestCAPEM(t), 0o600))
+
+		client, err := caCertHTTPClient(path)
+		require.NoError(t, err)
+		require.NotNil(t, client)
+
+		tr, ok := client.Transport.(*http.Transport)
+		require.True(t, ok, "transport should be *http.Transport")
+		require.NotNil(t, tr.TLSClientConfig)
+		require.NotNil(t, tr.TLSClientConfig.RootCAs, "custom CA pool should be set")
+		assert.Equal(t, uint16(tls.VersionTLS12), tr.TLSClientConfig.MinVersion)
+	})
+}
+
+// generateTestCAPEM returns a self-signed CA certificate in PEM form. Times are
+// fixed (no time.Now) so the test is deterministic.
+func generateTestCAPEM(t *testing.T) []byte {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "northwatch-test-ca"},
+		NotBefore:             time.Unix(0, 0),
+		NotAfter:              time.Unix(1<<31-1, 0),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 }

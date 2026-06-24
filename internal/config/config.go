@@ -29,11 +29,12 @@ type ClusterConfig struct {
 type EnrichmentConfig struct {
 	Type                 string `json:"type"` // "openstack" or "kubernetes"
 	OpenStackAuthURL     string `json:"os_auth_url,omitempty"`
-	OpenStackUsername     string `json:"os_username,omitempty"`
+	OpenStackUsername    string `json:"os_username,omitempty"`
 	OpenStackPassword    string `json:"os_password,omitempty"`
 	OpenStackProjectName string `json:"os_project_name,omitempty"`
 	OpenStackDomainName  string `json:"os_domain_name,omitempty"`
 	OpenStackRegionName  string `json:"os_region_name,omitempty"`
+	OpenStackCACert      string `json:"os_cacert,omitempty"`
 	Kubeconfig           string `json:"kubeconfig,omitempty"`
 	KubeContext          string `json:"kube_context,omitempty"`
 }
@@ -62,11 +63,12 @@ type Config struct {
 
 	// OpenStack enrichment (all optional)
 	OpenStackAuthURL     string
-	OpenStackUsername     string
+	OpenStackUsername    string
 	OpenStackPassword    string
 	OpenStackProjectName string
 	OpenStackDomainName  string
 	OpenStackRegionName  string
+	OpenStackCACert      string // PEM CA bundle for verifying the OpenStack API (clouds.yaml `cacert`)
 	EnrichmentCacheTTL   time.Duration
 
 	// Kubernetes enrichment (all optional)
@@ -121,6 +123,7 @@ func Parse(args []string) (*Config, error) {
 	fs.StringVar(&cfg.OpenStackProjectName, "os-project-name", os.Getenv("OS_PROJECT_NAME"), "OpenStack project name")
 	fs.StringVar(&cfg.OpenStackDomainName, "os-domain-name", os.Getenv("OS_USER_DOMAIN_NAME"), "OpenStack user domain name")
 	fs.StringVar(&cfg.OpenStackRegionName, "os-region-name", os.Getenv("OS_REGION_NAME"), "OpenStack region name")
+	fs.StringVar(&cfg.OpenStackCACert, "os-cacert", os.Getenv("OS_CACERT"), "Path to a PEM CA bundle for verifying the OpenStack API (maps to clouds.yaml `cacert`)")
 
 	// Kubernetes enrichment flags
 	fs.BoolVar(&cfg.KubeEnrichment, "kube-enrichment", envOrDefaultBool("NORTHWATCH_KUBE_ENRICHMENT", false), "Enable Kubernetes enrichment")
@@ -183,11 +186,12 @@ func Parse(args []string) (*Config, error) {
 			cc.Enrichment = &EnrichmentConfig{
 				Type:                 "openstack",
 				OpenStackAuthURL:     cfg.OpenStackAuthURL,
-				OpenStackUsername:     cfg.OpenStackUsername,
+				OpenStackUsername:    cfg.OpenStackUsername,
 				OpenStackPassword:    cfg.OpenStackPassword,
 				OpenStackProjectName: cfg.OpenStackProjectName,
 				OpenStackDomainName:  cfg.OpenStackDomainName,
 				OpenStackRegionName:  cfg.OpenStackRegionName,
+				OpenStackCACert:      cfg.OpenStackCACert,
 			}
 		} else if cfg.KubeEnrichment {
 			cc.Enrichment = &EnrichmentConfig{

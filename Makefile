@@ -1,6 +1,6 @@
 .PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
 	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
-	lab-compose-up lab-compose-build lab-compose-down lab-compose
+	lab-compose-up lab-compose-build lab-compose-down lab-compose testbed
 
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
@@ -157,6 +157,45 @@ lab-install-tools:
 	@echo "  bash -c \"$$(curl -sL https://get.containerlab.dev)\""
 	@echo "On macOS: run the lab in a Linux VM (e.g. 'colima start' / OrbStack) — containerlab needs Linux."
 	bash -c "$$(curl -sL https://get.containerlab.dev)"
+
+# --- OSISM testbed ----------------------------------------------------------
+# Run Northwatch against the OSISM testbed control plane with OpenStack name
+# resolution. NB/SB are read from the three control-plane nodes (failover);
+# OpenStack credentials mirror clouds.yaml and the Keystone API is verified
+# against testbed.pem (the clouds.yaml `cacert`). Override any value on the
+# command line, e.g. `make testbed TESTBED_CP1=10.0.0.1 OS_PASSWORD=secret`,
+# or source an openrc beforehand (the OS_* defaults below honour the
+# environment via ?=).
+TESTBED_CP1 ?= 192.168.16.10
+TESTBED_CP2 ?= 192.168.16.11
+TESTBED_CP3 ?= 192.168.16.12
+TESTBED_NB  ?= tcp:$(TESTBED_CP1):6641,tcp:$(TESTBED_CP2):6641,tcp:$(TESTBED_CP3):6641
+TESTBED_SB  ?= tcp:$(TESTBED_CP1):6642,tcp:$(TESTBED_CP2):6642,tcp:$(TESTBED_CP3):6642
+
+# OpenStack credentials — values from clouds.yaml (cloud "admin").
+OS_AUTH_URL         ?= https://api.testbed.osism.xyz:5000/v3
+OS_USERNAME         ?= admin
+OS_PASSWORD         ?= password
+OS_PROJECT_NAME     ?= admin
+OS_USER_DOMAIN_NAME ?= default
+OS_REGION_NAME      ?= RegionOne
+OS_CACERT           ?= $(CURDIR)/testbed.pem
+
+testbed: build
+	@test -f "$(OS_CACERT)" || { echo "error: CA cert $(OS_CACERT) not found (clouds.yaml 'cacert')"; exit 1; }
+	@echo "Starting Northwatch against the OSISM testbed control plane:"
+	@echo "  NB: $(TESTBED_NB)"
+	@echo "  SB: $(TESTBED_SB)"
+	@echo "  OpenStack: $(OS_AUTH_URL) (cacert $(OS_CACERT))"
+	@echo "  Dashboard: http://localhost:8080"
+	OS_AUTH_URL="$(OS_AUTH_URL)" \
+	OS_USERNAME="$(OS_USERNAME)" \
+	OS_PASSWORD="$(OS_PASSWORD)" \
+	OS_PROJECT_NAME="$(OS_PROJECT_NAME)" \
+	OS_USER_DOMAIN_NAME="$(OS_USER_DOMAIN_NAME)" \
+	OS_REGION_NAME="$(OS_REGION_NAME)" \
+	OS_CACERT="$(OS_CACERT)" \
+	./bin/northwatch --ovn-nb-addr "$(TESTBED_NB)" --ovn-sb-addr "$(TESTBED_SB)"
 
 clean:
 	rm -rf bin/ ui/frontend/dist/ ui/frontend/node_modules/

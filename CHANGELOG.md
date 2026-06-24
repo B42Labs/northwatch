@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- OpenStack enrichment can now verify the Keystone/Nova API against a private CA
+  via `--os-cacert` / `OS_CACERT` (maps to the clouds.yaml `cacert` field). The
+  CA is scoped to the OpenStack HTTP client, leaving the rest of the process on
+  the system trust store.
+- `make testbed`: runs Northwatch against the OSISM testbed control plane
+  (`192.168.16.10/11/12`, NB/SB failover across all three) with OpenStack name
+  resolution. Credentials mirror `clouds.yaml` and the API is verified against
+  `testbed.pem`. Connection details and credentials are overridable
+  (`TESTBED_CP*`, `TESTBED_NB`/`TESTBED_SB`, `OS_*`).
 - Local OVN lab under `lab/`: a containerlab topology (1 `central` running
   ovn-northd + NB/SB, 3 `chassis` running OVS userspace datapath +
   ovn-controller) plus `make lab-*` targets (`lab-up`, `lab-down`, `lab-seed`,
