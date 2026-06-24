@@ -1,0 +1,40 @@
+# Opt-in override: run the chassis on the OVS *kernel* datapath instead of the
+# default userspace (netdev) one.
+#
+# WHY: multi-member HA_Chassis_Group gateways elect their active chassis over
+# BFD between chassis. BFD only converges when the geneve tunnels carry real
+# traffic, which the userspace datapath cannot do portably (OVS can't tx/rx on
+# the management interface unless it's an OVS port, and forcing that destabilises
+# ovn-controller). The kernel datapath uses the kernel's udp-tunnel hooks, so BFD
+# converges and the HA gateways actually bind (the "no-owner" state clears).
+#
+# REQUIRES: a Linux Docker host whose kernel has the `openvswitch` module.
+# Docker Desktop's LinuxKit kernel does NOT ship it, so this override only works
+# on a real Linux host or a full Linux VM (e.g. Ubuntu via Multipass/Lima).
+#
+# USAGE:
+#   docker compose -f lab/docker-compose.yml -f lab/docker-compose.kernel.yml up -d
+#   # or, via the Makefile:
+#   make lab-compose-up KERNEL=1
+#
+# The /lib/modules bind lets `modprobe openvswitch` find the host's module; the
+# chassis already run privileged (in the base compose file).
+
+services:
+  chassis-1:
+    environment:
+      DATAPATH_TYPE: system
+    volumes:
+      - /lib/modules:/lib/modules:ro
+
+  chassis-2:
+    environment:
+      DATAPATH_TYPE: system
+    volumes:
+      - /lib/modules:/lib/modules:ro
+
+  chassis-3:
+    environment:
+      DATAPATH_TYPE: system
+    volumes:
+      - /lib/modules:/lib/modules:ro

@@ -121,7 +121,26 @@ Northbound over OVSDB using the project's generated NB models.
 > catching a stuck failover. The single-candidate gateways (`Gateway_Chassis`,
 > odd routers) bind fine. The failover *simulation* still works regardless: the
 > `ha.failover` action swaps member priorities and the gateway view's "desired"
-> chassis moves accordingly.
+> chassis moves accordingly. To make the multi-member HA gateway actually bind,
+> run on the kernel datapath — see below.
+
+### Real HA failover: kernel datapath (opt-in)
+
+The multi-member HA gateway only binds for real when BFD between the chassis
+converges, which needs the OVS **kernel datapath** (the userspace datapath can't
+carry the tunnel/BFD traffic portably). Enable it with the compose override:
+
+```sh
+make lab-compose-up KERNEL=1
+# or: docker compose -f lab/docker-compose.yml -f lab/docker-compose.kernel.yml up -d
+```
+
+This sets `DATAPATH_TYPE=system` on the chassis and bind-mounts `/lib/modules`
+so they can `modprobe openvswitch`. **It requires a Linux Docker host whose
+kernel has the `openvswitch` module** — Docker Desktop's LinuxKit kernel does
+**not** ship it (the chassis exit with a clear error there). Use a real Linux
+host or a full Linux VM (e.g. Ubuntu via Multipass/Lima). With the kernel
+datapath, BFD converges, the HA gateways bind, and the `no-owner` alert clears.
 
 Every object `ovnsim` creates is tagged (`external_ids:nw-sim="1"`) and named
 `nw-…`, and `run`/`clean` only ever touch those rows — so pointing it at a

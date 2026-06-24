@@ -26,23 +26,37 @@ BRIDGE_MAPPING="${BRIDGE_MAPPING:-physnet1:br-ex}"
 DATAPATH_TYPE="${DATAPATH_TYPE:-netdev}"
 
 start_ovs() {
-    log "starting Open vSwitch (${DATAPATH_TYPE} datapath, no kernel module)"
     mkdir -p /var/run/openvswitch /var/log/openvswitch /etc/openvswitch
 
-    # Start ovsdb-server only (ovs-ctl honours an existing conf.db and creates
-    # one otherwise, so re-runs are idempotent). We deliberately pass
-    # --no-ovs-vswitchd: ovs-ctl's vswitchd startup tries to insert the
-    # `openvswitch` kernel module, which does not exist in container kernels
-    # (e.g. Docker Desktop's LinuxKit) and makes `ovs-ctl start` fail. We only
-    # use the userspace (netdev) datapath, so no kernel module is needed.
-    /usr/share/openvswitch/scripts/ovs-ctl --system-id="${CHASSIS_NAME}" --no-ovs-vswitchd start
-    ovs-vsctl --no-wait init
-
-    # Start ovs-vswitchd ourselves, in userspace — it never touches the kernel
-    # module as long as every bridge uses datapath_type=netdev (see below).
-    log "starting ovs-vswitchd (userspace)"
-    ovs-vswitchd --pidfile --detach --log-file=/var/log/openvswitch/ovs-vswitchd.log \
-        unix:/var/run/openvswitch/db.sock
+    if [ "${DATAPATH_TYPE}" = "system" ]; then
+        # Opt-in kernel datapath. Needs the `openvswitch` kernel module, which is
+        # NOT in container-optimised kernels like Docker Desktop's LinuxKit — only
+        # in a full Linux host kernel (with /lib/modules bind-mounted in). With the
+        # kernel datapath, geneve tunnels carry real traffic, BFD between chassis
+        # converges, and multi-member HA_Chassis_Group gateways actually bind.
+        log "starting Open vSwitch (system/kernel datapath)"
+        if ! modprobe openvswitch 2>/dev/null; then
+            echo "ERROR: 'openvswitch' kernel module not available." >&2
+            echo "  The system datapath needs a Linux host whose kernel has the module" >&2
+            echo "  and /lib/modules bind-mounted in. Docker Desktop's LinuxKit kernel" >&2
+            echo "  does not ship it — use the default userspace datapath there." >&2
+            exit 1
+        fi
+        # The standard ovs-ctl start loads the module and launches ovsdb-server +
+        # ovs-vswitchd with the kernel datapath.
+        /usr/share/openvswitch/scripts/ovs-ctl --system-id="${CHASSIS_NAME}" start
+    else
+        # Default userspace (netdev) datapath. We pass --no-ovs-vswitchd because
+        # ovs-ctl's vswitchd startup tries to insert the `openvswitch` kernel
+        # module (absent in container kernels), which makes `ovs-ctl start` fail.
+        # We then start ovs-vswitchd ourselves; it never touches the kernel module
+        # as long as every bridge uses datapath_type=netdev.
+        log "starting Open vSwitch (netdev/userspace datapath, no kernel module)"
+        /usr/share/openvswitch/scripts/ovs-ctl --system-id="${CHASSIS_NAME}" --no-ovs-vswitchd start
+        ovs-vsctl --no-wait init
+        ovs-vswitchd --pidfile --detach --log-file=/var/log/openvswitch/ovs-vswitchd.log \
+            unix:/var/run/openvswitch/db.sock
+    fi
 
     for _ in $(seq 1 30); do
         if ovs-vsctl show >/dev/null 2>&1; then
@@ -64,10 +78,9 @@ configure_ovs() {
         external_ids:hostname="${CHASSIS_NAME}" \
         external_ids:ovn-bridge-mappings="${BRIDGE_MAPPING}"
 
-    # Pre-create the integration bridge with the userspace datapath BEFORE
-    # ovn-controller starts; it will adopt the existing bridge instead of
-    # creating a kernel-datapath one. br-ex backs the physnet1 bridge mapping so
-    # localnet ports show up.
+    # Pre-create the integration bridge with the chosen datapath BEFORE
+    # ovn-controller starts; it will adopt the existing bridge. br-ex backs the
+    # physnet1 bridge mapping so localnet ports show up.
     log "ensuring br-int and br-ex with datapath_type=${DATAPATH_TYPE}"
     ovs-vsctl --may-exist add-br br-int -- set bridge br-int datapath_type="${DATAPATH_TYPE}"
     ovs-vsctl --may-exist add-br br-ex  -- set bridge br-ex  datapath_type="${DATAPATH_TYPE}"
