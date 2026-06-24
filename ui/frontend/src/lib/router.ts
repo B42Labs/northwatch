@@ -91,6 +91,8 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { component: 'acl-audit', ...m };
   if ((m = matchRoute('/debug/stale-entries', path)))
     return { component: 'stale-entries', ...m };
+  if ((m = matchRoute('/debug/nexthop-mac', path)))
+    return { component: 'nexthop-mac', ...m };
 
   // History & Events
   if ((m = matchRoute('/history', path))) return { component: 'history', ...m };
