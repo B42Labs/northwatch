@@ -246,11 +246,11 @@ func (d *PortDiagnoser) checkChassisHealth(ctx context.Context, lsp nb.LogicalSw
 }
 
 func (d *PortDiagnoser) checkTypeConsistency(lsp nb.LogicalSwitchPort, pb *sb.PortBinding) DiagnosticCheck {
-	if lsp.Type == pb.Type {
+	if typesConsistent(lsp.Type, pb.Type) {
 		return DiagnosticCheck{
 			Name:    "type_consistency",
 			Status:  SeverityHealthy,
-			Message: fmt.Sprintf("LSP and PortBinding types match (%q)", lsp.Type),
+			Message: fmt.Sprintf("LSP type %q is consistent with PortBinding type %q", lsp.Type, pb.Type),
 		}
 	}
 	return DiagnosticCheck{
@@ -258,6 +258,26 @@ func (d *PortDiagnoser) checkTypeConsistency(lsp nb.LogicalSwitchPort, pb *sb.Po
 		Status:  SeverityWarning,
 		Message: fmt.Sprintf("LSP type %q != PortBinding type %q", lsp.Type, pb.Type),
 	}
+}
+
+// typesConsistent reports whether an NB Logical_Switch_Port type is consistent
+// with its SB Port_Binding type. Most types map 1:1 (VIF "" → "", localnet →
+// localnet, ...), but a "router" LSP never binds as type "router": ovn-northd
+// realizes it as a "patch" port, or as "l3gateway"/"chassisredirect" when its
+// peer Logical_Router_Port is a distributed gateway port (has a gateway chassis
+// or HA chassis group). A plain string comparison would therefore flag every
+// router port in every deployment as inconsistent.
+func typesConsistent(lspType, pbType string) bool {
+	if lspType == pbType {
+		return true
+	}
+	if lspType == "router" {
+		switch pbType {
+		case "patch", "l3gateway", "chassisredirect":
+			return true
+		}
+	}
+	return false
 }
 
 func (d *PortDiagnoser) checkAddresses(lsp nb.LogicalSwitchPort) DiagnosticCheck {
