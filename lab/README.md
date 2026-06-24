@@ -83,15 +83,19 @@ Northbound over OVSDB using the project's generated NB models.
 
 - `ovnsim seed` — create an idempotent baseline that touches every major NB
   table: tenant switches with VIF ports + DHCP, routers wired to those switches
-  with NAT / static routes / policies, a security port group with ACLs + address
-  sets, load balancers, meters, DNS, etc. `ovn-northd` then computes the
-  Southbound state (Logical_Flow, Datapath_Binding, …) automatically.
+  with NAT / static routes / policies, gateway-port redundancy via both
+  `Gateway_Chassis` (odd routers) and `HA_Chassis_Group` (even routers), a
+  security port group with ACLs + address sets, load balancers, meters, DNS,
+  etc. `ovn-northd` then computes the Southbound state (Logical_Flow,
+  Datapath_Binding, …) automatically.
 - `ovnsim run` — once per `--interval`, perform one weighted-random change:
   create/delete switches and routers, add/remove ports, flip NAT/ACL/LB rules,
-  toggle port admin state. The mix is biased toward a target switch count so the
-  object set stays lively but bounded. With `--bind-ports` it also creates real
-  OVS interfaces on the chassis (`docker exec … ovs-vsctl`) and migrates them
-  between chassis, so `Port_Binding.chassis` actually moves in the dashboard.
+  toggle port admin state, **simulate gateway failover** by swapping
+  HA_Chassis_Group member priorities, and add/remove HA group members. The mix
+  is biased toward a target switch count so the object set stays lively but
+  bounded. With `--bind-ports` it also creates real OVS interfaces on the
+  chassis (`docker exec … ovs-vsctl`) and migrates them between chassis, so
+  `Port_Binding.chassis` actually moves in the dashboard.
 - `ovnsim bind` / `ovnsim unbind` — bind every seeded VIF onto a chassis
   round-robin (creating real OVS interfaces), or remove those bindings. Use
   `bind` right after `seed` to make the baseline look like a fully-running

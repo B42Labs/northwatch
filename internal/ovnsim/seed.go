@@ -62,6 +62,7 @@ func routerName(r int) string           { return fmt.Sprintf("%slr-%03d", NamePr
 func lrpName(r, s int) string           { return fmt.Sprintf("%slrp-%03d-%03d", NamePrefix, r, s) }
 func switchRouterPortName(s int) string { return fmt.Sprintf("%sls-%03d-lr", NamePrefix, s) }
 func vifName(s, p int) string           { return fmt.Sprintf("%sls-%03d-vif-%03d", NamePrefix, s, p) }
+func haGroupName(r int) string          { return fmt.Sprintf("%shagrp-lr-%03d", NamePrefix, r) }
 
 // octet maps a 1-based switch index to a stable second IPv4 octet in 10.X.0.0/24.
 func octet(s int) int { return ((s - 1) % 200) + 10 }
@@ -121,6 +122,36 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 	t := newTxn(c)
 	var ports, nats []string
 
+	// Two redundancy mechanisms are demoed across the routers: even-numbered
+	// routers point their gateway ports at a single HA_Chassis_Group (the modern
+	// mechanism), odd-numbered routers use a per-port Gateway_Chassis. The HA
+	// group's member priorities are what `ovnsim run` later shuffles to simulate
+	// gateway failover.
+	useHA := len(opts.Chassis) > 0 && r%2 == 0
+	var haGroupUUID string
+	if useHA {
+		haGroupUUID = t.namedUUID()
+		members := make([]string, 0, len(opts.Chassis))
+		for i, ch := range opts.Chassis {
+			m := t.namedUUID()
+			t.add(&nb.HAChassis{
+				UUID:        m,
+				ChassisName: ch,
+				Priority:    100 - i*10,
+				ExternalIDs: ownedIDs("ha-chassis"),
+			})
+			members = append(members, m)
+			res.add("HA_Chassis", 1)
+		}
+		t.add(&nb.HAChassisGroup{
+			UUID:        haGroupUUID,
+			Name:        haGroupName(r),
+			HaChassis:   members,
+			ExternalIDs: ownedIDs("ha-chassis-group"),
+		})
+		res.add("HA_Chassis_Group", 1)
+	}
+
 	for s := 1; s <= opts.Switches; s++ {
 		if routerForSwitch(s, opts.Routers) != r {
 			continue
@@ -135,7 +166,10 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 			Networks:    []string{fmt.Sprintf("10.%d.0.1/24", o)},
 			ExternalIDs: ownedIDs("router-port"),
 		}
-		if len(opts.Chassis) > 0 {
+		switch {
+		case useHA:
+			lrp.HaChassisGroup = ptr(haGroupUUID)
+		case len(opts.Chassis) > 0:
 			ch := opts.Chassis[(s-1)%len(opts.Chassis)]
 			gcUUID := t.namedUUID()
 			t.add(&nb.GatewayChassis{
