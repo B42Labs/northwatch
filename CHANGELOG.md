@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   odd-numbered routers use per-port `Gateway_Chassis`) and simulates gateway
   failover at runtime by swapping HA group member priorities and adding/removing
   members.
+- `ovnsim run --bind-ports` now keeps the lab healthy: it binds every existing
+  unbound VIF on startup and binds each port it creates (via `addPort` /
+  `createSwitch`), and the alert-generating random "unbind" action was removed
+  (explicit `ovnsim unbind` / `make lab-unbind` still available). This stops the
+  "VIF not bound to any chassis" alerts from accumulating while the simulator
+  runs.
 - Configurable WebSocket Origin allowlist via `--ws-allowed-origins` /
   `NORTHWATCH_WS_ALLOWED_ORIGINS`. When unset, origin checking is disabled
   (single-tenant deployment default).

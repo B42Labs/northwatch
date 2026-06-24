@@ -83,3 +83,47 @@ func eventuallyOwnedVIFsBound(t *testing.T, c client.Client, want int) {
 		return bound == want
 	}, 3*time.Second, 20*time.Millisecond, "expected %d bound VIFs", want)
 }
+
+func TestAddPortBindsWhenBinderSet(t *testing.T) {
+	c := setupNB(t)
+	_, err := Seed(context.Background(), c, Options{Switches: 2, Routers: 1, PortsPerSwitch: 1})
+	require.NoError(t, err)
+	eventuallyCount[nb.LogicalSwitch](t, c, 2)
+
+	binder, calls := newRecordingBinder()
+	sim := NewSimulator(c, SimConfig{Options: Options{Switches: 2, Routers: 1, PortsPerSwitch: 1}, Target: 2, Binder: binder})
+
+	desc, err := sim.addPort(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, desc, "bound to")
+	require.Len(t, *calls, 1)
+	assert.Contains(t, strings.Join((*calls)[0].args, " "), "add-port")
+
+	// Exactly the new port carries the bound-chassis marker (seeded VIFs do not).
+	eventuallyOwnedVIFsBound(t, c, 1)
+}
+
+func TestCreateSwitchBindsNewVIFs(t *testing.T) {
+	c := setupNB(t)
+	binder, calls := newRecordingBinder()
+	sim := NewSimulator(c, SimConfig{Options: Options{Switches: 1, Routers: 1, PortsPerSwitch: 3}, Target: 3, Binder: binder})
+
+	desc, err := sim.createSwitch(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, desc, "ports bound")
+	require.Len(t, *calls, 3) // PortsPerSwitch
+	eventuallyOwnedVIFsBound(t, c, 3)
+}
+
+func TestAddPortWithoutBinderStaysUnbound(t *testing.T) {
+	c := setupNB(t)
+	_, err := Seed(context.Background(), c, Options{Switches: 1, Routers: 1, PortsPerSwitch: 1})
+	require.NoError(t, err)
+	eventuallyCount[nb.LogicalSwitch](t, c, 1)
+
+	sim := NewSimulator(c, SimConfig{Options: Options{Switches: 1, Routers: 1, PortsPerSwitch: 1}, Target: 1}) // no binder
+	desc, err := sim.addPort(context.Background())
+	require.NoError(t, err)
+	assert.NotContains(t, desc, "bound to")
+	eventuallyOwnedVIFsBound(t, c, 0)
+}

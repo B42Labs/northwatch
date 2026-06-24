@@ -105,9 +105,11 @@ Northbound over OVSDB using the project's generated NB models.
 > **"VIF port not bound to any chassis" health alerts after seeding are
 > expected.** `seed` only creates the *logical* NB ports; with no backing OVS
 > interface on any chassis, `ovn-controller` never binds them, so `Port_Binding`
-> has no chassis and Northwatch correctly flags them. Run `make lab-bind`
-> (or `ovnsim bind`) to bind them onto the chassis and clear the alerts, or
-> `make lab-sim` to bind/migrate a few continuously.
+> has no chassis and Northwatch correctly flags them. Clear them by binding the
+> ports onto chassis: run `make lab-bind` once, or `make lab-sim` — `run
+> --bind-ports` binds every existing unbound VIF on startup and binds each new
+> port it creates, so the lab stays healthy. (`make lab-unbind` reverses it, to
+> demo the alert on purpose.)
 
 Every object `ovnsim` creates is tagged (`external_ids:nw-sim="1"`) and named
 `nw-…`, and `run`/`clean` only ever touch those rows — so pointing it at a
