@@ -25,15 +25,39 @@ them, so the dashboard, history, events and alerts all have something to show.
 
 ## Requirements
 
-- A **Linux Docker host** plus [containerlab](https://containerlab.dev).
-  - On **macOS**, run the lab inside a Linux VM (Colima / OrbStack / Lima);
-    containerlab needs Linux. `make lab-install-tools` prints the details.
 - The lab uses the **OVS userspace datapath** (`datapath_type=netdev`): it only
   needs OVN/OVS *control-plane* state, never real packet forwarding, so there is
   no host kernel-module or FRR/BGP dependency. Traffic between chassis does not
   actually flow — that is fine for an observability lab.
+- Two ways to run it:
+  - **Docker Compose** (`docker-compose.yml`) — works directly on Docker /
+    **Docker Desktop**, including macOS. No extra tooling. *Recommended on macOS.*
+  - **containerlab** (`topology.clab.yml`) — needs a **Linux Docker host**; on
+    macOS run it inside a Linux VM (Colima / OrbStack / Lima).
 
-## Quick start
+## macOS / Docker Desktop (Compose)
+
+containerlab is a Linux-only tool, so on macOS the simplest path is the Compose
+variant — the topology has no special point-to-point links, so plain Compose is
+enough:
+
+```sh
+make lab-compose-up    # build images + start (1 central + 3 chassis), NB/SB on :6641/:6642
+make lab-seed          # seed the baseline topology (runs on the host)
+make build && ./bin/northwatch --ovn-nb-addr tcp:127.0.0.1:6641 --ovn-sb-addr tcp:127.0.0.1:6642
+make lab-sim           # continuous change (Ctrl-C to stop)
+make lab-compose-down  # tear down
+```
+
+`make lab-compose` is a shortcut that brings the lab up, waits for OVN, and
+seeds it. The containers are named `clab-nw-lab-*`, so `make lab-nbctl`,
+`make lab-sbctl` and `ovnsim --bind-ports` work the same as with containerlab.
+
+> On Apple Silicon the images build natively for arm64 (OVN/OVS come from the
+> Ubuntu Cloud Archive, which ships both arches). The chassis containers run
+> `privileged` so OVS can manage its bridges inside the Docker VM.
+
+## Quick start (containerlab, Linux)
 
 ```sh
 make lab-install-tools   # one-time: install containerlab (Linux)

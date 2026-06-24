@@ -12,7 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ovn-northd + NB/SB, 3 `chassis` running OVS userspace datapath +
   ovn-controller) plus `make lab-*` targets (`lab-up`, `lab-down`, `lab-seed`,
   `lab-sim`, `lab-clean`, `lab-nbctl`/`lab-sbctl`, `lab-multi-up`) to spin up a
-  complete test environment for the dashboard.
+  complete test environment for the dashboard. A Docker Compose variant
+  (`lab/docker-compose.yml`, `make lab-compose-up`/`lab-compose-down`) runs the
+  same topology without containerlab — handy on macOS / Docker Desktop.
 - `ovnsim` load generator (`cmd/ovnsim`, `internal/ovnsim`): `seed` creates an
   idempotent baseline across every major NB table, `run` continuously mutates
   the topology (create/delete switches, routers, ports, NAT, ACLs, LB VIPs;
