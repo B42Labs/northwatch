@@ -104,9 +104,10 @@ lab-multi-down:
 	containerlab destroy -t $(LAB_MULTI)
 
 # Docker Compose variant — no containerlab needed (works on macOS / Docker Desktop).
-# Builds the images on first run and publishes NB/SB on the host.
+# --build keeps the images in sync with the Dockerfiles/entrypoints (fast when
+# nothing changed, thanks to the layer cache). NB/SB are published to the host.
 lab-compose-up:
-	docker compose -f $(LAB_COMPOSE) up -d
+	docker compose -f $(LAB_COMPOSE) up -d --build
 
 lab-compose-down:
 	docker compose -f $(LAB_COMPOSE) down
