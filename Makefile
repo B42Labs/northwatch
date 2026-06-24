@@ -16,6 +16,14 @@ NB          ?= tcp:127.0.0.1:6641
 SB          ?= tcp:127.0.0.1:6642
 CENTRAL     := clab-$(LAB_NAME)-central
 
+# Compose file set. `make lab-compose-* KERNEL=1` layers in the kernel-datapath
+# override (needs a Linux host with the openvswitch module — see
+# lab/docker-compose.kernel.yml).
+LAB_COMPOSE_FILES := -f $(LAB_COMPOSE)
+ifeq ($(KERNEL),1)
+LAB_COMPOSE_FILES += -f lab/docker-compose.kernel.yml
+endif
+
 build: ensure-ui-dist
 	go build -o bin/northwatch ./cmd/northwatch/
 
@@ -124,13 +132,13 @@ lab-multi-down:
 # host-side and need no rebuild. Rebuild explicitly after changing a Dockerfile
 # or entrypoint with `make lab-compose-build` (needs registry access).
 lab-compose-up:
-	docker compose -f $(LAB_COMPOSE) up -d
+	docker compose $(LAB_COMPOSE_FILES) up -d
 
 lab-compose-build:
-	docker compose -f $(LAB_COMPOSE) build
+	docker compose $(LAB_COMPOSE_FILES) build
 
 lab-compose-down:
-	docker compose -f $(LAB_COMPOSE) down
+	docker compose $(LAB_COMPOSE_FILES) down
 
 # One-shot: Compose lab up, wait for the chassis to register, then seed.
 lab-compose: lab-compose-up

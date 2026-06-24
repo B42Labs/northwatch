@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chassis so they bind in SB (clearing the "VIF not bound to any chassis"
   alerts), and `clean` removes everything it created. All objects are tagged so
   it only ever touches its own rows.
+- Opt-in OVS kernel-datapath mode for the lab chassis (`DATAPATH_TYPE=system`),
+  via `lab/docker-compose.kernel.yml` / `make lab-compose-up KERNEL=1`. On a
+  Linux host with the `openvswitch` kernel module it makes BFD between chassis
+  converge, so multi-member `HA_Chassis_Group` gateways actually bind (the
+  gateway "no-owner" state clears). The default stays the portable userspace
+  (netdev) datapath.
 - `ovnsim` now seeds `HA_Chassis_Group`s (even-numbered routers reference one,
   odd-numbered routers use per-port `Gateway_Chassis`) and simulates gateway
   failover at runtime by swapping HA group member priorities and adding/removing
