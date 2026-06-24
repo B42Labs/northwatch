@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -44,6 +45,17 @@ type OVNDatabases struct {
 	// health view degrades to "unavailable" rather than failing.
 	NBServers []ServerMonitor
 	SBServers []ServerMonitor
+
+	// The fields below back SuspendMonitors/ResumeMonitors. The model and monitor
+	// options are remembered from Connect so the table monitors can be re-issued
+	// later; the cookies identify the live monitors so they can be cancelled.
+	mu        sync.Mutex
+	nbModel   model.ClientDBModel
+	sbModel   model.ClientDBModel
+	mon       MonitorOptions
+	nbCookies []client.MonitorCookie
+	sbCookies []client.MonitorCookie
+	suspended bool
 }
 
 // MonitorOptions tunes how the initial libovsdb monitor is built when
@@ -68,6 +80,13 @@ type MonitorOptions struct {
 	// the largest Southbound tables (e.g. Logical_Flow, MAC_Binding, FDB) in
 	// huge deployments. Features that read a skipped table will see it as empty.
 	SkipTables []string
+
+	// SkipServerMonitors disables the best-effort per-endpoint "_Server" monitors
+	// used for Raft health. Set it when connecting to in-memory snapshot servers,
+	// which expose no "_Server" database: the monitors would only fail and log
+	// noisy "target database _Server not found" warnings, and a static snapshot
+	// has no Raft state to report anyway.
+	SkipServerMonitors bool
 }
 
 func newBackoff() *backoff.ExponentialBackOff {
@@ -125,18 +144,19 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 
 	// Connect and monitor concurrently
 	var (
-		nbErr, sbErr error
-		wg           sync.WaitGroup
+		nbErr, sbErr         error
+		nbCookies, sbCookies []client.MonitorCookie
+		wg                   sync.WaitGroup
 	)
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		nbErr = connectAndMonitor(ctx, nbClient, nbAddr, nbModel, mon)
+		nbCookies, nbErr = connectAndMonitor(ctx, nbClient, nbAddr, nbModel, mon)
 	}()
 	go func() {
 		defer wg.Done()
-		sbErr = connectAndMonitor(ctx, sbClient, sbAddr, sbModel, mon)
+		sbCookies, sbErr = connectAndMonitor(ctx, sbClient, sbAddr, sbModel, mon)
 	}()
 	wg.Wait()
 
@@ -149,14 +169,25 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 		return nil, fmt.Errorf("connecting to SB: %w", sbErr)
 	}
 
-	dbs := &OVNDatabases{NB: nbClient, SB: sbClient}
+	dbs := &OVNDatabases{
+		NB:        nbClient,
+		SB:        sbClient,
+		nbModel:   nbModel,
+		sbModel:   sbModel,
+		mon:       mon,
+		nbCookies: nbCookies,
+		sbCookies: sbCookies,
+	}
 
 	// Best-effort: monitor the special "_Server" database on every configured
 	// endpoint so the Raft health view can report the full member list. Done
 	// after the primary clients connect and never fatal — see
-	// connectServerMonitors.
-	dbs.NBServers = connectServerMonitors(ctx, nbAddr)
-	dbs.SBServers = connectServerMonitors(ctx, sbAddr)
+	// connectServerMonitors. Skipped for in-memory snapshot servers, which expose
+	// no "_Server" database.
+	if !mon.SkipServerMonitors {
+		dbs.NBServers = connectServerMonitors(ctx, nbAddr)
+		dbs.SBServers = connectServerMonitors(ctx, sbAddr)
+	}
 
 	return dbs, nil
 }
@@ -227,17 +258,18 @@ func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
 	return monitors
 }
 
-func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbModel model.ClientDBModel, mon MonitorOptions) error {
+func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbModel model.ClientDBModel, mon MonitorOptions) ([]client.MonitorCookie, error) {
 	if err := c.Connect(ctx); err != nil {
-		return fmt.Errorf("connecting to %s: %w", addr, err)
+		return nil, fmt.Errorf("connecting to %s: %w", addr, err)
 	}
 
-	if err := startMonitor(ctx, c, dbModel, mon); err != nil {
+	cookies, err := startMonitor(ctx, c, dbModel, mon)
+	if err != nil {
 		c.Close()
-		return fmt.Errorf("monitoring %s: %w", addr, err)
+		return nil, fmt.Errorf("monitoring %s: %w", addr, err)
 	}
 
-	return nil
+	return cookies, nil
 }
 
 // startMonitor populates the client cache. With the default (zero) options it
@@ -245,16 +277,19 @@ func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbMode
 // as before. When MonitorOptions asks to skip tables or to batch, it builds
 // explicit per-table monitors instead so the initial dump is split into smaller
 // replies and, optionally, spread over time.
-func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBModel, mon MonitorOptions) error {
+func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBModel, mon MonitorOptions) ([]client.MonitorCookie, error) {
 	// Fast path: unchanged behavior when nothing is customized.
 	if mon.BatchDelay <= 0 && len(mon.SkipTables) == 0 {
-		_, err := c.MonitorAll(ctx)
-		return err
+		ck, err := c.MonitorAll(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return []client.MonitorCookie{ck}, nil
 	}
 
 	tables := monitoredTables(dbModel, mon.SkipTables)
 	if len(tables) == 0 {
-		return fmt.Errorf("no tables left to monitor after applying skip list")
+		return nil, fmt.Errorf("no tables left to monitor after applying skip list")
 	}
 
 	// Skip list but no batching: a single monitor over the remaining tables,
@@ -264,8 +299,11 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 		for _, t := range tables {
 			m.Tables = append(m.Tables, client.TableMonitor{Table: t})
 		}
-		_, err := c.Monitor(ctx, m)
-		return err
+		ck, err := c.Monitor(ctx, m)
+		if err != nil {
+			return nil, err
+		}
+		return []client.MonitorCookie{ck}, nil
 	}
 
 	// Staged: one monitor request per table, sleeping between them so the server
@@ -276,11 +314,12 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 	// database name.
 	dbName := dbModel.Name()
 	stagedStart := time.Now()
+	cookies := make([]client.MonitorCookie, 0, len(tables))
 	for i, t := range tables {
 		if i > 0 {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return nil, ctx.Err()
 			case <-time.After(mon.BatchDelay):
 			}
 		}
@@ -288,13 +327,15 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 		m := c.NewMonitor()
 		m.Tables = append(m.Tables, client.TableMonitor{Table: t})
 		start := time.Now()
-		if _, err := c.Monitor(ctx, m); err != nil {
-			return fmt.Errorf("monitoring table %s: %w", t, err)
+		ck, err := c.Monitor(ctx, m)
+		if err != nil {
+			return nil, fmt.Errorf("monitoring table %s: %w", t, err)
 		}
+		cookies = append(cookies, ck)
 		fmt.Printf("[%s] loaded table %s (%d/%d) in %s\n", dbName, t, i+1, len(tables), time.Since(start).Round(time.Millisecond))
 	}
 	fmt.Printf("[%s] staged load complete: %d tables in %s\n", dbName, len(tables), time.Since(stagedStart).Round(time.Millisecond))
-	return nil
+	return cookies, nil
 }
 
 // monitoredTables returns the sorted table names of a database model, excluding
@@ -323,6 +364,78 @@ func monitoredTables(dbModel model.ClientDBModel, skip []string) []string {
 // connection to their OVSDB servers.
 func (d *OVNDatabases) Ready() bool {
 	return d.NB.Connected() && d.SB.Connected()
+}
+
+// SuspendMonitors cancels the NB and SB table monitors so the live OVSDB servers
+// stop streaming updates — removing essentially all of the ongoing load
+// Northwatch places on them. The connections, caches and cache event handlers
+// stay intact (the cached state simply freezes at its last value). Call
+// ResumeMonitors to re-establish the monitors and reload every table.
+//
+// It is safe to call when already suspended (no-op).
+func (d *OVNDatabases) SuspendMonitors(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.suspended {
+		return nil
+	}
+
+	var errs []string
+	for _, ck := range d.nbCookies {
+		if err := d.NB.MonitorCancel(ctx, ck); err != nil {
+			errs = append(errs, "NB: "+err.Error())
+		}
+	}
+	for _, ck := range d.sbCookies {
+		if err := d.SB.MonitorCancel(ctx, ck); err != nil {
+			errs = append(errs, "SB: "+err.Error())
+		}
+	}
+	d.nbCookies, d.sbCookies = nil, nil
+
+	// Empty the caches. Cancelling a monitor leaves its rows in the cache, so a
+	// later MonitorAll would try to re-create rows that already exist ("cache
+	// inconsistent"). Purge keeps the registered cache event handlers (the event
+	// hub bridges) intact, and reflects the disconnected state as empty rather
+	// than stale. Resume repopulates from the fresh monitor's initial dump.
+	if nbCache := d.NB.Cache(); nbCache != nil {
+		nbCache.Purge(nbCache.DatabaseModel())
+	}
+	if sbCache := d.SB.Cache(); sbCache != nil {
+		sbCache.Purge(sbCache.DatabaseModel())
+	}
+
+	d.suspended = true
+	log.Printf("ovn: suspended live NB/SB monitors — live servers will stop streaming updates")
+
+	if len(errs) > 0 {
+		return fmt.Errorf("cancelling monitors: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// ResumeMonitors re-issues the NB and SB monitors previously cancelled by
+// SuspendMonitors, reloading every table into the cache. It is safe to call when
+// not suspended (no-op).
+func (d *OVNDatabases) ResumeMonitors(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.suspended {
+		return nil
+	}
+
+	nbCookies, err := startMonitor(ctx, d.NB, d.nbModel, d.mon)
+	if err != nil {
+		return fmt.Errorf("re-monitoring NB: %w", err)
+	}
+	sbCookies, err := startMonitor(ctx, d.SB, d.sbModel, d.mon)
+	if err != nil {
+		return fmt.Errorf("re-monitoring SB: %w", err)
+	}
+	d.nbCookies, d.sbCookies = nbCookies, sbCookies
+	d.suspended = false
+	log.Printf("ovn: resumed live NB/SB monitors and reloaded all tables")
+	return nil
 }
 
 // Close shuts down the NB and SB OVSDB clients along with every best-effort
