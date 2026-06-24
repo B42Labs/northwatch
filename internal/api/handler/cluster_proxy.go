@@ -3,32 +3,64 @@ package handler
 import (
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/cluster"
 )
 
-// RegisterClusterProxy registers cluster-prefixed routes that delegate to
-// per-cluster sub-muxes. Each cluster gets its own ServeMux with the standard
-// /api/v1/... routes. Requests to /api/v1/clusters/{cluster}/{path...} are
-// rewritten to /api/v1/{path} and dispatched to the matching cluster's mux.
+// ClusterProxy dispatches /api/v1/clusters/{cluster}/{path...} requests to a
+// per-cluster sub-mux. Each cluster gets its own ServeMux with the standard
+// /api/v1/... routes; requests are rewritten to /api/v1/{path} before dispatch.
 //
-// The registerRoutes callback is called once per cluster to populate each
-// sub-mux with that cluster's handlers. This avoids coupling the proxy to
-// every individual handler registration function.
-func RegisterClusterProxy(mainMux *http.ServeMux, reg *cluster.Registry, registerRoutes func(mux *http.ServeMux, c *cluster.Cluster)) {
-	muxMap := make(map[string]*http.ServeMux)
+// The sub-mux map is guarded by a RWMutex so clusters can be added and removed
+// at runtime — this is what lets a snapshot loaded from the UI become a live,
+// switchable data source without a restart.
+type ClusterProxy struct {
+	mu     sync.RWMutex
+	muxMap map[string]*http.ServeMux
+}
+
+// Add registers (or replaces) the sub-mux serving a cluster's routes.
+func (p *ClusterProxy) Add(name string, mux *http.ServeMux) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.muxMap[name] = mux
+}
+
+// Remove drops a cluster's sub-mux. In-flight requests already dispatched run to
+// completion; subsequent requests to the cluster return 404.
+func (p *ClusterProxy) Remove(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.muxMap, name)
+}
+
+func (p *ClusterProxy) lookup(name string) (*http.ServeMux, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	m, ok := p.muxMap[name]
+	return m, ok
+}
+
+// RegisterClusterProxy installs the cluster-prefixed catch-all route on mainMux
+// and returns the proxy handle so clusters can be added/removed at runtime.
+//
+// Every cluster currently in reg is registered up front via the registerRoutes
+// callback, which populates each sub-mux with that cluster's handlers. The
+// callback keeps the proxy decoupled from individual handler registration.
+func RegisterClusterProxy(mainMux *http.ServeMux, reg *cluster.Registry, registerRoutes func(mux *http.ServeMux, c *cluster.Cluster)) *ClusterProxy {
+	p := &ClusterProxy{muxMap: make(map[string]*http.ServeMux)}
 
 	for _, c := range reg.List() {
 		subMux := http.NewServeMux()
 		registerRoutes(subMux, c)
-		muxMap[c.Name] = subMux
+		p.Add(c.Name, subMux)
 	}
 
-	// Catch-all for /api/v1/clusters/{cluster}/...
-	mainMux.HandleFunc("/api/v1/clusters/{cluster}/{path...}", func(w http.ResponseWriter, r *http.Request) {
+	dispatch := func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("cluster")
-		subMux, ok := muxMap[name]
+		subMux, ok := p.lookup(name)
 		if !ok {
 			api.WriteError(w, http.StatusNotFound, "unknown cluster: "+name)
 			return
@@ -53,5 +85,17 @@ func RegisterClusterProxy(mainMux *http.ServeMux, reg *cluster.Registry, registe
 		}
 
 		subMux.ServeHTTP(w, r2)
-	})
+	}
+
+	// Register per method rather than method-less. The API catch-all
+	// (RegisterAPICatchAll) registers method-specific "GET /api/" etc.; a
+	// method-less "/api/v1/clusters/{cluster}/{path...}" would be incomparable to
+	// those (more specific path, but fewer methods) and ServeMux would panic on
+	// the conflict. Per-method patterns share each method with the catch-all and
+	// win purely on path specificity.
+	for _, m := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		mainMux.HandleFunc(m+" /api/v1/clusters/{cluster}/{path...}", dispatch)
+	}
+
+	return p
 }

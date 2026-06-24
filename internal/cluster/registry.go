@@ -14,23 +14,37 @@ import (
 	"github.com/b42labs/northwatch/internal/telemetry"
 )
 
+// SnapshotMeta describes the history snapshot backing a loaded snapshot
+// cluster. It is nil for live clusters.
+type SnapshotMeta struct {
+	SourceID  int64  // history snapshot ID this cluster was loaded from
+	CreatedAt string // when the snapshot was captured (RFC3339)
+	NBAddr    string // original live NB address the snapshot came from
+	SBAddr    string // original live SB address the snapshot came from
+}
+
 // Cluster holds all subsystems for a single OVN deployment.
+//
+// Subsystems specific to live data tracking (FlowDiff, AlertEngine, Telemetry,
+// PropagationStore) are nil for read-only snapshot clusters loaded at runtime.
 type Cluster struct {
-	Name                 string
-	Label                string
-	DBs                  *ovndb.OVNDatabases
-	Correlator           *correlate.Correlator
-	Enricher             *enrich.Enricher
-	EventHub             *events.Hub
-	SearchEngine         *search.Engine
-	FlowDiff             *flowdiff.Store
-	AlertEngine          *alert.Engine
-	Telemetry            *telemetry.Querier
-	ConnectivityChecker  *debug.ConnectivityChecker
-	PortDiagnoser        *debug.PortDiagnoser
-	ACLAuditor           *debug.ACLAuditor
-	StaleDetector        *debug.StaleDetector
-	PropagationStore     *telemetry.PropagationStore
+	Name                string
+	Label               string
+	Mode                string // "live" (default) or "snapshot"
+	Snapshot            *SnapshotMeta
+	DBs                 *ovndb.OVNDatabases
+	Correlator          *correlate.Correlator
+	Enricher            *enrich.Enricher
+	EventHub            *events.Hub
+	SearchEngine        *search.Engine
+	FlowDiff            *flowdiff.Store
+	AlertEngine         *alert.Engine
+	Telemetry           *telemetry.Querier
+	ConnectivityChecker *debug.ConnectivityChecker
+	PortDiagnoser       *debug.PortDiagnoser
+	ACLAuditor          *debug.ACLAuditor
+	StaleDetector       *debug.StaleDetector
+	PropagationStore    *telemetry.PropagationStore
 }
 
 // Registry manages multiple named clusters.
@@ -53,6 +67,24 @@ func (r *Registry) Register(name string, c *Cluster) {
 		r.order = append(r.order, name)
 	}
 	r.clusters[name] = c
+}
+
+// Unregister removes a named cluster from the registry. It does not close the
+// cluster's connections — the caller owns that lifecycle. The default cluster
+// (registered first) is never unregistered in practice, so Default stays stable.
+func (r *Registry) Unregister(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.clusters[name]; !ok {
+		return
+	}
+	delete(r.clusters, name)
+	for i, n := range r.order {
+		if n == name {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
 }
 
 // Get returns a cluster by name.

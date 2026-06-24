@@ -72,6 +72,66 @@ func TestClusterProxy_RoutesToCorrectCluster(t *testing.T) {
 	assert.Equal(t, "staging", body2["cluster"])
 }
 
+func TestClusterProxy_DynamicAddRemove(t *testing.T) {
+	reg := cluster.NewRegistry()
+	mux := http.NewServeMux()
+	proxy := RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {})
+
+	doGet := func(path string) int {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// A snapshot cluster added after startup becomes reachable, then unreachable
+	// again once removed — the runtime path a UI-loaded snapshot follows.
+	assert.Equal(t, http.StatusNotFound, doGet("/api/v1/clusters/snapshot-1/test"))
+
+	sub := http.NewServeMux()
+	sub.HandleFunc("GET /api/v1/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	proxy.Add("snapshot-1", sub)
+	assert.Equal(t, http.StatusOK, doGet("/api/v1/clusters/snapshot-1/test"))
+
+	proxy.Remove("snapshot-1")
+	assert.Equal(t, http.StatusNotFound, doGet("/api/v1/clusters/snapshot-1/test"))
+}
+
+func TestClusterProxy_NoConflictWithAPICatchAll(t *testing.T) {
+	reg := cluster.NewRegistry()
+	mux := http.NewServeMux()
+
+	// Registering both on one mux must not panic: the proxy registers
+	// per-method cluster patterns so they don't conflict with the method-specific
+	// "GET /api/" etc. that RegisterAPICatchAll installs.
+	proxy := RegisterClusterProxy(mux, reg, func(*http.ServeMux, *cluster.Cluster) {})
+	RegisterAPICatchAll(mux)
+
+	sub := http.NewServeMux()
+	sub.HandleFunc("GET /api/v1/nb/logical-switches", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	sub.HandleFunc("POST /api/v1/debug/trace", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	proxy.Add("snapshot-1", sub)
+
+	do := func(method, path string) int {
+		req := httptest.NewRequestWithContext(context.Background(), method, path, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// Both GET and POST route through the proxy to the snapshot cluster.
+	assert.Equal(t, http.StatusOK, do(http.MethodGet, "/api/v1/clusters/snapshot-1/nb/logical-switches"))
+	assert.Equal(t, http.StatusAccepted, do(http.MethodPost, "/api/v1/clusters/snapshot-1/debug/trace"))
+	// Unknown API paths still hit the catch-all's JSON 404.
+	assert.Equal(t, http.StatusNotFound, do(http.MethodGet, "/api/v1/does-not-exist"))
+}
+
 func TestClusterProxy_PreservesQueryParams(t *testing.T) {
 	reg := cluster.NewRegistry()
 	reg.Register("prod", &cluster.Cluster{Name: "prod"})
