@@ -42,13 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `internal/search`, and `internal/api`.
 
 ### Fixed
-- `ovnsim` now gives each router exactly one distributed gateway port (the first
-  router port), carrying the redundancy config (HA_Chassis_Group / Gateway_Chassis);
-  the remaining tenant ports are plain patch ports. Previously every tenant
-  router port was a distributed gateway port, which is abnormal and prevented
-  ovn-northd from realizing the `chassisredirect` ports the gateway / HA failover
-  view is built from. Added `make lab-reseed` (clean + seed + bind) to force a
-  fresh baseline, since `seed` is idempotent by name and skips existing objects.
+- `ovnsim` now models gateways the way ovn-northd expects: each router has one
+  distributed gateway port attached to a dedicated external switch with a
+  `localnet` port (carrying an HA_Chassis_Group on even routers, a
+  Gateway_Chassis on odd ones); tenant ports are plain patch ports. ovn-northd
+  only realizes the `chassisredirect` ports — and the SB HA_Chassis_Group — that
+  the gateway / HA failover view is built from when the distributed gateway port
+  connects to an externally-connected switch, so the previous setup (every tenant
+  port a gateway port, none localnet-connected) left that view empty. Added
+  `make lab-reseed` (clean + seed + bind) to force a fresh baseline, since `seed`
+  is idempotent by name and skips existing objects.
 - Port `type_consistency` diagnostic no longer warns on router ports. A "router"
   Logical_Switch_Port is realized in SB as a `patch` Port_Binding (or
   `l3gateway`/`chassisredirect` for distributed gateway ports), so the previous

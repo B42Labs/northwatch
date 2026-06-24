@@ -63,6 +63,10 @@ func lrpName(r, s int) string           { return fmt.Sprintf("%slrp-%03d-%03d", 
 func switchRouterPortName(s int) string { return fmt.Sprintf("%sls-%03d-lr", NamePrefix, s) }
 func vifName(s, p int) string           { return fmt.Sprintf("%sls-%03d-vif-%03d", NamePrefix, s, p) }
 func haGroupName(r int) string          { return fmt.Sprintf("%shagrp-lr-%03d", NamePrefix, r) }
+func gwLrpName(r int) string             { return fmt.Sprintf("%slr-%03d-gw", NamePrefix, r) }
+func pubSwitchName(r int) string         { return fmt.Sprintf("%slr-%03d-pub", NamePrefix, r) }
+func pubLocalnetName(r int) string       { return fmt.Sprintf("%slr-%03d-pub-ln", NamePrefix, r) }
+func pubRouterLspName(r int) string      { return fmt.Sprintf("%slr-%03d-pub-lr", NamePrefix, r) }
 
 // octet maps a 1-based switch index to a stable second IPv4 octet in 10.X.0.0/24.
 func octet(s int) int { return ((s - 1) % 200) + 10 }
@@ -116,8 +120,10 @@ func Seed(ctx context.Context, c client.Client, opts Options) (*SeedResult, erro
 	return res, nil
 }
 
-// seedRouter creates a logical router, its per-switch router ports (with a
-// gateway chassis), an SNAT per attached subnet, a default route and a policy.
+// seedRouter creates a logical router with plain patch ports to its tenant
+// switches (+ an SNAT per subnet), one distributed gateway port on a dedicated
+// external (localnet) switch — carrying an HA_Chassis_Group (even routers) or a
+// Gateway_Chassis (odd routers) — plus a default route and a policy.
 func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *SeedResult) error {
 	t := newTxn(c)
 	var ports, nats []string
@@ -152,14 +158,7 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 		res.add("HA_Chassis_Group", 1)
 	}
 
-	// A router has exactly ONE distributed gateway port (the first port created),
-	// matching real OVN topologies. Only that port carries the redundancy config
-	// (HA group / gateway chassis), so ovn-northd realizes a single
-	// chassisredirect (cr-) port per router in SB — which is what the gateway / HA
-	// failover view is built from. The remaining tenant ports are plain patch
-	// ports. (Making every tenant port a distributed gateway port — the previous
-	// behaviour — is abnormal and kept the chassisredirect ports from appearing.)
-	gwAssigned := false
+	// Internal tenant router ports — plain patch ports — plus an SNAT per subnet.
 	for s := 1; s <= opts.Switches; s++ {
 		if routerForSwitch(s, opts.Routers) != r {
 			continue
@@ -167,34 +166,13 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 		o := octet(s)
 
 		lrpUUID := t.namedUUID()
-		lrp := &nb.LogicalRouterPort{
+		t.add(&nb.LogicalRouterPort{
 			UUID:        lrpUUID,
 			Name:        lrpName(r, s),
 			MAC:         mac(0x100000 + r*256 + s),
 			Networks:    []string{fmt.Sprintf("10.%d.0.1/24", o)},
 			ExternalIDs: ownedIDs("router-port"),
-		}
-		if !gwAssigned {
-			switch {
-			case useHA:
-				lrp.HaChassisGroup = ptr(haGroupUUID)
-				gwAssigned = true
-			case len(opts.Chassis) > 0:
-				ch := opts.Chassis[0]
-				gcUUID := t.namedUUID()
-				t.add(&nb.GatewayChassis{
-					UUID:        gcUUID,
-					Name:        fmt.Sprintf("%s-gc", lrp.Name),
-					ChassisName: ch,
-					Priority:    30,
-					ExternalIDs: ownedIDs("gateway-chassis"),
-				})
-				lrp.GatewayChassis = []string{gcUUID}
-				res.add("Gateway_Chassis", 1)
-				gwAssigned = true
-			}
-		}
-		t.add(lrp)
+		})
 		ports = append(ports, lrpUUID)
 		res.add("Logical_Router_Port", 1)
 
@@ -208,6 +186,69 @@ func seedRouter(ctx context.Context, c client.Client, opts Options, r int, res *
 		})
 		nats = append(nats, natUUID)
 		res.add("NAT", 1)
+	}
+
+	// One distributed gateway port per router, attached to a dedicated external
+	// switch that carries a localnet port. ovn-northd only realizes the
+	// chassisredirect (cr-) port — what the gateway / HA failover view is built
+	// from — when the distributed gateway port connects to a switch with an
+	// external (localnet) connection, so this external switch is required, not
+	// cosmetic. The gateway port carries the redundancy config: the HA group for
+	// even routers, a Gateway_Chassis for odd ones.
+	if len(opts.Chassis) > 0 {
+		gwUUID := t.namedUUID()
+		gwLrp := &nb.LogicalRouterPort{
+			UUID:        gwUUID,
+			Name:        gwLrpName(r),
+			MAC:         mac(0x500000 + r),
+			Networks:    []string{fmt.Sprintf("192.0.2.%d/24", r)},
+			ExternalIDs: ownedIDs("gateway-port"),
+		}
+		if useHA {
+			gwLrp.HaChassisGroup = ptr(haGroupUUID)
+		} else {
+			gcUUID := t.namedUUID()
+			t.add(&nb.GatewayChassis{
+				UUID:        gcUUID,
+				Name:        fmt.Sprintf("%s-gc", gwLrpName(r)),
+				ChassisName: opts.Chassis[0],
+				Priority:    30,
+				ExternalIDs: ownedIDs("gateway-chassis"),
+			})
+			gwLrp.GatewayChassis = []string{gcUUID}
+			res.add("Gateway_Chassis", 1)
+		}
+		t.add(gwLrp)
+		ports = append(ports, gwUUID)
+		res.add("Logical_Router_Port", 1)
+
+		// External switch: localnet LSP (→ physnet1) + router uplink to the gw port.
+		lnUUID := t.namedUUID()
+		t.add(&nb.LogicalSwitchPort{
+			UUID:        lnUUID,
+			Name:        pubLocalnetName(r),
+			Type:        "localnet",
+			Addresses:   []string{"unknown"},
+			Options:     map[string]string{"network_name": "physnet1"},
+			ExternalIDs: ownedIDs("localnet"),
+		})
+		rlUUID := t.namedUUID()
+		t.add(&nb.LogicalSwitchPort{
+			UUID:        rlUUID,
+			Name:        pubRouterLspName(r),
+			Type:        "router",
+			Addresses:   []string{"router"},
+			Options:     map[string]string{"router-port": gwLrpName(r)},
+			ExternalIDs: ownedIDs("router-link"),
+		})
+		t.add(&nb.LogicalSwitch{
+			UUID:        t.namedUUID(),
+			Name:        pubSwitchName(r),
+			Ports:       []string{lnUUID, rlUUID},
+			ExternalIDs: ownedIDs("ext-switch"),
+		})
+		res.add("Logical_Switch_Port", 2)
+		res.add("Logical_Switch", 1)
 	}
 
 	routeUUID := t.namedUUID()
