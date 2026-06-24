@@ -385,3 +385,28 @@ func TestPortDiagnoser(t *testing.T) {
 		}
 	})
 }
+
+func TestTypesConsistent(t *testing.T) {
+	tests := []struct {
+		name    string
+		lspType string
+		pbType  string
+		want    bool
+	}{
+		{"vif matches empty", "", "", true},
+		{"localnet matches", "localnet", "localnet", true},
+		{"localport matches", "localport", "localport", true},
+		{"vtep matches", "vtep", "vtep", true},
+		{"router binds as patch", "router", "patch", true},
+		{"router binds as l3gateway", "router", "l3gateway", true},
+		{"router binds as chassisredirect", "router", "chassisredirect", true},
+		{"vif vs localnet mismatch", "", "localnet", false},
+		{"router vs localnet mismatch", "router", "localnet", false},
+		{"non-router types must match exactly", "localnet", "patch", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, typesConsistent(tt.lspType, tt.pbType))
+		})
+	}
+}

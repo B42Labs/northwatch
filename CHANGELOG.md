@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Doc comments on previously undocumented exported symbols in `internal/ovsdb`,
   `internal/search`, and `internal/api`.
 
+### Fixed
+- Port `type_consistency` diagnostic no longer warns on router ports. A "router"
+  Logical_Switch_Port is realized in SB as a `patch` Port_Binding (or
+  `l3gateway`/`chassisredirect` for distributed gateway ports), so the previous
+  exact string comparison flagged every router port in every deployment.
+
 ### Changed
 - `write.PlanCache.StartCleanup` now accepts a context and exits when it is
   cancelled. `write.Engine.Start` returns a stop function so the background
