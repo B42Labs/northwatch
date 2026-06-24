@@ -18,9 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ovnsim` load generator (`cmd/ovnsim`, `internal/ovnsim`): `seed` creates an
   idempotent baseline across every major NB table, `run` continuously mutates
   the topology (create/delete switches, routers, ports, NAT, ACLs, LB VIPs;
-  optional real port binding/migration onto chassis via `--bind-ports`), and
-  `clean` removes everything it created. All objects are tagged so it only ever
-  touches its own rows.
+  optional real port binding/migration onto chassis via `--bind-ports`),
+  `bind`/`unbind` (and `make lab-bind`/`lab-unbind`) bind all seeded VIFs onto
+  chassis so they bind in SB (clearing the "VIF not bound to any chassis"
+  alerts), and `clean` removes everything it created. All objects are tagged so
+  it only ever touches its own rows.
 - Configurable WebSocket Origin allowlist via `--ws-allowed-origins` /
   `NORTHWATCH_WS_ALLOWED_ORIGINS`. When unset, origin checking is disabled
   (single-tenant deployment default).
