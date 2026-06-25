@@ -21,11 +21,11 @@ the `correlated/*` views include the resolved context inline.
 Enrichment is pluggable; a provider knows how to map OVN entities to one external
 system:
 
-- **OpenStack** (the primary provider) resolves through Neutron and Nova: switches
-  to networks, ports to Neutron ports and Nova instances, routers to Neutron
-  routers, NAT entries to floating IPs, and chassis hostnames to hypervisors. The
-  mapping keys off the `neutron:*` `external_ids` that Neutron writes onto OVN
-  objects, plus the `iface-id` on Southbound port bindings. See
+- **OpenStack** (the primary provider) resolves through Neutron, Nova and
+  Keystone: switches to networks, ports to Neutron ports and Nova instances,
+  routers to Neutron routers, NAT entries to floating-IP details, and project
+  IDs to project names. The mapping keys off the `neutron:*` `external_ids` that
+  Neutron writes onto OVN switches, ports, routers and NAT entries. See
   [Enrich with OpenStack](/how-to/enrich-with-openstack).
 - **Kubernetes** resolves ovn-kubernetes entities to namespaces, pods and nodes
   via a kubeconfig. See [Enrich with Kubernetes](/how-to/enrich-with-kubernetes).
