@@ -181,13 +181,22 @@ OS_USER_DOMAIN_NAME ?= default
 OS_REGION_NAME      ?= RegionOne
 OS_CACERT           ?= $(CURDIR)/contrib/testbed.pem
 
+# Write operations are enabled by default in the testbed; override with
+# `make testbed NORTHWATCH_WRITE_ENABLED=false`.
+NORTHWATCH_WRITE_ENABLED ?= true
+
+# HTTP listen address for the dashboard/API; override e.g.
+# `make testbed NORTHWATCH_LISTEN=:9090`.
+NORTHWATCH_LISTEN ?= :8080
+
 testbed: build
 	@test -f "$(OS_CACERT)" || { echo "error: CA cert $(OS_CACERT) not found (clouds.yaml 'cacert')"; exit 1; }
 	@echo "Starting Northwatch against the OSISM testbed control plane:"
 	@echo "  NB: $(TESTBED_NB)"
 	@echo "  SB: $(TESTBED_SB)"
 	@echo "  OpenStack: $(OS_AUTH_URL) (cacert $(OS_CACERT))"
-	@echo "  Dashboard: http://localhost:8080"
+	@echo "  Write operations: $(NORTHWATCH_WRITE_ENABLED)"
+	@echo "  Dashboard: http://localhost$(NORTHWATCH_LISTEN)"
 	OS_AUTH_URL="$(OS_AUTH_URL)" \
 	OS_USERNAME="$(OS_USERNAME)" \
 	OS_PASSWORD="$(OS_PASSWORD)" \
@@ -195,6 +204,8 @@ testbed: build
 	OS_USER_DOMAIN_NAME="$(OS_USER_DOMAIN_NAME)" \
 	OS_REGION_NAME="$(OS_REGION_NAME)" \
 	OS_CACERT="$(OS_CACERT)" \
+	NORTHWATCH_WRITE_ENABLED="$(NORTHWATCH_WRITE_ENABLED)" \
+	NORTHWATCH_LISTEN="$(NORTHWATCH_LISTEN)" \
 	./bin/northwatch --ovn-nb-addr "$(TESTBED_NB)" --ovn-sb-addr "$(TESTBED_SB)"
 
 clean:
