@@ -88,6 +88,21 @@ func TestBuildSpec_ValidJSON(t *testing.T) {
 	assert.True(t, len(data) > 1000, "spec should be substantial, got %d bytes", len(data))
 }
 
+func TestBuildSpec_RollbackImplemented(t *testing.T) {
+	doc := BuildSpec()
+
+	pi, ok := doc.Paths["/api/v1/write/rollback"]
+	require.True(t, ok, "rollback path missing")
+	require.NotNil(t, pi.Post, "rollback POST operation missing")
+
+	assert.NotContains(t, pi.Post.Summary, "not yet implemented",
+		"rollback summary must not advertise the feature as unimplemented")
+	assert.Contains(t, pi.Post.Responses, "200",
+		"rollback should advertise a 200 response now that it is implemented")
+	assert.NotContains(t, pi.Post.Responses, "501",
+		"rollback should no longer advertise a 501 Not Implemented response")
+}
+
 func TestBuildSpec_UniqueOperationIDs(t *testing.T) {
 	doc := BuildSpec()
 	seen := make(map[string]string) // operationID → path
