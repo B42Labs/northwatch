@@ -2,7 +2,7 @@
 
 OpenStack is the primary enrichment provider. With it configured, Northwatch
 resolves OVN UUIDs and `external_ids` to human-readable OpenStack names —
-networks, ports, instances, routers and floating IPs — so a chassis or port reads
+networks, ports, instances, routers and floating IPs — so a port reads
 as `web-server-01 on project production` instead of a bare UUID.
 
 Enrichment is always additive: the core works without it, and turning it on only
@@ -59,14 +59,16 @@ block instead (see [Monitor multiple clusters](/how-to/monitor-multiple-clusters
 
 ## What gets resolved
 
+Enrichment keys off the `neutron:*` `external_ids` Neutron writes onto the NB
+objects. Names already present in `external_ids` are surfaced directly; a
+`device_id` and `project_id` trigger a Nova / Keystone lookup.
+
 | OVN entity | `external_ids` / key | Resolved to |
 |---|---|---|
-| `Logical_Switch` | `neutron:network_name` | Neutron network name |
-| `Logical_Switch_Port` | `neutron:port_name`, `neutron:device_id` | Port name, Nova instance |
-| `Logical_Router` | `neutron:router_name` | Neutron router name |
-| `NAT` (floating IP) | `neutron:fip_id` | Floating-IP details |
-| `Port_Binding` (SB) | `iface-id` | Port / instance info |
-| `Chassis` | hostname | Nova hypervisor details |
+| `Logical_Switch` | `neutron:network_name`, `neutron:project_id` | Network name; project name (Keystone) |
+| `Logical_Switch_Port` | `neutron:port_name`, `neutron:device_id`, `neutron:project_id` | Port name; Nova instance name (when `device_owner` is `compute:nova`); project name (Keystone) |
+| `Logical_Router` | `neutron:router_name`, `neutron:project_id` | Router name; project name (Keystone) |
+| `NAT` (floating IP) | `neutron:fip_id`, `neutron:fip_external_mac` | Floating-IP id and external MAC (surfaced as `extra`, no API call) |
 
 ## Tune the cache
 

@@ -45,6 +45,19 @@ In a multi-cluster config file, use a `kubernetes` enrichment block:
 }
 ```
 
+## What gets resolved
+
+Enrichment keys off the `k8s.ovn.org/*` `external_ids` ovn-kubernetes writes onto
+the NB objects. The pod reference also drives an API lookup for the node and
+labels:
+
+| OVN entity | `external_ids` / key | Resolved to |
+|---|---|---|
+| `Logical_Switch_Port` | `k8s.ovn.org/pod` (`namespace/name`), `k8s.ovn.org/nad` | Pod name and namespace; node name and pod labels via an API lookup; the NAD as `extra` |
+| `Logical_Switch` | `k8s.ovn.org/network` | Network name |
+| `Logical_Router` | `k8s.ovn.org/network` | Network name |
+| `NAT` | — | Not resolved |
+
 ## Confirm it is on
 
 As with any provider, an active Kubernetes enricher adds the `enrich` capability:
