@@ -42,6 +42,11 @@ Setting `--os-auth-url` enables OpenStack enrichment for the default cluster.
 | `--os-project-name` | `OS_PROJECT_NAME` | *(none)* |
 | `--os-domain-name` | `OS_USER_DOMAIN_NAME` | *(none)* |
 | `--os-region-name` | `OS_REGION_NAME` | *(none)* |
+| `--os-cacert` | `OS_CACERT` | *(none)* |
+
+`--os-cacert` is a path to a PEM CA bundle used to verify the OpenStack API when
+it is fronted by a private CA (maps to the clouds.yaml `cacert` field). The
+bundle is trusted only by the OpenStack client, not the whole process.
 
 ## Kubernetes enrichment
 

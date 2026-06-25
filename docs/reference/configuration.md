@@ -23,7 +23,8 @@ simpler for that case.
         "os_password": "secret",
         "os_project_name": "admin",
         "os_domain_name": "Default",
-        "os_region_name": "RegionOne"
+        "os_region_name": "RegionOne",
+        "os_cacert": "/etc/northwatch/testbed-ca.pem"
       }
     }
   ]
@@ -59,6 +60,7 @@ simpler for that case.
 | `os_project_name` | string | openstack | Project name. |
 | `os_domain_name` | string | openstack | User domain name. |
 | `os_region_name` | string | openstack | Region name. |
+| `os_cacert` | string | openstack | Path to a PEM CA bundle for verifying the OpenStack API (clouds.yaml `cacert`). |
 | `kubeconfig` | string | kubernetes | Path to kubeconfig. |
 | `kube_context` | string | kubernetes | Kubeconfig context. |
 
