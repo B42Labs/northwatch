@@ -9,6 +9,7 @@ lab. This page lists the targets; the lab targets are covered in detail in
 | Target | What it does |
 |---|---|
 | `make build` | Build the binary to `bin/northwatch` (ensures a UI dist exists first). |
+| `make ensure-ui-dist` | Ensure a UI dist exists, writing a placeholder if the frontend has not been built. A prerequisite of `make build`. |
 | `make build-ui` | Build the Svelte frontend (`npm ci && npm run build`). |
 | `make build-all` | `build-ui` then `build`. |
 | `make dev-ui` | Run the frontend dev server. |
@@ -35,7 +36,8 @@ so a freshly built binary runs without a Gatekeeper prompt.
 
 | Target | What it does |
 |---|---|
-| `make lab-compose-up` / `lab-compose-down` | Start / stop the Docker Compose lab. |
+| `make lab-compose-up` / `lab-compose-down` | Start / stop the Docker Compose lab. `lab-compose-up` reuses existing images (building only missing ones — no forced rebuild), so it works without registry access once the images exist; add `KERNEL=1` to layer in the kernel-datapath override. |
+| `make lab-compose-build` | Force-rebuild the Compose lab images (needs registry access). Run after changing a `Dockerfile` or entrypoint. |
 | `make lab-compose` | Compose up, wait for OVN, then seed. |
 | `make lab-up` / `lab-down` | Start / stop the containerlab lab (Linux). |
 | `make lab` | `lab-up` + `lab-seed`. |
@@ -48,6 +50,28 @@ so a freshly built binary runs without a Gatekeeper prompt.
 | `make lab-multi-up` / `lab-multi-down` | Start / stop a second independent cluster. |
 | `make lab-images` | Build the central and chassis images. |
 | `make lab-install-tools` | Install containerlab (Linux). |
+
+## OSISM testbed
+
+`make testbed` builds Northwatch and runs it against the OSISM testbed control
+plane, with OpenStack name resolution enabled and the Keystone API verified
+against the private testbed CA (`contrib/testbed.pem`, the clouds.yaml
+`cacert`). It connects to the three control-plane nodes with NB/SB failover and
+enables write operations by default. The target fails fast if the CA bundle at
+`OS_CACERT` is missing.
+
+Every value is overridable on the command line — for example
+`make testbed TESTBED_CP1=10.0.0.1 OS_PASSWORD=secret` — or by sourcing an
+OpenStack RC file first (the `OS_*` defaults honour the environment):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TESTBED_CP1` / `TESTBED_CP2` / `TESTBED_CP3` | `192.168.16.10` / `.11` / `.12` | Control-plane node addresses. |
+| `TESTBED_NB` | failover across `CP1/2/3:6641` | Northbound address. |
+| `TESTBED_SB` | failover across `CP1/2/3:6642` | Southbound address. |
+| `OS_AUTH_URL` … `OS_CACERT` | values from `clouds.yaml` | OpenStack credentials and the CA bundle. |
+| `NORTHWATCH_WRITE_ENABLED` | `true` | Enable write operations. |
+| `NORTHWATCH_LISTEN` | `:8080` | Dashboard / API listen address. |
 
 ## Useful variables
 
