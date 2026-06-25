@@ -119,6 +119,14 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod go.sum
 
+  docs-check:
+    name: Docs Drift Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check reference docs are in sync with code
+        run: make docs-check
+
   vuln:
     name: Vulnerability Check
     runs-on: ubuntu-latest
