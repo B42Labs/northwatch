@@ -16,6 +16,7 @@ lab. This page lists the targets; the lab targets are covered in detail in
 | `make test` | Run all Go tests with the race detector (`go test -race ./...`). |
 | `make lint` | Run `golangci-lint`. |
 | `make vet` | Run `go vet ./...`. |
+| `make docs-check` | Fail if a CLI flag or make target is undocumented in `docs/reference/`. |
 | `make clean` | Remove `bin/` and frontend build artifacts. |
 
 ## Code generation

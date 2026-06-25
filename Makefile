@@ -1,4 +1,4 @@
-.PHONY: build test lint generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
+.PHONY: build test lint docs-check generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
 	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
 	lab-compose-up lab-compose-build lab-compose-down lab-compose testbed
 
@@ -47,6 +47,27 @@ lint:
 
 vet:
 	go vet ./...
+
+# Guard against reference/code drift: fail if a CLI flag (internal/config) or a
+# Makefile target is undocumented in docs/reference/. This catches the
+# mechanically extractable drift that slipped in right after the docs landed;
+# routes, metrics and capabilities are reconciled by review.
+docs-check:
+	@missing=0; \
+	flags="$$(grep -oE 'fs\.(String|Bool|Int|Int64)Var\(&[A-Za-z0-9_.]+, "[a-z0-9-]+"' internal/config/config.go | grep -oE '"[a-z0-9-]+"$$' | tr -d '"')"; \
+	[ -n "$$flags" ] || { echo "docs-check: extracted zero CLI flags — internal/config/config.go path or fs.*Var pattern changed"; exit 1; }; \
+	doc_flags="$$(grep -oE -- '--[a-z0-9-]+' docs/reference/cli.md)"; \
+	for flag in $$flags; do \
+		printf '%s\n' "$$doc_flags" | grep -qFx -- "--$$flag" || { echo "undocumented flag: --$$flag (docs/reference/cli.md)"; missing=1; }; \
+	done; \
+	targets="$$(grep -oE '^[a-z][a-z0-9-]*:' Makefile | tr -d ':')"; \
+	[ -n "$$targets" ] || { echo "docs-check: extracted zero make targets — Makefile target pattern changed"; exit 1; }; \
+	doc_targets="$$(grep -oE '[a-z][a-z0-9-]*' docs/reference/make-targets.md)"; \
+	for target in $$targets; do \
+		printf '%s\n' "$$doc_targets" | grep -qFx -- "$$target" || { echo "undocumented make target: $$target (docs/reference/make-targets.md)"; missing=1; }; \
+	done; \
+	if [ $$missing -ne 0 ]; then echo "docs-check: reference docs are out of sync with code"; exit 1; fi; \
+	echo "docs-check: all flags and targets documented"
 
 generate:
 	go generate ./internal/ovsdb/...
