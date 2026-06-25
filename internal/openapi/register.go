@@ -402,10 +402,8 @@ func registerWrite(b *Builder) {
 		Parameters: []Parameter{pathParam("id")}, Responses: noContent(),
 	})
 	b.AddOperation("/api/v1/write/rollback", "post", &Operation{
-		OperationID: "rollbackWrite", Summary: "Rollback to a snapshot (not yet implemented)", Tags: []string{tag},
-		RequestBody: jsonBody(), Responses: map[string]Response{
-			"501": {Description: "Not implemented"},
-		},
+		OperationID: "rollbackWrite", Summary: "Preview a rollback to a snapshot", Tags: []string{tag},
+		RequestBody: jsonBody(), Responses: jsonOK("Plan with diffs reversing changes since the snapshot"),
 	})
 	b.AddOperation("/api/v1/write/audit", "get", &Operation{
 		OperationID: "listWriteAudit", Summary: "List write audit entries", Tags: []string{tag},

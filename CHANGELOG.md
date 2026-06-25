@@ -57,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `internal/search`, and `internal/api`.
 
 ### Fixed
+- The generated OpenAPI spec described the write rollback operation as
+  "Rollback to a snapshot (not yet implemented)" with a `501` response, but the
+  feature is implemented and returns `200` with a reversing preview plan. The
+  summary and response are corrected.
 - `ovnsim` now models gateways the way ovn-northd expects: each router has one
   distributed gateway port attached to a dedicated external switch with a
   `localnet` port (carrying an HA_Chassis_Group on even routers, a
