@@ -7,7 +7,7 @@ embedded Svelte UI and a self-contained OVN lab.
 northwatch/
   cmd/
     northwatch/        # server entry point (+ the `snapshot` subcommand)
-    ovnsim/            # OVN load generator for the lab (seed/run/bind/clean)
+    ovnsim/            # OVN load generator for the lab (seed/run/bind/unbind/clean)
     openapi-export/    # writes the OpenAPI spec to stdout
   internal/
     config/            # CLI flags + env vars + JSON multi-cluster config file
@@ -33,6 +33,7 @@ northwatch/
     snapshotsession/   # load a stored snapshot as a runtime cluster
     write/             # write engine: plans, preview, audit, rate limit
     openapi/           # OpenAPI 3.1 spec builder
+    ovnsim/            # OVN lab load-generator implementation (seed/run/bind/unbind/clean)
     testutil/          # shared test helpers
   ui/
     frontend/          # Svelte + TypeScript SPA
