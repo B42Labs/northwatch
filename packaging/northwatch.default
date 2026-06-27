@@ -1,0 +1,33 @@
+# /etc/default/northwatch — environment for northwatch.service
+# Flags > env vars; this file sets env vars. Uncomment to override defaults.
+
+# OVN Northbound DB (required) — comma-separated for Raft failover
+NORTHWATCH_OVN_NB_ADDR=tcp:127.0.0.1:6641
+# OVN Southbound DB (required)
+NORTHWATCH_OVN_SB_ADDR=tcp:127.0.0.1:6642
+
+# HTTP listen address (the binary's built-in default :8080 binds all interfaces).
+# Northwatch has no built-in authentication, so the package binds localhost by
+# default; change this deliberately and put authentication in front of it.
+NORTHWATCH_LISTEN=127.0.0.1:8080
+
+# Persisted under the systemd StateDirectory (/var/lib/northwatch)
+NORTHWATCH_HISTORY_DB_PATH=/var/lib/northwatch/history.db
+
+# Multi-cluster JSON config (overrides the flat NB/SB addrs above)
+#NORTHWATCH_CONFIG_FILE=/etc/northwatch/clusters.json
+
+# --- the remaining knobs, all optional (see docs/reference/cli.md) ---
+#NORTHWATCH_MONITOR_BATCH_DELAY=200ms
+#NORTHWATCH_MONITOR_SKIP_TABLES=Logical_Flow,MAC_Binding,FDB
+#NORTHWATCH_WRITE_ENABLED=false
+#NORTHWATCH_WRITE_PLAN_TTL=10m
+#NORTHWATCH_WRITE_RATE_LIMIT=30
+#NORTHWATCH_SNAPSHOT_INTERVAL=5m
+#NORTHWATCH_EVENT_RETENTION=24h
+#NORTHWATCH_EVENT_MAX_COUNT=0
+#NORTHWATCH_ENRICHMENT_CACHE_TTL=5m
+#NORTHWATCH_ALERT_WEBHOOK_URLS=
+#NORTHWATCH_WS_ALLOWED_ORIGINS=
+# OpenStack enrichment: OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, OS_PROJECT_NAME, ...
+# Kubernetes enrichment: NORTHWATCH_KUBE_ENRICHMENT=true, KUBECONFIG=..., NORTHWATCH_KUBE_CONTEXT=...
