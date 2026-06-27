@@ -237,7 +237,7 @@ func run() error {
 	// loaded at runtime becomes reachable as an additional cluster without a
 	// restart.
 	proxy := handler.RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
-		registerClusterRoutes(subMux, c, traceStore, wsOrigins)
+		registerClusterRoutes(subMux, c, traceStore, wsOrigins, cfg.ChassisStaleThreshold)
 	})
 	if multiCluster {
 		fmt.Printf("Multi-cluster mode enabled with %d clusters\n", reg.Len())
@@ -262,7 +262,7 @@ func run() error {
 		},
 		func(c *cluster.Cluster) {
 			subMux := http.NewServeMux()
-			registerSnapshotClusterRoutes(subMux, c, traceStore)
+			registerSnapshotClusterRoutes(subMux, c, traceStore, cfg.ChassisStaleThreshold)
 			proxy.Add(c.Name, subMux)
 		},
 		proxy.Remove,
@@ -460,6 +460,7 @@ func registerDefaultRoutes(
 	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster, snapInfo)
 	handler.RegisterNB(mux, def.DBs.NB)
 	handler.RegisterSB(mux, def.DBs.SB)
+	handler.RegisterInventory(mux, def.DBs.SB, cfg.ChassisStaleThreshold)
 	handler.RegisterCorrelated(mux, def.Correlator, def.Enricher)
 	handler.RegisterWS(mux, def.EventHub, wsOrigins)
 	handler.RegisterTopology(mux, def.DBs.NB, def.DBs.SB)
@@ -483,9 +484,10 @@ func registerDefaultRoutes(
 // registerClusterRoutes wires up the per-cluster routes on a sub-mux used by
 // the cluster proxy. Telemetry is registered without a Prometheus registry
 // because metrics are only exposed at the top level.
-func registerClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore *handler.TraceStore, wsOrigins []string) {
+func registerClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore *handler.TraceStore, wsOrigins []string, chassisStaleThreshold time.Duration) {
 	handler.RegisterNB(subMux, c.DBs.NB)
 	handler.RegisterSB(subMux, c.DBs.SB)
+	handler.RegisterInventory(subMux, c.DBs.SB, chassisStaleThreshold)
 	handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
 	handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
 	handler.RegisterNATTopology(subMux, c.DBs.NB)
@@ -544,9 +546,10 @@ func buildSnapshotCluster(ctx context.Context, name, label, nbAddr, sbAddr strin
 // registerSnapshotClusterRoutes wires the read-only browsing routes for a loaded
 // snapshot cluster. Live-only routes (alerts, telemetry, flow diff, websocket)
 // are intentionally omitted, matching the subsystems buildSnapshotCluster builds.
-func registerSnapshotClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore *handler.TraceStore) {
+func registerSnapshotClusterRoutes(subMux *http.ServeMux, c *cluster.Cluster, traceStore *handler.TraceStore, chassisStaleThreshold time.Duration) {
 	handler.RegisterNB(subMux, c.DBs.NB)
 	handler.RegisterSB(subMux, c.DBs.SB)
+	handler.RegisterInventory(subMux, c.DBs.SB, chassisStaleThreshold)
 	handler.RegisterCorrelated(subMux, c.Correlator, c.Enricher)
 	handler.RegisterTopology(subMux, c.DBs.NB, c.DBs.SB)
 	handler.RegisterNATTopology(subMux, c.DBs.NB)
