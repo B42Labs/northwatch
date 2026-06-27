@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Debian `.deb` package, built and cosign-signed on every tagged release
+  (nfpm + a hardened systemd unit). It installs the static binary to
+  `/usr/bin/northwatch`, runs it as a dedicated unprivileged `northwatch`
+  system user with the SQLite history DB under the systemd `StateDirectory`
+  (`/var/lib/northwatch`), and ships `/etc/default/northwatch` as a conffile so
+  operator edits survive upgrades. `remove` keeps the history DB; `purge` drops
+  it (retaining the system user). Build one locally with `make deb`. See
+  [Install on Debian/Ubuntu](https://b42labs.github.io/northwatch/how-to/install-debian).
 - OpenStack enrichment can now verify the Keystone/Nova API against a private CA
   via `--os-cacert` / `OS_CACERT` (maps to the clouds.yaml `cacert` field). The
   CA is scoped to the OpenStack HTTP client, leaving the rest of the process on

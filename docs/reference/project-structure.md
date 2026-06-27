@@ -39,6 +39,8 @@ northwatch/
     frontend/          # Svelte + TypeScript SPA
     *.go               # embed.FS for the built assets
   lab/                 # containerlab + Docker Compose OVN lab
+  packaging/           # Debian packaging inputs: systemd unit, env file, maintainer scripts
+  nfpm.yaml            # nfpm spec for the .deb (see make deb / the release workflow)
   Makefile
   go.mod / go.sum
 ```
