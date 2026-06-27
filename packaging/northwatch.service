@@ -1,0 +1,42 @@
+[Unit]
+Description=Northwatch — OVN browser, debugger & monitoring API
+Documentation=https://github.com/B42Labs/northwatch
+After=network-online.target
+Wants=network-online.target
+# StartLimit* are [Unit] directives — ignored if placed under [Service].
+StartLimitIntervalSec=120
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=northwatch
+Group=northwatch
+EnvironmentFile=/etc/default/northwatch
+ExecStart=/usr/bin/northwatch
+Restart=on-failure
+RestartSec=5
+
+# State (SQLite history DB) — systemd creates/owns /var/lib/northwatch
+StateDirectory=northwatch
+StateDirectoryMode=0750
+
+# Hardening: read-only API + OVSDB client needs no privileges
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
