@@ -24,6 +24,8 @@ func TestBuildSpec_HasExpectedPaths(t *testing.T) {
 		"/api/v1/nb/logical-routers",
 		"/api/v1/nb/acls",
 		"/api/v1/sb/chassis",
+		"/api/v1/sb/chassis-inventory",
+		"/api/v1/sb/chassis-inventory/{name}",
 		"/api/v1/sb/port-bindings",
 		"/api/v1/sb/logical-flows",
 		"/api/v1/correlated/logical-switches",

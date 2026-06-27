@@ -14,6 +14,7 @@ func BuildSpec() Document {
 	registerCapabilities(b)
 	registerNB(b)
 	registerSB(b)
+	registerChassisInventory(b)
 	registerCorrelated(b)
 	registerSearch(b)
 	registerTopology(b)
@@ -141,6 +142,24 @@ func registerSB(b *Builder) {
 	AddTableEndpoints(b, sb.LogicalDPGroup{}, "/api/v1/sb/logical-dp-groups", "Southbound", "LogicalDPGroup")
 	AddTableEndpoints(b, sb.RBACRole{}, "/api/v1/sb/rbac-roles", "Southbound", "RBACRole")
 	AddTableEndpoints(b, sb.RBACPermission{}, "/api/v1/sb/rbac-permissions", "Southbound", "RBACPermission")
+}
+
+func registerChassisInventory(b *Builder) {
+	tag := "Southbound"
+	b.AddOperation("/api/v1/sb/chassis-inventory", "get", &Operation{
+		OperationID: "listChassisInventory",
+		Summary:     "List aggregated chassis inventory with liveness and bound-port summary",
+		Description: "Aggregates Chassis, Encap, Chassis_Private (liveness derived from nb_cfg/nb_cfg_timestamp) and Port_Binding from the Southbound cache. No live OVS data.",
+		Tags:        []string{tag},
+		Responses:   jsonOK("Array of ChassisSummary"),
+	})
+	b.AddOperation("/api/v1/sb/chassis-inventory/{name}", "get", &Operation{
+		OperationID: "getChassisInventory",
+		Summary:     "Get aggregated chassis inventory detail by system-id",
+		Tags:        []string{tag},
+		Parameters:  []Parameter{pathParam("name")},
+		Responses:   jsonOK("ChassisDetail with encaps, bridge mappings, liveness and bound ports"),
+	})
 }
 
 func registerCorrelated(b *Builder) {
