@@ -28,6 +28,29 @@ lab. This page lists the targets; the lab targets are covered in detail in
 | `make openapi-export` | Write the OpenAPI spec to `openapi.json`. |
 | `make ovnsim` | Build the `ovnsim` load generator to `bin/ovnsim`. |
 
+## Packaging
+
+| Target | What it does |
+|---|---|
+| `make deb` | Build a Debian `.deb` for `linux/$(GOARCH)` into `dist/`. Cross-builds the static binary, then runs `nfpm`. |
+
+`make deb` requires [`nfpm`](https://nfpm.goreleaser.com/) on `PATH`:
+
+```bash
+go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+```
+
+Override the package version with `VERSION` (it defaults to `git describe` with
+the leading `v` stripped) and the target architecture with `GOARCH`:
+
+```bash
+make deb VERSION=0.3.0 GOARCH=arm64
+```
+
+The package layout, install steps and service lifecycle are documented in
+[Install on Debian/Ubuntu](/how-to/install-debian). On a tagged release the same
+`.deb`s are built, signed and attached automatically by the release workflow.
+
 ## macOS note
 
 `make unquarantine` strips the macOS quarantine attribute from `bin/northwatch*`
