@@ -19,6 +19,7 @@ northwatch/
       handler/         # route handlers (one file per feature area)
     search/            # Omnisearch engine across NB/SB tables
     correlate/         # NB↔SB entity correlation
+    inventory/         # aggregated SB chassis inventory + liveness
     enrich/            # enrichment providers (OpenStack, Kubernetes) + cache
     events/            # OVSDB-change event hub / bridge
     debug/             # connectivity, port diagnostics, ACL audit, stale detection

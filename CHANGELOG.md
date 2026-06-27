@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Aggregated chassis inventory built entirely from the existing Southbound
+  cache (no new OVSDB connections): `GET /api/v1/sb/chassis-inventory` and
+  `/{name}`. Each entry joins `Chassis`, `Encap`, `Chassis_Private`,
+  `SB_Global` and `Port_Binding` into one chassis-centric view — system-id
+  (the Phase-2 OVS join key), tunnel endpoints, bridge mappings, a computed
+  liveness (`in_sync` from `nb_cfg`, `alive` from `nb_cfg_timestamp` freshness)
+  and a per-chassis bound-port summary. The staleness threshold is configurable
+  via `--chassis-stale-threshold` / `NORTHWATCH_CHASSIS_STALE_THRESHOLD`
+  (default `60s`).
 - Debian `.deb` package, built and cosign-signed on every tagged release
   (nfpm + a hardened systemd unit). It installs the static binary to
   `/usr/bin/northwatch`, runs it as a dedicated unprivileged `northwatch`
