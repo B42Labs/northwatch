@@ -3,6 +3,10 @@
 Task-oriented recipes for people who already know the basics. Each guide solves
 one specific problem.
 
+**Install**
+
+- [Install on Debian/Ubuntu](/how-to/install-debian)
+
 **Connect & run**
 
 - [Run the local lab](/how-to/run-the-local-lab)

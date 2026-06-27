@@ -51,6 +51,10 @@ export default defineConfig({
           text: 'How-to guides',
           items: [
             { text: 'Overview', link: '/how-to/' },
+            {
+              text: 'Install on Debian/Ubuntu',
+              link: '/how-to/install-debian',
+            },
             { text: 'Run the local lab', link: '/how-to/run-the-local-lab' },
             {
               text: 'Connect to a Raft cluster',
