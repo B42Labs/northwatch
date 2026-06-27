@@ -55,6 +55,26 @@ Same `list` + `/{uuid}` pattern under `/api/v1/sb/<table>`:
 `controller-events`, `static-mac-bindings`, `logical-dp-groups`, `rbac-roles`,
 `rbac-permissions`.
 
+## Chassis inventory
+
+An aggregated, chassis-centric view of the hypervisor/gateway fleet, computed
+entirely from the existing Southbound cache (no extra connections). Each entry
+joins `Chassis` + `Encap` + `Chassis_Private` + `SB_Global` + `Port_Binding`:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/sb/chassis-inventory` | One entry per chassis: system-id, tunnel endpoints, bridge mappings, liveness, bound-port summary. |
+| GET | `/api/v1/sb/chassis-inventory/{name}` | Detail for one chassis (by `name` / system-id), including the config copies and the list of bound logical ports. |
+
+Liveness is computed, not stored: `in_sync` compares `Chassis_Private.nb_cfg`
+against `SB_Global.nb_cfg`, and `alive` checks that `nb_cfg_timestamp` is fresh
+within `--chassis-stale-threshold`. A chassis with no `Chassis_Private` row is
+reported `in_sync=false, alive=false`. `name` (= the OVS `external_ids:system-id`)
+is the join key to the real Open_vSwitch instance.
+
+These are the *aggregated* views; the raw `chassis`, `encaps`, `port-bindings`
+and `chassis-private` tables remain available under [Southbound tables](#southbound-tables).
+
 ## Correlated views
 
 Northbound entities joined to their Southbound counterpart and enrichment context:

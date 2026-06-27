@@ -62,6 +62,16 @@ bundle is trusted only by the OpenStack client, not the whole process.
 |---|---|---|---|
 | `--enrichment-cache-ttl` | `NORTHWATCH_ENRICHMENT_CACHE_TTL` | `5m` | Enrichment cache TTL (Go duration). |
 
+## Chassis inventory
+
+| Flag | Env var | Default | Description |
+|---|---|---|---|
+| `--chassis-stale-threshold` | `NORTHWATCH_CHASSIS_STALE_THRESHOLD` | `60s` | Max age of a chassis `nb_cfg_timestamp` before the [chassis inventory](/reference/api#chassis-inventory) reports it not-alive (Go duration). |
+
+`nb_cfg_timestamp` only advances when a chassis acknowledges a new `nb_cfg`
+generation, so this bounds "age since last config-ack", not a periodic
+heartbeat. Raise it for low-churn deployments where config rarely changes.
+
 ## Write operations
 
 | Flag | Env var | Default | Description |
