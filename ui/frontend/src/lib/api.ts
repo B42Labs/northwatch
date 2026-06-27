@@ -682,3 +682,63 @@ export function getPropagationHeatmap(opts?: {
   const qs = params.toString();
   return get(`/api/v1/telemetry/propagation/heatmap${qs ? '?' + qs : ''}`);
 }
+
+// --- Chassis Inventory ---
+// Aggregated, chassis-centric view computed from the Southbound cache: identity,
+// tunnel encaps, nb_cfg-derived liveness, and per-chassis workload distribution.
+
+export interface EncapInfo {
+  type: string;
+  ip: string;
+}
+
+export interface ChassisLiveness {
+  in_sync: boolean;
+  alive: boolean;
+  nb_cfg: number;
+  sb_nb_cfg: number;
+  nb_cfg_timestamp: number;
+  age_ms: number;
+}
+
+export interface ChassisPortSummary {
+  total: number;
+  up: number;
+  by_type: Record<string, number>;
+}
+
+export interface ChassisBoundPort {
+  logical_port: string;
+  type: string;
+  up?: boolean;
+  tunnel_key: number;
+}
+
+export interface ChassisInventoryEntry {
+  name: string;
+  hostname: string;
+  // The backend marshals an empty encap slice to JSON null; normalize on read.
+  encaps: EncapInfo[] | null;
+  bridge_mappings?: string;
+  liveness: ChassisLiveness;
+  ports: ChassisPortSummary;
+}
+
+export interface ChassisInventoryDetail extends ChassisInventoryEntry {
+  other_config?: Record<string, string>;
+  bound_ports: ChassisBoundPort[];
+}
+
+export async function listChassisInventory(): Promise<ChassisInventoryEntry[]> {
+  // The list is always a JSON array, but stay defensive against a null body.
+  const data = await get<ChassisInventoryEntry[] | null>(
+    '/api/v1/sb/chassis-inventory',
+  );
+  return data ?? [];
+}
+
+export function getChassisInventory(
+  name: string,
+): Promise<ChassisInventoryDetail> {
+  return get(`/api/v1/sb/chassis-inventory/${encodeURIComponent(name)}`);
+}

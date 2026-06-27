@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a per-chassis bound-port summary. The staleness threshold is configurable
   via `--chassis-stale-threshold` / `NORTHWATCH_CHASSIS_STALE_THRESHOLD`
   (default `60s`).
+- Dashboard **Chassis Inventory** view (Monitoring section, `/chassis-inventory`)
+  surfacing the aggregated endpoint: fleet stat tiles (alive / in-sync / down /
+  bound ports), a liveness filter, and a per-chassis table with expandable rows
+  that lazy-load the detail (`other_config` and bound logical ports).
 - Debian `.deb` package, built and cosign-signed on every tagged release
   (nfpm + a hardened systemd unit). It installs the static binary to
   `/usr/bin/northwatch`, runs it as a dedicated unprivileged `northwatch`

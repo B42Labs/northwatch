@@ -79,6 +79,7 @@ export const navSections: NavSection[] = [
     liveOnly: true,
     links: [
       { label: 'Raft Health', href: '/raft-health' },
+      { label: 'Chassis Inventory', href: '/chassis-inventory' },
       { label: 'Propagation Timeline', href: '/propagation-timeline' },
     ],
   },
