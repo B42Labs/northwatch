@@ -1,8 +1,10 @@
 name: CI
 
+# These are PR-gating checks (lint, test, build, vet, docs-drift, vuln). They run
+# only on pull requests targeting main. After a merge, nothing here re-runs on main
+# — the exact merge result was already validated on the PR. Publishing on main is
+# handled by docs.yml (GitHub Pages) and release.yml (tagged releases).
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
