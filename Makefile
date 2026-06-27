@@ -1,9 +1,15 @@
-.PHONY: build test lint docs-check generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export \
+.PHONY: build test lint docs-check generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export deb \
 	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
 	lab-compose-up lab-compose-build lab-compose-down lab-compose testbed
 
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
+
+# Package version and target arch for `make deb`. Both are overridable so CI can
+# pass a clean tag (VERSION=${GITHUB_REF_NAME#v}); locally VERSION falls back to
+# the current git describe with the leading `v` stripped.
+VERSION ?= $(shell git describe --tags --always 2>/dev/null | sed 's/^v//')
+GOARCH  ?= $(shell go env GOARCH)
 
 # --- Local OVN lab (containerlab) -------------------------------------------
 # A throwaway OVN deployment for developing and demoing Northwatch. See lab/.
@@ -81,6 +87,15 @@ unquarantine:
 
 openapi-export:
 	go run ./cmd/openapi-export > openapi.json
+
+# Build a linux/$(GOARCH) .deb into dist/ (override VERSION=x.y.z). Requires nfpm
+# on PATH (go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0). Builds the
+# static Linux binary nfpm packages from, mirroring the release workflow.
+deb: ensure-ui-dist
+	GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 go build -trimpath \
+		-ldflags="-s -w" -o bin/northwatch-linux-$(GOARCH) ./cmd/northwatch/
+	mkdir -p dist
+	GOARCH=$(GOARCH) VERSION=$(VERSION) nfpm package --packager deb --target dist/
 
 ovnsim:
 	go build -o bin/ovnsim ./cmd/ovnsim/
@@ -230,4 +245,4 @@ testbed: build
 	./bin/northwatch --ovn-nb-addr "$(TESTBED_NB)" --ovn-sb-addr "$(TESTBED_SB)"
 
 clean:
-	rm -rf bin/ ui/frontend/dist/ ui/frontend/node_modules/
+	rm -rf bin/ dist/ ui/frontend/dist/ ui/frontend/node_modules/
