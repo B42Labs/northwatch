@@ -76,6 +76,13 @@ type Config struct {
 	Kubeconfig     string
 	KubeContext    string
 
+	// Chassis inventory liveness: the maximum age of a chassis
+	// nb_cfg_timestamp before the aggregated chassis inventory reports it as
+	// not-alive. nb_cfg_timestamp only advances when a chassis acknowledges a
+	// new nb_cfg generation, so this is an "age since last config-ack"
+	// threshold, not a periodic heartbeat.
+	ChassisStaleThreshold time.Duration // --chassis-stale-threshold / NORTHWATCH_CHASSIS_STALE_THRESHOLD
+
 	// Alerting
 	AlertWebhookURLs string // comma-separated webhook URLs
 
@@ -132,6 +139,9 @@ func Parse(args []string) (*Config, error) {
 
 	var cacheTTLStr string
 	fs.StringVar(&cacheTTLStr, "enrichment-cache-ttl", envOrDefault("NORTHWATCH_ENRICHMENT_CACHE_TTL", "5m"), "Enrichment cache TTL (e.g. 5m, 1h)")
+
+	var chassisStaleStr string
+	fs.StringVar(&chassisStaleStr, "chassis-stale-threshold", envOrDefault("NORTHWATCH_CHASSIS_STALE_THRESHOLD", "60s"), "Max age of a chassis nb_cfg_timestamp before it is reported not-alive in the chassis inventory (Go duration)")
 
 	// Alerting flags
 	fs.StringVar(&cfg.AlertWebhookURLs, "alert-webhook-urls", os.Getenv("NORTHWATCH_ALERT_WEBHOOK_URLS"), "Comma-separated webhook URLs for alert notifications")
@@ -208,6 +218,18 @@ func Parse(args []string) (*Config, error) {
 		return nil, fmt.Errorf("invalid enrichment-cache-ttl: %w", err)
 	}
 	cfg.EnrichmentCacheTTL = ttl
+
+	cst, err := time.ParseDuration(chassisStaleStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid chassis-stale-threshold: %w", err)
+	}
+	if cst <= 0 {
+		// A zero (or negative) threshold makes Alive = age <= 0, which is false
+		// for any past timestamp, so the whole fleet would silently report
+		// not-alive. Reject it rather than ship a monitoring blind spot.
+		return nil, fmt.Errorf("chassis-stale-threshold must be positive")
+	}
+	cfg.ChassisStaleThreshold = cst
 
 	si, err := time.ParseDuration(snapshotIntervalStr)
 	if err != nil {
