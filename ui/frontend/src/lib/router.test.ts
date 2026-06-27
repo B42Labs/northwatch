@@ -133,6 +133,19 @@ describe('resolveRoute', () => {
     expect(route.component).toBe('switch-profile');
   });
 
+  it('resolves chassis inventory', () => {
+    expect(resolveRoute('/chassis-inventory')).toMatchObject({
+      component: 'chassis-inventory',
+    });
+  });
+
+  it('resolves chassis inventory before the generic SB table browser', () => {
+    // /chassis-inventory must not fall through to /sb/:table-style handling.
+    expect(resolveRoute('/chassis-inventory').component).toBe(
+      'chassis-inventory',
+    );
+  });
+
   it('resolves write builder', () => {
     const route = resolveRoute('/write');
     expect(route.component).toBe('write-builder');

@@ -101,6 +101,8 @@ export function resolveRoute(path: string): ResolvedRoute {
   // Monitoring
   if ((m = matchRoute('/raft-health', path)))
     return { component: 'raft-health', ...m };
+  if ((m = matchRoute('/chassis-inventory', path)))
+    return { component: 'chassis-inventory', ...m };
   if ((m = matchRoute('/propagation-timeline', path)))
     return { component: 'propagation-timeline', ...m };
 
