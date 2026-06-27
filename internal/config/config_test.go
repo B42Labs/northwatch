@@ -111,6 +111,57 @@ func TestParse_InvalidCacheTTL(t *testing.T) {
 	assert.Contains(t, err.Error(), "enrichment-cache-ttl")
 }
 
+func TestParse_ChassisStaleThresholdDefault(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 60*time.Second, cfg.ChassisStaleThreshold)
+}
+
+func TestParse_ChassisStaleThresholdCustom(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--chassis-stale-threshold", "2m",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, cfg.ChassisStaleThreshold)
+}
+
+func TestParse_InvalidChassisStaleThreshold(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--chassis-stale-threshold", "nope",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "chassis-stale-threshold")
+}
+
+func TestParse_ZeroChassisStaleThreshold(t *testing.T) {
+	// 0 would make every chassis report not-alive (Alive = age <= 0); it must be
+	// rejected rather than silently shipping a fleet-wide monitoring blind spot.
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--chassis-stale-threshold", "0",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "chassis-stale-threshold")
+}
+
+func TestParse_NegativeChassisStaleThreshold(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--chassis-stale-threshold", "-5s",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "chassis-stale-threshold")
+}
+
 func TestParse_MonitorDefaults(t *testing.T) {
 	cfg, err := Parse([]string{
 		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
