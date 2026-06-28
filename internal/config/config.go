@@ -83,6 +83,17 @@ type Config struct {
 	// frozen nb_cfg_timestamp stays healthy regardless of this value.
 	ChassisStaleThreshold time.Duration // --chassis-stale-threshold / NORTHWATCH_CHASSIS_STALE_THRESHOLD
 
+	// Per-chassis Open_vSwitch (OVS) visibility. Opt-in and disabled by default:
+	// the integration is enabled only when OVSMgmtAddrs is non-empty, populated
+	// from the JSON mapping file given by --ovs-mgmt-addr-file. The map keys are
+	// chassis system-ids (matching SB Chassis.name / OVS external_ids:system-id)
+	// and the values are OVSDB management addresses (e.g. "tcp:10.0.0.1:6640" or
+	// "ssl:10.0.0.1:6640"). The TLS material is required only for ssl: endpoints.
+	OVSMgmtAddrs map[string]string // --ovs-mgmt-addr-file / NORTHWATCH_OVS_MGMT_ADDR_FILE
+	OVSTLSCert   string            // --ovs-tls-cert / NORTHWATCH_OVS_TLS_CERT
+	OVSTLSKey    string            // --ovs-tls-key / NORTHWATCH_OVS_TLS_KEY
+	OVSTLSCA     string            // --ovs-tls-ca / NORTHWATCH_OVS_TLS_CA
+
 	// Alerting
 	AlertWebhookURLs string // comma-separated webhook URLs
 
@@ -142,6 +153,14 @@ func Parse(args []string) (*Config, error) {
 
 	var chassisStaleStr string
 	fs.StringVar(&chassisStaleStr, "chassis-stale-threshold", envOrDefault("NORTHWATCH_CHASSIS_STALE_THRESHOLD", "60s"), "How long an out-of-sync chassis may lag the current nb_cfg generation before it is flagged stale in the chassis inventory (Go duration; does not affect alive/down)")
+
+	// Per-chassis OVS visibility flags (opt-in, disabled unless the mapping file
+	// is set). TLS material is required only for ssl: management addresses.
+	var ovsMgmtAddrFile string
+	fs.StringVar(&ovsMgmtAddrFile, "ovs-mgmt-addr-file", os.Getenv("NORTHWATCH_OVS_MGMT_ADDR_FILE"), "Path to a JSON file mapping chassis system-id to OVSDB management address ({\"<system-id>\": \"ssl:<ip>:6640\"}); enables opt-in per-chassis Open_vSwitch visibility")
+	fs.StringVar(&cfg.OVSTLSCert, "ovs-tls-cert", os.Getenv("NORTHWATCH_OVS_TLS_CERT"), "Path to the client certificate (PEM) for ssl: OVS management connections")
+	fs.StringVar(&cfg.OVSTLSKey, "ovs-tls-key", os.Getenv("NORTHWATCH_OVS_TLS_KEY"), "Path to the client private key (PEM) for ssl: OVS management connections")
+	fs.StringVar(&cfg.OVSTLSCA, "ovs-tls-ca", os.Getenv("NORTHWATCH_OVS_TLS_CA"), "Path to the CA bundle (PEM) verifying ssl: OVS management servers")
 
 	// Alerting flags
 	fs.StringVar(&cfg.AlertWebhookURLs, "alert-webhook-urls", os.Getenv("NORTHWATCH_ALERT_WEBHOOK_URLS"), "Comma-separated webhook URLs for alert notifications")
@@ -259,7 +278,69 @@ func Parse(args []string) (*Config, error) {
 	cfg.MonitorBatchDelay = mbd
 	cfg.MonitorSkipTables = SplitCSV(monitorSkipTablesStr)
 
+	// OVS visibility is opt-in: only load the system-id → mgmt-addr mapping when a
+	// file is given, leaving OVSMgmtAddrs nil (disabled) otherwise.
+	if ovsMgmtAddrFile != "" {
+		addrs, err := loadOVSMgmtAddrs(ovsMgmtAddrFile)
+		if err != nil {
+			return nil, fmt.Errorf("loading OVS mgmt-addr file: %w", err)
+		}
+		if err := requireOVSTLSForSSL(addrs, cfg.OVSTLSCert, cfg.OVSTLSKey, cfg.OVSTLSCA); err != nil {
+			return nil, err
+		}
+		cfg.OVSMgmtAddrs = addrs
+	}
+
 	return cfg, nil
+}
+
+// loadOVSMgmtAddrs reads a JSON object mapping chassis system-id to OVSDB
+// management address ({"<system-id>": "ssl:<ip>:6640"}). It rejects an empty
+// map and any empty key or value so a malformed mapping fails loudly at startup
+// rather than silently enabling zero chassis.
+func loadOVSMgmtAddrs(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied mapping-file path (flag/env), not attacker input
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	var addrs map[string]string
+	if err := json.Unmarshal(data, &addrs); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("%s must map at least one system-id to an address", path)
+	}
+	for id, addr := range addrs {
+		if strings.TrimSpace(id) == "" {
+			return nil, fmt.Errorf("%s: empty system-id key", path)
+		}
+		if strings.TrimSpace(addr) == "" {
+			return nil, fmt.Errorf("%s: empty address for system-id %q", path, id)
+		}
+	}
+	return addrs, nil
+}
+
+// requireOVSTLSForSSL rejects any ssl: management address when no OVS TLS
+// cert/key/CA is configured. Without client TLS material such a connection can
+// never complete a handshake; left unchecked, every ssl: member would retry
+// forever behind a generic "unreachable" log line with no hint at the real
+// cause. A partial cert/key/CA set is caught later by BuildTLSConfig, so this
+// only guards the all-empty case (which mirrors BuildTLSConfig returning nil).
+func requireOVSTLSForSSL(addrs map[string]string, certFile, keyFile, caFile string) error {
+	if certFile != "" || keyFile != "" || caFile != "" {
+		return nil
+	}
+	for id, addr := range addrs {
+		for _, ep := range strings.Split(addr, ",") {
+			if strings.HasPrefix(strings.TrimSpace(ep), "ssl:") {
+				return fmt.Errorf("chassis %q uses ssl: address %q but no OVS TLS material configured (--ovs-tls-cert/--ovs-tls-key/--ovs-tls-ca)", id, addr)
+			}
+		}
+	}
+	return nil
 }
 
 // SplitCSV parses a comma-separated list into a slice, trimming whitespace and

@@ -468,7 +468,7 @@ func TestParse_ConfigFile_NoBAddrValidation(t *testing.T) {
 	cfg, err := Parse([]string{"--config-file", path})
 	require.NoError(t, err)
 	assert.Empty(t, cfg.OVNNBAddr) // flat flag is empty
-	assert.Len(t, cfg.Clusters, 1)  // but clusters are populated
+	assert.Len(t, cfg.Clusters, 1) // but clusters are populated
 }
 
 func TestParse_ConfigFileEnv(t *testing.T) {
@@ -488,6 +488,98 @@ func TestParse_ConfigFileEnv(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cfg.Clusters, 1)
 	assert.Equal(t, "env-cluster", cfg.Clusters[0].Name)
+}
+
+func TestParse_OVSDisabledByDefault(t *testing.T) {
+	cfg, err := Parse([]string{"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642"})
+	require.NoError(t, err)
+	assert.Empty(t, cfg.OVSMgmtAddrs)
+	assert.Empty(t, cfg.OVSTLSCert)
+	assert.Empty(t, cfg.OVSTLSKey)
+	assert.Empty(t, cfg.OVSTLSCA)
+}
+
+func TestParse_OVSMgmtAddrFile(t *testing.T) {
+	path := writeTestFile(t, `{
+		"chassis-a": "tcp:10.0.0.1:6640",
+		"chassis-b": "ssl:10.0.0.2:6640"
+	}`)
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--ovs-mgmt-addr-file", path,
+		// chassis-b uses ssl:, so TLS material must accompany the mapping.
+		"--ovs-tls-cert", "/etc/nw/cert.pem",
+		"--ovs-tls-key", "/etc/nw/key.pem",
+		"--ovs-tls-ca", "/etc/nw/ca.pem",
+	})
+	require.NoError(t, err)
+	require.Len(t, cfg.OVSMgmtAddrs, 2)
+	assert.Equal(t, "tcp:10.0.0.1:6640", cfg.OVSMgmtAddrs["chassis-a"])
+	assert.Equal(t, "ssl:10.0.0.2:6640", cfg.OVSMgmtAddrs["chassis-b"])
+}
+
+func TestParse_OVSMgmtAddrFile_SSLWithoutTLS(t *testing.T) {
+	// An ssl: management address with no TLS cert/key/CA can never complete a
+	// handshake; Parse must reject it at startup rather than letting every
+	// connection retry forever with no diagnostic.
+	path := writeTestFile(t, `{
+		"chassis-a": "tcp:10.0.0.1:6640",
+		"chassis-b": "ssl:10.0.0.2:6640"
+	}`)
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--ovs-mgmt-addr-file", path,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ssl:")
+}
+
+func TestParse_OVSTLSFlags(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--ovs-tls-cert", "/etc/nw/cert.pem",
+		"--ovs-tls-key", "/etc/nw/key.pem",
+		"--ovs-tls-ca", "/etc/nw/ca.pem",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "/etc/nw/cert.pem", cfg.OVSTLSCert)
+	assert.Equal(t, "/etc/nw/key.pem", cfg.OVSTLSKey)
+	assert.Equal(t, "/etc/nw/ca.pem", cfg.OVSTLSCA)
+}
+
+func TestParse_OVSMgmtAddrFile_Missing(t *testing.T) {
+	_, err := Parse([]string{
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+		"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+		"--ovs-mgmt-addr-file", filepath.Join(t.TempDir(), "does-not-exist.json"),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OVS mgmt-addr file")
+}
+
+func TestParse_OVSMgmtAddrFile_Invalid(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"malformed JSON", `{not json`},
+		{"empty object", `{}`},
+		{"empty value", `{"chassis-a": ""}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeTestFile(t, tt.content)
+			_, err := Parse([]string{
+				"--ovn-nb-addr", "tcp:127.0.0.1:6641",
+				"--ovn-sb-addr", "tcp:127.0.0.1:6642",
+				"--ovs-mgmt-addr-file", path,
+			})
+			require.Error(t, err)
+		})
+	}
 }
 
 func writeTestFile(t *testing.T, content string) string {
