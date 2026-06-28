@@ -5,6 +5,11 @@
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
 
+# Per-chassis Open_vSwitch (vswitchd) schema for the OVS visibility integration.
+# Pinned to an OVS release aligned with the OVN pin above.
+OVS_VERSION := v3.4.0
+OVS_SCHEMA_BASE := https://raw.githubusercontent.com/openvswitch/ovs/$(OVS_VERSION)
+
 # Package version and target arch for `make deb`. Both are overridable so CI can
 # pass a clean tag (VERSION=${GITHUB_REF_NAME#v}); locally VERSION falls back to
 # the current git describe with the leading `v` stripped.
@@ -81,6 +86,7 @@ generate:
 schema-download:
 	curl -sL $(OVN_SCHEMA_BASE)/ovn-nb.ovsschema -o internal/ovsdb/nb/ovn-nb.ovsschema
 	curl -sL $(OVN_SCHEMA_BASE)/ovn-sb.ovsschema -o internal/ovsdb/sb/ovn-sb.ovsschema
+	curl -sL $(OVS_SCHEMA_BASE)/vswitchd/vswitch.ovsschema -o internal/ovsdb/vs/vswitch.ovsschema
 
 unquarantine:
 	xattr -d com.apple.quarantine bin/northwatch*

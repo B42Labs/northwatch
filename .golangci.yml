@@ -20,4 +20,5 @@ linters:
     paths:
       - internal/ovsdb/nb
       - internal/ovsdb/sb
+      - internal/ovsdb/vs
     generated: strict

@@ -54,7 +54,7 @@ jobs:
         run: make ensure-ui-dist
       - name: Run tests
         run: |
-          COVERPKGS=$(go list ./internal/... | grep -v '/ovsdb/nb$' | grep -v '/ovsdb/sb$' | paste -sd, -)
+          COVERPKGS=$(go list ./internal/... | grep -v '/ovsdb/nb$' | grep -v '/ovsdb/sb$' | grep -v '/ovsdb/vs$' | paste -sd, -)
           go test -v -coverprofile=coverage.out -coverpkg="$COVERPKGS" ./...
       - name: Check coverage threshold
         run: |
