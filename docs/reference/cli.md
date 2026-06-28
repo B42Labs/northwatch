@@ -74,6 +74,35 @@ chassis acknowledges a new `nb_cfg` generation, so on a steady-state cluster it
 freezes — which is why staleness, not timestamp age, is what this bounds. Raise
 it to tolerate slower config propagation before a lagging chassis is flagged.
 
+## OVS visibility (per-chassis Open_vSwitch)
+
+Opt-in, read-only integration with each chassis's local Open_vSwitch (vswitchd)
+OVSDB. It is **disabled by default** and enabled only by pointing
+`--ovs-mgmt-addr-file` at a mapping file; the resulting routes are documented
+under [OVS](/reference/api#ovs-per-chassis-open_vswitch).
+
+| Flag | Env var | Default | Description |
+|---|---|---|---|
+| `--ovs-mgmt-addr-file` | `NORTHWATCH_OVS_MGMT_ADDR_FILE` | *(none)* | Path to a JSON file mapping chassis system-id to OVSDB management address. Enables OVS visibility for the default cluster. |
+| `--ovs-tls-cert` | `NORTHWATCH_OVS_TLS_CERT` | *(none)* | Client certificate (PEM) for `ssl:` OVS connections. |
+| `--ovs-tls-key` | `NORTHWATCH_OVS_TLS_KEY` | *(none)* | Client private key (PEM) for `ssl:` OVS connections. |
+| `--ovs-tls-ca` | `NORTHWATCH_OVS_TLS_CA` | *(none)* | CA bundle (PEM) verifying `ssl:` OVS servers. |
+
+The mapping file is a JSON object, e.g.:
+
+```json
+{
+  "chassis-system-id-1": "ssl:10.0.0.11:6640",
+  "chassis-system-id-2": "tcp:10.0.0.12:6640"
+}
+```
+
+Each chassis must enable remote OVSDB access (`ovs-vsctl set-manager
+ptcp:6640` or `pssl:6640`). The TLS flags are required only for `ssl:`
+endpoints and are all-or-none — supply all three together or none. They are
+global flags wired to the default cluster, not part of the multi-cluster JSON
+[config file](/reference/configuration).
+
 ## Write operations
 
 | Flag | Env var | Default | Description |

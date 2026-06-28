@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Opt-in, read-only per-chassis Open_vSwitch (vswitchd) visibility. When the
+  server is started with `--ovs-mgmt-addr-file` (a JSON map of chassis
+  system-id to OVSDB management address), Northwatch opens one monitored
+  libovsdb connection per chassis and exposes the live OVS state the
+  Southbound DB cannot provide: `GET /api/v1/ovs` for fleet connection status
+  and `GET /api/v1/ovs/{chassis}/{table}[/{uuid}]` for the `interface`
+  (`statistics`, `link_state`, `error`, …), `bridge`, `port`, `open-vswitch`,
+  `manager` and `controller` (`is_connected`) tables. `{chassis}` is the
+  system-id, joining directly to the SB `Chassis.name` /
+  `external_ids:system-id`. The connection pool tolerates partial outages —
+  one unreachable chassis keeps retrying in isolation and never breaks the
+  others or the NB/SB views (an unreachable chassis returns `503`, an unknown
+  one `404`). `ssl:` endpoints are supported via `--ovs-tls-cert`/`-key`/`-ca`.
+  Disabled by default and wired to the default cluster; advertised by the new
+  `ovs` capability. See
+  [HTTP API](https://b42labs.github.io/northwatch/reference/api) and
+  [CLI flags](https://b42labs.github.io/northwatch/reference/cli).
 - Aggregated chassis inventory built entirely from the existing Southbound
   cache (no new OVSDB connections): `GET /api/v1/sb/chassis-inventory` and
   `/{name}`. Each entry joins `Chassis`, `Encap`, `Chassis_Private`,

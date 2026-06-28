@@ -19,8 +19,9 @@ type SnapshotInfo struct {
 // enrichEnabled indicates whether an enrichment provider is configured.
 // writeEnabled indicates whether write operations are enabled.
 // multiCluster indicates whether multiple clusters are configured.
+// ovsEnabled indicates whether per-chassis OVS visibility is configured.
 // snapshot is non-nil when the server is serving an offline snapshot.
-func RegisterCapabilities(mux *http.ServeMux, enrichEnabled, writeEnabled, multiCluster bool, snapshot *SnapshotInfo) {
+func RegisterCapabilities(mux *http.ServeMux, enrichEnabled, writeEnabled, multiCluster, ovsEnabled bool, snapshot *SnapshotInfo) {
 	caps := []string{"read", "debug", "correlate", "realtime", "topology", "flows", "telemetry", "alerts", "history", "openapi"}
 	if enrichEnabled {
 		caps = append(caps, "enrich")
@@ -30,6 +31,9 @@ func RegisterCapabilities(mux *http.ServeMux, enrichEnabled, writeEnabled, multi
 	}
 	if multiCluster {
 		caps = append(caps, "multi-cluster")
+	}
+	if ovsEnabled {
+		caps = append(caps, "ovs")
 	}
 
 	mode := "live"

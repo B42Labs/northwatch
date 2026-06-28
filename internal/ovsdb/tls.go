@@ -29,7 +29,7 @@ func BuildTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 		return nil, fmt.Errorf("loading OVS client cert/key: %w", err)
 	}
 
-	caPEM, err := os.ReadFile(caFile)
+	caPEM, err := os.ReadFile(caFile) // #nosec G304 -- operator-supplied CA bundle path (flag/env), not attacker input
 	if err != nil {
 		return nil, fmt.Errorf("reading OVS CA bundle: %w", err)
 	}

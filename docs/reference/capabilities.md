@@ -46,6 +46,7 @@ These appear only when the matching feature is configured:
 | `enrich` | An enrichment provider is configured (OpenStack or Kubernetes). |
 | `write` | `--write-enabled` is set. |
 | `multi-cluster` | More than one cluster is configured. |
+| `ovs` | Per-chassis Open_vSwitch visibility is configured (`--ovs-mgmt-addr-file`). |
 | `snapshot` | The server is serving an offline snapshot (`--snapshot`). |
 
 ## Mode

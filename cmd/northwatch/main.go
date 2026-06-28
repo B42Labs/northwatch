@@ -31,6 +31,7 @@ import (
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/ovsdb/vs"
 	"github.com/b42labs/northwatch/internal/search"
 	"github.com/b42labs/northwatch/internal/snapshot"
 	"github.com/b42labs/northwatch/internal/snapshotsession"
@@ -174,6 +175,24 @@ func run() error {
 
 	def := reg.Default()
 
+	// Per-chassis OVS visibility (opt-in, default cluster only). Built only when
+	// the system-id → mgmt-addr mapping is set; one monitored connection per
+	// chassis, isolated from NB/SB and from each other.
+	var ovsPool *ovndb.OVSPool
+	if len(cfg.OVSMgmtAddrs) > 0 {
+		vsModel, err := vs.FullDatabaseModel()
+		if err != nil {
+			return fmt.Errorf("creating OVS model: %w", err)
+		}
+		tlsConfig, err := ovndb.BuildTLSConfig(cfg.OVSTLSCert, cfg.OVSTLSKey, cfg.OVSTLSCA)
+		if err != nil {
+			return fmt.Errorf("building OVS TLS config: %w", err)
+		}
+		ovsPool = ovndb.ConnectOVSPool(vsModel, tlsConfig, cfg.OVSMgmtAddrs)
+		defer ovsPool.Close()
+		fmt.Printf("OVS visibility enabled for %d chassis\n", len(cfg.OVSMgmtAddrs))
+	}
+
 	// History & snapshot store (shared across clusters, uses default cluster)
 	historyStore, err := history.NewStore(cfg.HistoryDBPath)
 	if err != nil {
@@ -230,7 +249,7 @@ func run() error {
 	traceStore := handler.NewTraceStore(1 * time.Hour)
 
 	wsOrigins := handler.ParseWSAllowedOrigins(cfg.WSAllowedOrigins)
-	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster, snapInfo)
+	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster, ovsPool, snapInfo)
 
 	// The cluster proxy serves /api/v1/clusters/{name}/... for every cluster. It
 	// is always registered — even with a single live cluster — so a snapshot
@@ -457,10 +476,14 @@ func registerDefaultRoutes(
 	traceStore *handler.TraceStore,
 	wsOrigins []string,
 	multiCluster bool,
+	ovsPool *ovndb.OVSPool,
 	snapInfo *handler.SnapshotInfo,
 ) {
 	handler.RegisterHealth(mux, def.DBs)
-	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster, snapInfo)
+	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster, ovsPool != nil, snapInfo)
+	if ovsPool != nil {
+		handler.RegisterOVS(mux, ovsPool)
+	}
 	handler.RegisterNB(mux, def.DBs.NB)
 	handler.RegisterSB(mux, def.DBs.SB)
 	handler.RegisterInventory(mux, def.DBs.SB, cfg.ChassisStaleThreshold)

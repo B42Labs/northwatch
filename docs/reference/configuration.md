@@ -79,6 +79,9 @@ A cluster has at most one enrichment provider.
   `--chassis-stale-threshold`, not in the file. It controls when an out-of-sync
   chassis is flagged `stale` (not `alive`/down — a present, in-sync chassis is
   always alive). Raise it to tolerate slower config propagation before flagging.
+- Per-chassis [OVS visibility](/reference/cli) (`--ovs-mgmt-addr-file` and the
+  `--ovs-tls-*` material) is global and wired to the default cluster, not part
+  of this file. Its own mapping file lists the chassis to connect to.
 
 ## Precedence
 
