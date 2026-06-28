@@ -18,7 +18,7 @@ type searchTestRow struct {
 }
 
 func TestSearchHandler_MissingQuery(t *testing.T) {
-	engine := search.NewEngine(nil, nil)
+	engine := search.NewEngine(nil)
 	mux := http.NewServeMux()
 	RegisterSearch(mux, engine)
 
@@ -40,7 +40,7 @@ func TestSearchHandler_WithResults(t *testing.T) {
 		},
 	}}
 
-	engine := search.NewEngine(nbTables, nil)
+	engine := search.NewEngine([]search.DatabaseTables{{Name: "nb", Tables: nbTables}})
 	mux := http.NewServeMux()
 	RegisterSearch(mux, engine)
 
@@ -61,7 +61,7 @@ func TestSearchHandler_WithResults(t *testing.T) {
 }
 
 func TestSearchHandler_IPQuery(t *testing.T) {
-	engine := search.NewEngine(nil, nil)
+	engine := search.NewEngine(nil)
 	mux := http.NewServeMux()
 	RegisterSearch(mux, engine)
 

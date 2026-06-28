@@ -420,7 +420,10 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 		alertEngine.Start(context.Background()),
 	}
 
-	searchEngine := search.NewEngine(buildNBSearchTables(dbs), buildSBSearchTables(dbs))
+	searchEngine := search.NewEngine([]search.DatabaseTables{
+		{Name: "nb", Tables: buildNBSearchTables(dbs)},
+		{Name: "sb", Tables: buildSBSearchTables(dbs)},
+	})
 
 	c := &cluster.Cluster{
 		Name:                cc.Name,
@@ -528,13 +531,16 @@ func buildSnapshotCluster(ctx context.Context, name, label, nbAddr, sbAddr strin
 	}
 
 	c := &cluster.Cluster{
-		Name:                name,
-		Label:               label,
-		Mode:                "snapshot",
-		DBs:                 dbs,
-		Correlator:          &correlate.Correlator{NB: dbs.NB, SB: dbs.SB},
-		Enricher:            enrich.NewEnricher(nil, 0),
-		SearchEngine:        search.NewEngine(buildNBSearchTables(dbs), buildSBSearchTables(dbs)),
+		Name:       name,
+		Label:      label,
+		Mode:       "snapshot",
+		DBs:        dbs,
+		Correlator: &correlate.Correlator{NB: dbs.NB, SB: dbs.SB},
+		Enricher:   enrich.NewEnricher(nil, 0),
+		SearchEngine: search.NewEngine([]search.DatabaseTables{
+			{Name: "nb", Tables: buildNBSearchTables(dbs)},
+			{Name: "sb", Tables: buildSBSearchTables(dbs)},
+		}),
 		ConnectivityChecker: &debug.ConnectivityChecker{NB: dbs.NB, SB: dbs.SB},
 		PortDiagnoser:       &debug.PortDiagnoser{NB: dbs.NB, SB: dbs.SB},
 		ACLAuditor:          &debug.ACLAuditor{NB: dbs.NB},
