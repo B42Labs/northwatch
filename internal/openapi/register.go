@@ -149,7 +149,7 @@ func registerChassisInventory(b *Builder) {
 	b.AddOperation("/api/v1/sb/chassis-inventory", "get", &Operation{
 		OperationID: "listChassisInventory",
 		Summary:     "List aggregated chassis inventory with liveness and bound-port summary",
-		Description: "Aggregates Chassis, Encap, Chassis_Private (liveness derived from nb_cfg/nb_cfg_timestamp) and Port_Binding from the Southbound cache. No live OVS data.",
+		Description: "Aggregates Chassis, Encap, Chassis_Private (liveness derived from nb_cfg sync: alive when present and in-sync, with nb_cfg_timestamp age as an informational staleness signal) and Port_Binding from the Southbound cache. No live OVS data.",
 		Tags:        []string{tag},
 		Responses:   jsonOK("Array of ChassisSummary"),
 	})

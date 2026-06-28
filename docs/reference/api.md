@@ -67,10 +67,15 @@ joins `Chassis` + `Encap` + `Chassis_Private` + `SB_Global` + `Port_Binding`:
 | GET | `/api/v1/sb/chassis-inventory/{name}` | Detail for one chassis (by `name` / system-id), including the config copies and the list of bound logical ports. |
 
 Liveness is computed, not stored: `in_sync` compares `Chassis_Private.nb_cfg`
-against `SB_Global.nb_cfg`, and `alive` checks that `nb_cfg_timestamp` is fresh
-within `--chassis-stale-threshold`. A chassis with no `Chassis_Private` row is
-reported `in_sync=false, alive=false`. `name` (= the OVS `external_ids:system-id`)
-is the join key to the real Open_vSwitch instance.
+against `SB_Global.nb_cfg`, and `alive` is true when the chassis is present and
+in-sync. `alive` deliberately ignores `nb_cfg_timestamp` age — that timestamp
+only advances on a new `nb_cfg` generation, so on a steady-state cluster it
+freezes and an age check would report every healthy chassis down. Instead,
+`age_ms` is surfaced informationally and `stale` flags an *out-of-sync* chassis
+that has lagged beyond `--chassis-stale-threshold` (lagging/stuck, distinct from
+down). A chassis with no `Chassis_Private` row is reported `in_sync=false,
+alive=false`. `name` (= the OVS `external_ids:system-id`) is the join key to the
+real Open_vSwitch instance.
 
 These are the *aggregated* views; the raw `chassis`, `encaps`, `port-bindings`
 and `chassis-private` tables remain available under [Southbound tables](#southbound-tables).

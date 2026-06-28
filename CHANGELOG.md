@@ -13,9 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/{name}`. Each entry joins `Chassis`, `Encap`, `Chassis_Private`,
   `SB_Global` and `Port_Binding` into one chassis-centric view — system-id
   (the Phase-2 OVS join key), tunnel endpoints, bridge mappings, a computed
-  liveness (`in_sync` from `nb_cfg`, `alive` from `nb_cfg_timestamp` freshness)
-  and a per-chassis bound-port summary. The staleness threshold is configurable
-  via `--chassis-stale-threshold` / `NORTHWATCH_CHASSIS_STALE_THRESHOLD`
+  liveness (`in_sync` and `alive` from `nb_cfg` sync; `nb_cfg_timestamp` age
+  surfaced as informational `age_ms` and a `stale` flag for a lagging chassis)
+  and a per-chassis bound-port summary. A chassis is `alive` when present and
+  in-sync, so a steady-state cluster with no config churn stays healthy rather
+  than reporting every chassis down once `nb_cfg_timestamp` freezes. The
+  staleness threshold for the `stale` flag is configurable via
+  `--chassis-stale-threshold` / `NORTHWATCH_CHASSIS_STALE_THRESHOLD`
   (default `60s`).
 - Dashboard **Chassis Inventory** view (Monitoring section, `/chassis-inventory`)
   surfacing the aggregated endpoint: fleet stat tiles (alive / in-sync / down /

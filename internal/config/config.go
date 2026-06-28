@@ -76,11 +76,11 @@ type Config struct {
 	Kubeconfig     string
 	KubeContext    string
 
-	// Chassis inventory liveness: the maximum age of a chassis
-	// nb_cfg_timestamp before the aggregated chassis inventory reports it as
-	// not-alive. nb_cfg_timestamp only advances when a chassis acknowledges a
-	// new nb_cfg generation, so this is an "age since last config-ack"
-	// threshold, not a periodic heartbeat.
+	// Chassis inventory staleness: how long an out-of-sync chassis may lag the
+	// current nb_cfg generation before the aggregated chassis inventory flags it
+	// as stale (lagging/stuck). It does not affect alive/down — a chassis is
+	// alive whenever it is present and in-sync — so a steady-state cluster with a
+	// frozen nb_cfg_timestamp stays healthy regardless of this value.
 	ChassisStaleThreshold time.Duration // --chassis-stale-threshold / NORTHWATCH_CHASSIS_STALE_THRESHOLD
 
 	// Alerting
@@ -141,7 +141,7 @@ func Parse(args []string) (*Config, error) {
 	fs.StringVar(&cacheTTLStr, "enrichment-cache-ttl", envOrDefault("NORTHWATCH_ENRICHMENT_CACHE_TTL", "5m"), "Enrichment cache TTL (e.g. 5m, 1h)")
 
 	var chassisStaleStr string
-	fs.StringVar(&chassisStaleStr, "chassis-stale-threshold", envOrDefault("NORTHWATCH_CHASSIS_STALE_THRESHOLD", "60s"), "Max age of a chassis nb_cfg_timestamp before it is reported not-alive in the chassis inventory (Go duration)")
+	fs.StringVar(&chassisStaleStr, "chassis-stale-threshold", envOrDefault("NORTHWATCH_CHASSIS_STALE_THRESHOLD", "60s"), "How long an out-of-sync chassis may lag the current nb_cfg generation before it is flagged stale in the chassis inventory (Go duration; does not affect alive/down)")
 
 	// Alerting flags
 	fs.StringVar(&cfg.AlertWebhookURLs, "alert-webhook-urls", os.Getenv("NORTHWATCH_ALERT_WEBHOOK_URLS"), "Comma-separated webhook URLs for alert notifications")
@@ -224,9 +224,9 @@ func Parse(args []string) (*Config, error) {
 		return nil, fmt.Errorf("invalid chassis-stale-threshold: %w", err)
 	}
 	if cst <= 0 {
-		// A zero (or negative) threshold makes Alive = age <= 0, which is false
-		// for any past timestamp, so the whole fleet would silently report
-		// not-alive. Reject it rather than ship a monitoring blind spot.
+		// A zero (or negative) threshold would flag every out-of-sync chassis as
+		// stale the instant it falls behind, leaving no grace for normal config
+		// propagation. Reject it rather than ship that noise.
 		return nil, fmt.Errorf("chassis-stale-threshold must be positive")
 	}
 	cfg.ChassisStaleThreshold = cst
