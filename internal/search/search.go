@@ -38,10 +38,19 @@ type TableDef struct {
 	ModelType reflect.Type
 }
 
-// Engine performs cross-database searches over a fixed set of tables.
+// DatabaseTables groups the searchable tables of a single database under its
+// API-facing database name (e.g. "nb", "sb", "ovs"). The name is emitted
+// verbatim in each Result so the engine is not hardwired to any fixed set of
+// databases.
+type DatabaseTables struct {
+	Name   string
+	Tables []TableDef
+}
+
+// Engine performs cross-database searches over a fixed set of databases, each
+// with its own set of tables.
 type Engine struct {
-	nbTables []TableDef
-	sbTables []TableDef
+	dbs []DatabaseTables
 }
 
 var uuidRegexp = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -88,9 +97,10 @@ func RegisterTable[T any](name string, c client.Client) TableDef {
 	}
 }
 
-// NewEngine creates a search Engine over the provided NB and SB tables.
-func NewEngine(nbTables, sbTables []TableDef) *Engine {
-	return &Engine{nbTables: nbTables, sbTables: sbTables}
+// NewEngine creates a search Engine over the provided databases. Results are
+// emitted in the order the databases are passed.
+func NewEngine(dbs []DatabaseTables) *Engine {
+	return &Engine{dbs: dbs}
 }
 
 // Search executes a query against all registered tables and returns the
@@ -105,31 +115,19 @@ func (e *Engine) Search(ctx context.Context, query string) ([]Result, error) {
 	queryLower := strings.ToLower(query)
 	var results []Result
 
-	for _, td := range e.nbTables {
-		matches, err := searchTable(ctx, td, queryLower)
-		if err != nil {
-			return nil, fmt.Errorf("searching NB %s: %w", td.Name, err)
-		}
-		if len(matches) > 0 {
-			results = append(results, Result{
-				Database: "nb",
-				Table:    td.Name,
-				Matches:  matches,
-			})
-		}
-	}
-
-	for _, td := range e.sbTables {
-		matches, err := searchTable(ctx, td, queryLower)
-		if err != nil {
-			return nil, fmt.Errorf("searching SB %s: %w", td.Name, err)
-		}
-		if len(matches) > 0 {
-			results = append(results, Result{
-				Database: "sb",
-				Table:    td.Name,
-				Matches:  matches,
-			})
+	for _, db := range e.dbs {
+		for _, td := range db.Tables {
+			matches, err := searchTable(ctx, td, queryLower)
+			if err != nil {
+				return nil, fmt.Errorf("searching %s %s: %w", db.Name, td.Name, err)
+			}
+			if len(matches) > 0 {
+				results = append(results, Result{
+					Database: db.Name,
+					Table:    td.Name,
+					Matches:  matches,
+				})
+			}
 		}
 	}
 
@@ -201,4 +199,3 @@ func matchFieldValue(v reflect.Value, queryLower string) bool {
 	}
 	return false
 }
-

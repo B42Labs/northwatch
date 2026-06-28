@@ -56,7 +56,7 @@ func TestSearch_MatchByName(t *testing.T) {
 		{UUID: "2", Name: "other"},
 	})}
 
-	engine := NewEngine(tables, nil)
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
 	results, err := engine.Search(context.Background(), "my-switch")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -71,7 +71,7 @@ func TestSearch_MatchByExternalID(t *testing.T) {
 		{UUID: "2", Name: "sw2", ExternalIDs: map[string]string{"other": "val"}},
 	})}
 
-	engine := NewEngine(tables, nil)
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
 	results, err := engine.Search(context.Background(), "abc-123")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -84,7 +84,7 @@ func TestSearch_MatchByAddress(t *testing.T) {
 		{UUID: "2", Name: "port2", Addresses: []string{"fa:16:3e:00:00:02 10.0.0.6"}},
 	})}
 
-	engine := NewEngine(tables, nil)
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
 	results, err := engine.Search(context.Background(), "10.0.0.5")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -97,14 +97,14 @@ func TestSearch_CaseInsensitive(t *testing.T) {
 		{UUID: "1", Name: "My-Switch"},
 	})}
 
-	engine := NewEngine(tables, nil)
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
 	results, err := engine.Search(context.Background(), "my-switch")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 }
 
 func TestSearch_EmptyQuery(t *testing.T) {
-	engine := NewEngine(nil, nil)
+	engine := NewEngine(nil)
 	_, err := engine.Search(context.Background(), "")
 	assert.Error(t, err)
 }
@@ -114,7 +114,7 @@ func TestSearch_NoMatches(t *testing.T) {
 		{UUID: "1", Name: "switch"},
 	})}
 
-	engine := NewEngine(tables, nil)
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
 	results, err := engine.Search(context.Background(), "nonexistent")
 	require.NoError(t, err)
 	assert.Empty(t, results)
@@ -128,7 +128,10 @@ func TestSearch_CrossDB(t *testing.T) {
 		{UUID: "2", Name: "my-port-binding", ExternalIDs: map[string]string{"logical-port": "my-port"}},
 	})}
 
-	engine := NewEngine(nbTables, sbTables)
+	engine := NewEngine([]DatabaseTables{
+		{Name: "nb", Tables: nbTables},
+		{Name: "sb", Tables: sbTables},
+	})
 	results, err := engine.Search(context.Background(), "my-port")
 	require.NoError(t, err)
 	require.Len(t, results, 2)
@@ -136,12 +139,27 @@ func TestSearch_CrossDB(t *testing.T) {
 	assert.Equal(t, "sb", results[1].Database)
 }
 
+func TestSearch_ArbitraryDatabaseName(t *testing.T) {
+	// The engine is no longer hardwired to "nb"/"sb": an arbitrary database name
+	// (e.g. a per-chassis OVS instance) flows through verbatim to Result.Database.
+	ovsTables := []TableDef{makeTestTable([]testRow{
+		{UUID: "1", Name: "br-int"},
+	})}
+
+	engine := NewEngine([]DatabaseTables{{Name: "ovs", Tables: ovsTables}})
+	results, err := engine.Search(context.Background(), "br-int")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "ovs", results[0].Database)
+	assert.Equal(t, "Test_Table", results[0].Table)
+}
+
 func TestSearch_MatchByMapKey(t *testing.T) {
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "test", ExternalIDs: map[string]string{"neutron:network_id": "some-val"}},
 	})}
 
-	engine := NewEngine(tables, nil)
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
 	results, err := engine.Search(context.Background(), "neutron:network_id")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
