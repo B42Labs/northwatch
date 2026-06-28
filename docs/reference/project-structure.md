@@ -12,8 +12,10 @@ northwatch/
   internal/
     config/            # CLI flags + env vars + JSON multi-cluster config file
     ovsdb/             # libovsdb client, connection & monitor management
+                       #   (pool.go: per-chassis OVS connection pool + TLS)
       nb/              # generated Northbound models (+ pinned schema)
       sb/              # generated Southbound models (+ pinned schema)
+      vs/              # generated Open_vSwitch models (+ pinned schema)
     cluster/           # multi-cluster registry
     api/               # HTTP server, JSON helpers
       handler/         # route handlers (one file per feature area)
@@ -61,9 +63,10 @@ These are summarized from `CLAUDE.md`:
 
 ## Generated code
 
-The `internal/ovsdb/nb` and `internal/ovsdb/sb` packages are generated from the
-OVN schemas with `make generate`, against schemas pinned by `OVN_VERSION` in the
-`Makefile` and refreshed with `make schema-download`.
+The `internal/ovsdb/nb`, `internal/ovsdb/sb` and `internal/ovsdb/vs` packages
+are generated from the OVN and Open_vSwitch schemas with `make generate`,
+against schemas pinned by `OVN_VERSION` / `OVS_VERSION` in the `Makefile` and
+refreshed with `make schema-download`.
 
 ## Related
 
