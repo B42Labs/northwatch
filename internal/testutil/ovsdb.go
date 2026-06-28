@@ -10,6 +10,7 @@ import (
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/ovsdb/vs"
 	"github.com/go-logr/stdr"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/database/inmemory"
@@ -68,6 +69,117 @@ func SetupSBTestClient(t *testing.T) client.Client {
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
 	return c
+}
+
+// SetupOVSTestServer creates an in-memory per-chassis Open_vSwitch OVSDB test
+// server and returns its unix socket path (so a pool can dial "unix:<sock>")
+// alongside a connected, monitoring client for seeding rows.
+func SetupOVSTestServer(t *testing.T) (string, client.Client) {
+	t.Helper()
+	clientModel, err := vs.FullDatabaseModel()
+	require.NoError(t, err)
+	schema := vs.Schema()
+	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
+	require.Empty(t, errs)
+	logger := stdr.New(nil)
+	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
+	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
+	require.NoError(t, err)
+	sockPath := filepath.Join(t.TempDir(), "ovs.sock")
+	go func() { _ = ovsdbServer.Serve("unix", sockPath) }()
+	require.Eventually(t, func() bool { return ovsdbServer.Ready() }, 5*time.Second, 10*time.Millisecond)
+	t.Cleanup(func() { ovsdbServer.Close() })
+	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
+	require.NoError(t, err)
+	require.NoError(t, c.Connect(context.Background()))
+	_, err = c.MonitorAll(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { c.Close() })
+	return sockPath, c
+}
+
+// InsertOVSBridgeWithInterface creates an Open_vSwitch root row referencing one
+// Bridge → Port → Interface graph in a single transaction. Only Open_vSwitch is
+// a root table, so the bridge, port and interface are non-root and must be
+// inserted together with the referencing root or OVSDB referential integrity
+// garbage-collects them immediately (mirroring InsertGatewayRouter). The
+// interface carries the given statistics and link_state so a test can assert on
+// the live telemetry fields.
+func InsertOVSBridgeWithInterface(t *testing.T, c client.Client, bridgeName, ifaceName string, stats map[string]int, linkState string) {
+	t.Helper()
+	if stats == nil {
+		stats = map[string]int{}
+	}
+
+	var allOps []ovsdb.Operation
+
+	ifaceNamed := "iface_" + ifaceName
+	ls := linkState
+	iface := &vs.Interface{
+		UUID:        ifaceNamed,
+		Name:        ifaceName,
+		Type:        "system",
+		LinkState:   &ls,
+		Statistics:  stats,
+		ExternalIDs: map[string]string{},
+		Options:     map[string]string{},
+		Status:      map[string]string{},
+	}
+	ops, err := c.Create(iface)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	portNamed := "port_" + ifaceName
+	port := &vs.Port{
+		UUID:        portNamed,
+		Name:        ifaceName,
+		Interfaces:  []string{ifaceNamed},
+		ExternalIDs: map[string]string{},
+		OtherConfig: map[string]string{},
+	}
+	ops, err = c.Create(port)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	bridgeNamed := "bridge_" + bridgeName
+	bridge := &vs.Bridge{
+		UUID:         bridgeNamed,
+		Name:         bridgeName,
+		DatapathType: "system",
+		Ports:        []string{portNamed},
+		ExternalIDs:  map[string]string{},
+		OtherConfig:  map[string]string{},
+	}
+	ops, err = c.Create(bridge)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	root := &vs.OpenvSwitch{
+		Bridges:     []string{bridgeNamed},
+		ExternalIDs: map[string]string{},
+		OtherConfig: map[string]string{},
+	}
+	ops, err = c.Create(root)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	reply, err := c.Transact(context.Background(), allOps...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, allOps)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		var ifaces []vs.Interface
+		if err := c.List(context.Background(), &ifaces); err != nil {
+			return false
+		}
+		for _, i := range ifaces {
+			if i.Name == ifaceName {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 // SetupServerMonitorTestClient creates an in-memory "_Server" OVSDB test server
