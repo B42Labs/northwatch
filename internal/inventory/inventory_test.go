@@ -53,8 +53,8 @@ func insertChassisWithConfig(t *testing.T, c client.Client, name, hostname, ip s
 
 // TestBuilderList exercises the aggregated list against a single SB fixture
 // covering identity/system-id, tunnel endpoints, bridge mappings, the bound-port
-// summary, and the three liveness shapes (in-sync+alive, out-of-sync+stale, and
-// no Chassis_Private heartbeat at all).
+// summary, and the liveness shapes: in-sync+alive (fresh and frozen-timestamp),
+// out-of-sync+stale, and no Chassis_Private heartbeat at all.
 func TestBuilderList(t *testing.T) {
 	c := testutil.SetupSBTestClient(t)
 
@@ -71,11 +71,16 @@ func TestBuilderList(t *testing.T) {
 	})
 	betaUUID := testutil.InsertChassis(t, c, "beta-id", "beta-host", "10.0.0.2")
 	alphaUUID := testutil.InsertChassis(t, c, "alpha-id", "alpha-host", "10.0.0.1")
+	epsilonUUID := testutil.InsertChassis(t, c, "epsilon-id", "epsilon-host", "10.0.0.5")
 
 	// Liveness fixtures.
 	testutil.InsertChassisPrivate(t, c, "alpha-id", &alphaUUID, 5, int(t0-1000))  // in-sync, fresh
 	testutil.InsertChassisPrivate(t, c, "beta-id", &betaUUID, 3, int(t0-120_000)) // behind, stale
 	testutil.InsertChassisPrivate(t, c, "delta-id", &deltaUUID, 5, int(t0-500))   // in-sync, fresh
+	// Regression for the "steady-state cluster reports every chassis down" bug:
+	// in-sync but its nb_cfg_timestamp froze an hour ago (no config churn). It
+	// must still be alive and not stale.
+	testutil.InsertChassisPrivate(t, c, "epsilon-id", &epsilonUUID, 5, int(t0-3_600_000))
 	// gamma-id intentionally has no Chassis_Private row.
 
 	// Bound ports on alpha: mixed type and up state.
@@ -88,11 +93,11 @@ func TestBuilderList(t *testing.T) {
 	b := &inventory.Builder{SB: c, StaleThreshold: 60 * time.Second, Now: fixedNow}
 	list, err := b.List(context.Background())
 	require.NoError(t, err)
-	require.Len(t, list, 4)
+	require.Len(t, list, 5)
 
 	// Sorted by name.
-	gotOrder := []string{list[0].Name, list[1].Name, list[2].Name, list[3].Name}
-	assert.Equal(t, []string{"alpha-id", "beta-id", "delta-id", "gamma-id"}, gotOrder)
+	gotOrder := []string{list[0].Name, list[1].Name, list[2].Name, list[3].Name, list[4].Name}
+	assert.Equal(t, []string{"alpha-id", "beta-id", "delta-id", "epsilon-id", "gamma-id"}, gotOrder)
 
 	byName := map[string]inventory.ChassisSummary{}
 	for _, s := range list {
@@ -106,6 +111,7 @@ func TestBuilderList(t *testing.T) {
 		wantBridgeMappings string
 		wantInSync         bool
 		wantAlive          bool
+		wantStale          bool
 		wantNbCfg          int
 		wantPorts          inventory.PortSummary
 	}{
@@ -115,6 +121,7 @@ func TestBuilderList(t *testing.T) {
 			wantEncaps:   []inventory.EncapInfo{{Type: "geneve", IP: "10.0.0.1"}},
 			wantInSync:   true,
 			wantAlive:    true,
+			wantStale:    false,
 			wantNbCfg:    5,
 			wantPorts:    inventory.PortSummary{Total: 3, Up: 1, ByType: map[string]int{"": 2, "patch": 1}},
 		},
@@ -123,7 +130,8 @@ func TestBuilderList(t *testing.T) {
 			wantHostname: "beta-host",
 			wantEncaps:   []inventory.EncapInfo{{Type: "geneve", IP: "10.0.0.2"}},
 			wantInSync:   false, // nb_cfg 3 != sb_global 5
-			wantAlive:    false, // 120s old, past the 60s threshold
+			wantAlive:    false, // out of sync
+			wantStale:    true,  // behind and 120s without catching up (> 60s threshold)
 			wantNbCfg:    3,
 			wantPorts:    inventory.PortSummary{Total: 0, Up: 0, ByType: map[string]int{}},
 		},
@@ -134,8 +142,21 @@ func TestBuilderList(t *testing.T) {
 			wantBridgeMappings: "physnet1:br-ex,physnet2:br-ex2",
 			wantInSync:         true,
 			wantAlive:          true,
+			wantStale:          false,
 			wantNbCfg:          5,
 			wantPorts:          inventory.PortSummary{Total: 0, Up: 0, ByType: map[string]int{}},
+		},
+		{
+			// Steady-state regression: in-sync with an hour-old frozen timestamp
+			// must stay alive (not down) and never stale.
+			name:         "epsilon-id",
+			wantHostname: "epsilon-host",
+			wantEncaps:   []inventory.EncapInfo{{Type: "geneve", IP: "10.0.0.5"}},
+			wantInSync:   true,
+			wantAlive:    true,
+			wantStale:    false,
+			wantNbCfg:    5,
+			wantPorts:    inventory.PortSummary{Total: 0, Up: 0, ByType: map[string]int{}},
 		},
 		{
 			name:         "gamma-id",
@@ -143,6 +164,7 @@ func TestBuilderList(t *testing.T) {
 			wantEncaps:   []inventory.EncapInfo{{Type: "geneve", IP: "10.0.0.3"}},
 			wantInSync:   false, // no Chassis_Private heartbeat
 			wantAlive:    false,
+			wantStale:    false, // no heartbeat: not flagged stale, just down
 			wantNbCfg:    0,
 			wantPorts:    inventory.PortSummary{Total: 0, Up: 0, ByType: map[string]int{}},
 		},
@@ -161,6 +183,7 @@ func TestBuilderList(t *testing.T) {
 
 			assert.Equal(t, tc.wantInSync, s.Liveness.InSync)
 			assert.Equal(t, tc.wantAlive, s.Liveness.Alive)
+			assert.Equal(t, tc.wantStale, s.Liveness.Stale)
 			assert.Equal(t, tc.wantNbCfg, s.Liveness.NbCfg)
 			assert.Equal(t, 5, s.Liveness.SBNbCfg)
 
@@ -176,9 +199,9 @@ func TestBuilderList(t *testing.T) {
 }
 
 // TestBuilderFutureTimestamp guards against a future nb_cfg_timestamp (a fast or
-// misbehaving chassis clock) pinning alive=true and leaking a negative age_ms:
-// nb_cfg_timestamp is written by the chassis's own ovn-controller, so it must
-// not be trusted to push the chassis past the staleness check.
+// misbehaving chassis clock) leaking a negative age_ms. nb_cfg_timestamp is
+// written by the chassis's own ovn-controller, so the clamp keeps age_ms >= 0;
+// liveness itself follows nb_cfg sync, independent of the timestamp.
 func TestBuilderFutureTimestamp(t *testing.T) {
 	c := testutil.SetupSBTestClient(t)
 
@@ -193,7 +216,8 @@ func TestBuilderFutureTimestamp(t *testing.T) {
 	require.Len(t, list, 1)
 
 	lv := list[0].Liveness
-	assert.False(t, lv.Alive, "a future nb_cfg_timestamp must not report alive")
+	assert.True(t, lv.Alive, "in-sync chassis is alive regardless of timestamp skew")
+	assert.False(t, lv.Stale, "an in-sync chassis is never stale")
 	assert.Equal(t, int64(0), lv.AgeMs, "a future timestamp must not leak a negative age")
 	assert.Equal(t, int64(t0+10_000), lv.NbCfgTimestamp)
 }

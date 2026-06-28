@@ -8,9 +8,10 @@
 //     config copies ovn-controller mirrors into other_config (bridge mappings,
 //     datapath-type, iface-types, ovn-cms-options).
 //   - Encap: the chassis tunnel endpoint(s) (geneve/vxlan/stt, ip).
-//   - Chassis_Private + SB_Global: liveness derived from the nb_cfg /
-//     nb_cfg_timestamp heartbeat (in-sync against SB_Global.nb_cfg, alive when
-//     nb_cfg_timestamp is fresh within a configurable threshold).
+//   - Chassis_Private + SB_Global: liveness derived from nb_cfg sync. A chassis
+//     is "alive" when it is present and has acknowledged the current
+//     SB_Global.nb_cfg generation (in-sync); nb_cfg_timestamp is surfaced only
+//     as informational age and to flag a lagging chassis as stale.
 //   - Port_Binding: the logical ports bound to the chassis, summarized into a
 //     per-chassis workload distribution.
 //
@@ -56,22 +57,29 @@ type EncapInfo struct {
 	IP   string `json:"ip"`
 }
 
-// Liveness is the computed config-sync and heartbeat state of a chassis,
-// derived from the Chassis_Private nb_cfg / nb_cfg_timestamp heartbeat against
-// SB_Global.nb_cfg. There is no boolean liveness column in the SB schema, so
-// both InSync and Alive are computed here.
+// Liveness is the computed config-sync state of a chassis, derived from the
+// Chassis_Private nb_cfg generation against SB_Global.nb_cfg. There is no
+// boolean liveness column in the SB schema, so InSync, Alive and Stale are all
+// computed here.
 //
 // A chassis with no Chassis_Private row reports InSync=false and Alive=false:
-// without a heartbeat there is no evidence the chassis is keeping up.
+// ovn-controller creates and maintains that row, so its absence means there is
+// no evidence of a controller acknowledging config for this chassis.
 type Liveness struct {
 	// InSync is true when the chassis has acknowledged the current SB_Global
 	// nb_cfg generation (Chassis_Private.nb_cfg == SB_Global.nb_cfg).
 	InSync bool `json:"in_sync"`
-	// Alive is true when nb_cfg_timestamp is fresh within the staleness
-	// threshold. Because nb_cfg_timestamp only advances on a new nb_cfg
-	// generation, "alive" means "recently acknowledged config", not a periodic
-	// heartbeat.
+	// Alive is true when the chassis is present (has a Chassis_Private row) and
+	// in-sync with the current nb_cfg generation. It deliberately does NOT key
+	// off nb_cfg_timestamp age: that timestamp only advances when nb_cfg itself
+	// changes, so on a steady-state cluster with no config churn it freezes and
+	// an age-based check would report every healthy chassis down within seconds.
 	Alive bool `json:"alive"`
+	// Stale flags a chassis that is behind the current nb_cfg generation and has
+	// not caught up within StaleThreshold — a genuinely lagging/stuck node. It is
+	// an informational signal distinct from Alive: an in-sync chassis is never
+	// stale, however old its last acknowledgement, so a quiet cluster stays clean.
+	Stale bool `json:"stale"`
 	// NbCfg is the chassis-acknowledged config generation (0 if no heartbeat).
 	NbCfg int `json:"nb_cfg"`
 	// SBNbCfg is the SB_Global config generation the chassis is compared against.
@@ -79,9 +87,9 @@ type Liveness struct {
 	// NbCfgTimestamp is the chassis nb_cfg_timestamp in Unix milliseconds
 	// (0 when absent).
 	NbCfgTimestamp int64 `json:"nb_cfg_timestamp"`
-	// AgeMs is the age of NbCfgTimestamp in milliseconds (0 when absent, or
-	// when the timestamp is in the future relative to the northwatch clock, in
-	// which case the chassis is reported not-alive).
+	// AgeMs is the informational age of NbCfgTimestamp in milliseconds (0 when
+	// absent, or when the timestamp is in the future relative to the northwatch
+	// clock, which is clamped to 0 rather than leaking a negative age).
 	AgeMs int64 `json:"age_ms"`
 }
 
@@ -239,9 +247,9 @@ func (b *Builder) summarize(ch sb.Chassis, c *caches) ChassisSummary {
 	return s
 }
 
-// computeLiveness derives in-sync and alive from the nb_cfg heartbeat. A missing
-// Chassis_Private row yields a zero-value Liveness (not in-sync, not alive),
-// except SBNbCfg, which is always populated for context.
+// computeLiveness derives in-sync, alive and stale from the nb_cfg generation. A
+// missing Chassis_Private row yields a zero-value Liveness (not in-sync, not
+// alive), except SBNbCfg, which is always populated for context.
 func (b *Builder) computeLiveness(ch sb.Chassis, c *caches) Liveness {
 	l := Liveness{SBNbCfg: c.sbNbCfg}
 	priv, found := c.privates[ch.Name]
@@ -251,21 +259,24 @@ func (b *Builder) computeLiveness(ch sb.Chassis, c *caches) Liveness {
 	l.NbCfg = priv.NbCfg
 	l.NbCfgTimestamp = int64(priv.NbCfgTimestamp)
 	l.InSync = priv.NbCfg == c.sbNbCfg
+	// A present-and-in-sync chassis is alive. We do NOT key alive off the age of
+	// nb_cfg_timestamp: that timestamp only advances when nb_cfg itself changes
+	// (see ovn-sb(5), Chassis_Private:nb_cfg_timestamp), so on a steady-state
+	// cluster with no config churn it freezes and an age check would mark every
+	// healthy chassis down once the staleness window elapses.
+	l.Alive = l.InSync
 	if priv.NbCfgTimestamp > 0 {
-		// nb_cfg_timestamp is written by the chassis's own ovn-controller using
-		// that node's clock, so it is a foreign clock relative to b.now(). A
-		// future timestamp (age < 0) means clock skew or a misbehaving node;
-		// treat it as not-alive rather than letting a negative age trivially
-		// satisfy the threshold and pin alive=true forever (and never leak the
-		// negative age into the response).
-		age := b.now().UnixMilli() - int64(priv.NbCfgTimestamp)
-		if age < 0 {
-			l.AgeMs = 0
-			l.Alive = false
-		} else {
+		// AgeMs is informational only. nb_cfg_timestamp is written by the
+		// chassis's own ovn-controller clock, foreign relative to b.now(); a
+		// future timestamp (age < 0) means clock skew and is clamped to 0 rather
+		// than leaking a negative age into the response.
+		if age := b.now().UnixMilli() - int64(priv.NbCfgTimestamp); age > 0 {
 			l.AgeMs = age
-			l.Alive = age <= b.StaleThreshold.Milliseconds()
 		}
+		// Stale is the age-based signal, scoped to an out-of-sync chassis: it has
+		// received a newer nb_cfg generation but has not acknowledged it within
+		// StaleThreshold, i.e. it is lagging/stuck rather than merely mid-update.
+		l.Stale = !l.InSync && l.AgeMs > b.StaleThreshold.Milliseconds()
 	}
 	return l
 }

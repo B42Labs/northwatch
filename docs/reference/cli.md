@@ -66,11 +66,13 @@ bundle is trusted only by the OpenStack client, not the whole process.
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--chassis-stale-threshold` | `NORTHWATCH_CHASSIS_STALE_THRESHOLD` | `60s` | Max age of a chassis `nb_cfg_timestamp` before the [chassis inventory](/reference/api#chassis-inventory) reports it not-alive (Go duration). |
+| `--chassis-stale-threshold` | `NORTHWATCH_CHASSIS_STALE_THRESHOLD` | `60s` | How long an out-of-sync chassis may lag the current `nb_cfg` generation before the [chassis inventory](/reference/api#chassis-inventory) flags it `stale` (Go duration). |
 
-`nb_cfg_timestamp` only advances when a chassis acknowledges a new `nb_cfg`
-generation, so this bounds "age since last config-ack", not a periodic
-heartbeat. Raise it for low-churn deployments where config rarely changes.
+This threshold only affects the `stale` flag, **not** `alive`/down: a chassis is
+alive whenever it is present and in-sync. `nb_cfg_timestamp` only advances when a
+chassis acknowledges a new `nb_cfg` generation, so on a steady-state cluster it
+freezes — which is why staleness, not timestamp age, is what this bounds. Raise
+it to tolerate slower config propagation before a lagging chassis is flagged.
 
 ## Write operations
 

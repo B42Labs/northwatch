@@ -695,6 +695,9 @@ export interface EncapInfo {
 export interface ChassisLiveness {
   in_sync: boolean;
   alive: boolean;
+  // stale: out-of-sync and lagging the current nb_cfg generation beyond the
+  // configured threshold. Informational; alive/down is driven by `alive`.
+  stale: boolean;
   nb_cfg: number;
   sb_nb_cfg: number;
   nb_cfg_timestamp: number;

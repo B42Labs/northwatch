@@ -76,9 +76,9 @@ A cluster has at most one enrichment provider.
 - The enrichment cache TTL is global, set with `--enrichment-cache-ttl`, not in
   the file.
 - The chassis-inventory staleness threshold is global, set with
-  `--chassis-stale-threshold`, not in the file. It controls when a chassis is
-  reported not-alive; because `nb_cfg_timestamp` only advances on a new config
-  generation, low-churn deployments should raise it.
+  `--chassis-stale-threshold`, not in the file. It controls when an out-of-sync
+  chassis is flagged `stale` (not `alive`/down — a present, in-sync chassis is
+  always alive). Raise it to tolerate slower config propagation before flagging.
 
 ## Precedence
 

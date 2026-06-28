@@ -120,7 +120,10 @@
 
   function syncBadge(l: ChassisLiveness): { text: string; variant: Variant } {
     if (l.in_sync) return { text: 'in-sync', variant: 'info' };
-    return { text: `lag ${l.nb_cfg}/${l.sb_nb_cfg}`, variant: 'warning' };
+    // A lagging chassis is a soft warning until it crosses the stale threshold,
+    // at which point it is flagged as stuck (error).
+    const variant: Variant = l.stale ? 'error' : 'warning';
+    return { text: `lag ${l.nb_cfg}/${l.sb_nb_cfg}`, variant };
   }
 
   onMount(() => load());
