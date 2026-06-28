@@ -15,6 +15,7 @@ func BuildSpec() Document {
 	registerNB(b)
 	registerSB(b)
 	registerChassisInventory(b)
+	registerOVS(b)
 	registerCorrelated(b)
 	registerSearch(b)
 	registerTopology(b)
@@ -159,6 +160,32 @@ func registerChassisInventory(b *Builder) {
 		Tags:        []string{tag},
 		Parameters:  []Parameter{pathParam("name")},
 		Responses:   jsonOK("ChassisDetail with encaps, bridge mappings, liveness and bound ports"),
+	})
+}
+
+func registerOVS(b *Builder) {
+	tag := "OVS"
+	b.AddOperation("/api/v1/ovs", "get", &Operation{
+		OperationID: "listOVSFleet",
+		Summary:     "List the per-chassis OVS fleet connection status",
+		Description: "Reports each configured chassis (by system-id), its OVSDB management address and whether Northwatch is currently connected. Present only when OVS visibility is enabled via --ovs-mgmt-addr-file.",
+		Tags:        []string{tag},
+		Responses:   jsonOK("Array of OVS chassis connection statuses"),
+	})
+	b.AddOperation("/api/v1/ovs/{chassis}/{table}", "get", &Operation{
+		OperationID: "listOVSTable",
+		Summary:     "List rows of a per-chassis Open_vSwitch table",
+		Description: "Live OVS state from one chassis's monitored cache. table is one of interface, bridge, port, open-vswitch, manager, controller. chassis is the system-id (= SB Chassis.name). 404 for an unknown chassis or table; 503 when the chassis is registered but currently unreachable.",
+		Tags:        []string{tag},
+		Parameters:  []Parameter{pathParam("chassis"), pathParam("table")},
+		Responses:   jsonOK("Array of OVS table rows"),
+	})
+	b.AddOperation("/api/v1/ovs/{chassis}/{table}/{uuid}", "get", &Operation{
+		OperationID: "getOVSRow",
+		Summary:     "Get a single per-chassis Open_vSwitch row by UUID",
+		Tags:        []string{tag},
+		Parameters:  []Parameter{pathParam("chassis"), pathParam("table"), pathParam("uuid")},
+		Responses:   jsonOK("Single OVS table row"),
 	})
 }
 

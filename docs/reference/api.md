@@ -80,6 +80,48 @@ real Open_vSwitch instance.
 These are the *aggregated* views; the raw `chassis`, `encaps`, `port-bindings`
 and `chassis-private` tables remain available under [Southbound tables](#southbound-tables).
 
+## OVS (per-chassis Open_vSwitch)
+
+Live, read-only state from each chassis's local Open_vSwitch (vswitchd) OVSDB —
+the *reality* the Southbound DB only describes as *intent* (is the interface
+actually up? rx/tx stats? errors? is `ovn-controller` attached to `br-int`?).
+This surface is **opt-in**: it appears only when the server is started with
+`--ovs-mgmt-addr-file` (see [CLI flags](/reference/cli)), and the `ovs`
+[capability](/reference/capabilities) advertises it.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/ovs` | Fleet status: one entry per configured chassis with its `system_id`, management `addr` and whether Northwatch is `connected`. |
+| GET | `/api/v1/ovs/{chassis}/{table}` | List rows of one OVS table on one chassis. |
+| GET | `/api/v1/ovs/{chassis}/{table}/{uuid}` | One row by UUID. |
+
+`{chassis}` is the **system-id** — the same `name` as in the [chassis
+inventory](#chassis-inventory) (`external_ids:system-id` on the OVS instance) —
+so it joins directly to the SB view. `{table}` is one of exactly six
+whitelisted tables:
+
+| `{table}` | What only the OVS instance provides |
+|---|---|
+| `interface` | `statistics` (rx/tx packets/bytes/errors/dropped), `link_state`, `admin_state`, `link_speed`, `mtu`, `ofport`, `mac_in_use`, `error`, driver `status`. |
+| `bridge` | The real bridges (`br-int`, `br-ex`, provider bridges), `datapath_type`, `datapath_id`, physical ports. |
+| `port` | Bridge ports and their bonding/VLAN config. |
+| `open-vswitch` | `ovs_version`, DPDK state, available `iface_types`/`datapath_types`. |
+| `manager` | `is_connected` — whether the OVSDB manager connection is up. |
+| `controller` | `is_connected` — whether `ovn-controller` is attached to `br-int`. |
+
+Reachability semantics:
+
+- An unknown chassis (not in the mapping) or an unknown table returns **404**.
+- A registered chassis that is currently **unreachable** returns **503**
+  (`chassis unreachable`) — distinct from 404, so an outage is observable. One
+  dead chassis never affects the others or the NB/SB views.
+
+**Operator setup.** `ovsdb-server` listens only on a local Unix socket by
+default; remote access must be enabled per chassis, e.g.
+`ovs-vsctl set-manager ptcp:6640` (or `pssl:6640` for TLS). The
+`--ovs-mgmt-addr-file` mapping then points Northwatch at each chassis's
+management address.
+
 ## Correlated views
 
 Northbound entities joined to their Southbound counterpart and enrichment context:
