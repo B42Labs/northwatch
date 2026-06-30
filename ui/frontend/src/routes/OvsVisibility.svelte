@@ -6,6 +6,7 @@
     OVS_TABLES,
     type OvsMemberStatus,
   } from '../lib/api';
+  import { push } from '../lib/router';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
@@ -120,6 +121,15 @@
     nonce++;
   }
 
+  // Open a row in the per-row detail view, which unpacks its map-typed fields.
+  function handleRowClick(row: Record<string, unknown>) {
+    const uuid = row._uuid;
+    if (typeof uuid !== 'string' || !uuid) return;
+    push(
+      `/ovs/${encodeURIComponent(selectedChassis)}/${selectedTable}/${encodeURIComponent(uuid)}`,
+    );
+  }
+
   onMount(loadMembers);
 </script>
 
@@ -210,7 +220,12 @@
       empty={rows.length === 0}
       emptyMessage="no rows"
     >
-      <DataTable {rows} columns={primaryColumns} {allColumns} />
+      <DataTable
+        {rows}
+        columns={primaryColumns}
+        {allColumns}
+        onRowClick={handleRowClick}
+      />
     </DataState>
   {/if}
 </DataState>
