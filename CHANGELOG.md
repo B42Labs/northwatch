@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ovs` capability. See
   [HTTP API](https://b42labs.github.io/northwatch/reference/api) and
   [CLI flags](https://b42labs.github.io/northwatch/reference/cli).
+- The per-chassis OVS view now routes all 19 vswitchd tables the monitored
+  `Open_vSwitch` cache already holds (up from 6) and lists them in the table
+  picker — the monitoring/export-config tables (`ipfix`, `sflow`, `netflow`,
+  `mirror`, `qos`, `queue`), the conntrack tables (`ct-zone`,
+  `ct-timeout-policy`, `datapath`) and the rest (`flow-table`,
+  `flow-sample-collector-set`, `ssl`, `autoattach`). No new connections; the
+  `ssl` row omits `private_key` so SSL key material is never served (the
+  public `certificate`/`ca_cert` stay).
 - Aggregated chassis inventory built entirely from the existing Southbound
   cache (no new OVSDB connections): `GET /api/v1/sb/chassis-inventory` and
   `/{name}`. Each entry joins `Chassis`, `Encap`, `Chassis_Private`,
