@@ -175,7 +175,7 @@ func registerOVS(b *Builder) {
 	b.AddOperation("/api/v1/ovs/{chassis}/{table}", "get", &Operation{
 		OperationID: "listOVSTable",
 		Summary:     "List rows of a per-chassis Open_vSwitch table",
-		Description: "Live OVS state from one chassis's monitored cache. table is one of interface, bridge, port, open-vswitch, manager, controller. chassis is the system-id (= SB Chassis.name). 404 for an unknown chassis or table; 503 when the chassis is registered but currently unreachable.",
+		Description: "Live OVS state from one chassis's monitored cache. table is one of interface, bridge, port, open-vswitch, manager, controller, ipfix, sflow, netflow, mirror, qos, queue, ct-zone, ct-timeout-policy, datapath, flow-table, flow-sample-collector-set, ssl, autoattach (the OVSDB table name lowercased with '_' rendered as '-'). The ssl row omits private_key so SSL key material is never exposed. chassis is the system-id (= SB Chassis.name). 404 for an unknown chassis or table; 503 when the chassis is registered but currently unreachable.",
 		Tags:        []string{tag},
 		Parameters:  []Parameter{pathParam("chassis"), pathParam("table")},
 		Responses:   jsonOK("Array of OVS table rows"),
