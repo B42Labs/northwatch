@@ -162,6 +162,16 @@ export async function listOvsTable(
   return data ?? [];
 }
 
+export function getOvsEntity(
+  chassis: string,
+  table: string,
+  uuid: string,
+): Promise<Record<string, unknown>> {
+  return getGlobal(
+    `/api/v1/ovs/${encodeURIComponent(chassis)}/${encodeURIComponent(table)}/${encodeURIComponent(uuid)}`,
+  );
+}
+
 // Correlated response types
 export type OvsdbEntity = Record<string, unknown>;
 
