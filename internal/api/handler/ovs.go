@@ -44,9 +44,44 @@ func ovsAccess[T any]() ovsTableAccess {
 	}
 }
 
-// ovsTables whitelists exactly the six read-only OVS tables the integration
-// exposes. The keys are the URL path segments; only these are routable so an
-// arbitrary OVS table cannot be reached.
+// ovsAccessRedacted builds access closures for an OVS model type like ovsAccess,
+// but deletes the named sensitive keys from every returned map before it reaches
+// the client (e.g. SSL.private_key). The redacted keys are simply absent from
+// the JSON rather than blanked, so the generic renderer never displays them.
+func ovsAccessRedacted[T any](redact ...string) ovsTableAccess {
+	base := ovsAccess[T]()
+	return ovsTableAccess{
+		list: func(ctx context.Context, c client.Client) ([]map[string]any, error) {
+			rows, err := base.list(ctx, c)
+			if err != nil {
+				return nil, err
+			}
+			for _, row := range rows {
+				for _, k := range redact {
+					delete(row, k)
+				}
+			}
+			return rows, nil
+		},
+		get: func(ctx context.Context, c client.Client, uuid string) (map[string]any, bool, error) {
+			row, found, err := base.get(ctx, c, uuid)
+			if err != nil || !found {
+				return row, found, err
+			}
+			for _, k := range redact {
+				delete(row, k)
+			}
+			return row, true, nil
+		},
+	}
+}
+
+// ovsTables whitelists the read-only per-chassis Open_vSwitch tables the
+// integration exposes — all the vswitchd tables the monitored cache already
+// holds. The keys are the URL path segments (the OVSDB table name lowercased
+// with "_" → "-"); only these are routable so an arbitrary OVS table cannot be
+// reached. The ssl row redacts private_key so SSL key material is never served;
+// certificate and ca_cert are public X.509 material and stay.
 var ovsTables = map[string]ovsTableAccess{
 	"interface":    ovsAccess[vs.Interface](),
 	"bridge":       ovsAccess[vs.Bridge](),
@@ -54,6 +89,25 @@ var ovsTables = map[string]ovsTableAccess{
 	"open-vswitch": ovsAccess[vs.OpenvSwitch](),
 	"manager":      ovsAccess[vs.Manager](),
 	"controller":   ovsAccess[vs.Controller](),
+
+	// Monitoring / export-config tables.
+	"ipfix":   ovsAccess[vs.IPFIX](),
+	"sflow":   ovsAccess[vs.SFlow](),
+	"netflow": ovsAccess[vs.NetFlow](),
+	"mirror":  ovsAccess[vs.Mirror](),
+	"qos":     ovsAccess[vs.QoS](),
+	"queue":   ovsAccess[vs.Queue](),
+
+	// Conntrack tables.
+	"ct-zone":           ovsAccess[vs.CTZone](),
+	"ct-timeout-policy": ovsAccess[vs.CTTimeoutPolicy](),
+	"datapath":          ovsAccess[vs.Datapath](),
+
+	// Remaining tables.
+	"flow-table":                ovsAccess[vs.FlowTable](),
+	"flow-sample-collector-set": ovsAccess[vs.FlowSampleCollectorSet](),
+	"ssl":                       ovsAccessRedacted[vs.SSL]("private_key"),
+	"autoattach":                ovsAccess[vs.AutoAttach](),
 }
 
 // RegisterOVS registers the read-only per-chassis Open_vSwitch endpoints,
