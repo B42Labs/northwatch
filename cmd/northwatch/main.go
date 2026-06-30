@@ -600,7 +600,11 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 			fmt.Printf("Cluster %q: setting up Kubernetes enrichment...\n", cc.Name)
 			provider, err := enrich.NewKubernetesProvider(ctx, cc.Enrichment.Kubeconfig, cc.Enrichment.KubeContext)
 			if err != nil {
-				return nil, fmt.Errorf("creating Kubernetes provider: %w", err)
+				// Optional enrichment: an unreachable or misconfigured cluster
+				// must not stop Northwatch from serving the OVN databases. Warn
+				// and continue without enrichment.
+				fmt.Fprintf(os.Stderr, "warning: cluster %q: Kubernetes enrichment disabled: %v\n", cc.Name, err)
+				return enrich.NewEnricher(nil, 0), nil
 			}
 			fmt.Printf("Cluster %q: Kubernetes enrichment enabled\n", cc.Name)
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
@@ -637,7 +641,10 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 			fmt.Println("Setting up Kubernetes enrichment...")
 			provider, err := enrich.NewKubernetesProvider(ctx, cfg.Kubeconfig, cfg.KubeContext)
 			if err != nil {
-				return nil, fmt.Errorf("creating Kubernetes provider: %w", err)
+				// Optional enrichment: warn and continue without it rather than
+				// failing startup (see the per-cluster case above).
+				fmt.Fprintf(os.Stderr, "warning: Kubernetes enrichment disabled: %v\n", err)
+				return enrich.NewEnricher(nil, 0), nil
 			}
 			fmt.Println("Kubernetes enrichment enabled")
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
