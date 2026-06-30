@@ -55,6 +55,22 @@ describe('matchRoute', () => {
     const result = matchRoute('/search', '/search?q=');
     expect(result).toEqual({ params: {}, query: { q: '' } });
   });
+
+  it('does not throw on malformed percent-encoding in path segments', () => {
+    const result = matchRoute(
+      '/ovs/:chassis/:table/:uuid',
+      '/ovs/c1/iface/%E0',
+    );
+    expect(result).toEqual({
+      params: { chassis: 'c1', table: 'iface', uuid: '%E0' },
+      query: {},
+    });
+  });
+
+  it('does not throw on malformed percent-encoding in query values', () => {
+    const result = matchRoute('/search', '/search?q=%zz');
+    expect(result).toEqual({ params: {}, query: { q: '%zz' } });
+  });
 });
 
 describe('resolveRoute', () => {
@@ -150,6 +166,20 @@ describe('resolveRoute', () => {
     expect(resolveRoute('/ovs')).toMatchObject({
       component: 'ovs-visibility',
     });
+  });
+
+  it('resolves OVS detail', () => {
+    const route = resolveRoute('/ovs/chassis-1/interface/uuid-1');
+    expect(route.component).toBe('ovs-detail');
+    expect(route.params).toEqual({
+      chassis: 'chassis-1',
+      table: 'interface',
+      uuid: 'uuid-1',
+    });
+  });
+
+  it('does not let OVS detail shadow the bare OVS visibility path', () => {
+    expect(resolveRoute('/ovs').component).toBe('ovs-visibility');
   });
 
   it('resolves write builder', () => {
