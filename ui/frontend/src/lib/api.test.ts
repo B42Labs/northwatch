@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { getTopology } from './api';
+import { getTopology, listOvsMembers, listOvsTable } from './api';
 
 function mockFetch(body: unknown): void {
   vi.stubGlobal(
@@ -68,5 +68,52 @@ describe('getTopology', () => {
     await getTopology();
 
     expect(fetchSpy).toHaveBeenCalledWith('/api/v1/topology');
+  });
+});
+
+describe('OVS visibility endpoints', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists members against the global mux and normalizes null', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      json: async () => null,
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await listOvsMembers();
+
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/ovs');
+    expect(result).toEqual([]);
+  });
+
+  it('passes through populated members', async () => {
+    const body = [
+      { system_id: 'testbed-node-0', connected: true },
+      { system_id: 'testbed-node-1', connected: false },
+    ];
+    mockFetch(body);
+
+    expect(await listOvsMembers()).toEqual(body);
+  });
+
+  it('encodes the chassis and table path segments', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      json: async () => [],
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await listOvsTable('node/0', 'interface');
+
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/ovs/node%2F0/interface');
+  });
+
+  it('normalizes a null table body to an empty array', async () => {
+    mockFetch(null);
+
+    expect(await listOvsTable('node-0', 'bridge')).toEqual([]);
   });
 });

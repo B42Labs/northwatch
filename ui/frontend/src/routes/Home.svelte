@@ -17,7 +17,13 @@
       .filter((s) => !s.liveOnly || !$snapshotMode)
       .map((s) => ({
         ...s,
-        links: s.links.filter((l) => !l.liveOnly || !$snapshotMode),
+        links: s.links
+          .filter((l) => !l.liveOnly || !$snapshotMode)
+          .filter(
+            (l) =>
+              !l.requiresCapability ||
+              $capabilities.includes(l.requiresCapability),
+          ),
       })),
   );
 </script>

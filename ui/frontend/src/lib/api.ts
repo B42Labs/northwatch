@@ -109,6 +109,43 @@ export async function getCapabilities(): Promise<CapabilitiesResponse> {
   };
 }
 
+// --- Per-chassis OVS visibility ---
+// The OVS endpoints are served on the top-level mux (default cluster only), so
+// they use the global fetch helper rather than the cluster-scoped get().
+
+/** Connection status of one chassis in the OVS pool. */
+export interface OvsMemberStatus {
+  system_id: string;
+  connected: boolean;
+}
+
+/** The read-only OVS tables the backend exposes, as URL slug → display label.
+ * Keep in sync with the `ovsTables` whitelist in internal/api/handler/ovs.go. */
+export const OVS_TABLES: { slug: string; label: string }[] = [
+  { slug: 'interface', label: 'Interface' },
+  { slug: 'port', label: 'Port' },
+  { slug: 'bridge', label: 'Bridge' },
+  { slug: 'open-vswitch', label: 'Open_vSwitch' },
+  { slug: 'controller', label: 'Controller' },
+  { slug: 'manager', label: 'Manager' },
+];
+
+export async function listOvsMembers(): Promise<OvsMemberStatus[]> {
+  // The list is always a JSON array, but stay defensive against a null body.
+  const data = await getGlobal<OvsMemberStatus[] | null>('/api/v1/ovs');
+  return data ?? [];
+}
+
+export async function listOvsTable(
+  chassis: string,
+  table: string,
+): Promise<Record<string, unknown>[]> {
+  const data = await getGlobal<Record<string, unknown>[] | null>(
+    `/api/v1/ovs/${encodeURIComponent(chassis)}/${encodeURIComponent(table)}`,
+  );
+  return data ?? [];
+}
+
 // Correlated response types
 export type OvsdbEntity = Record<string, unknown>;
 

@@ -9,6 +9,8 @@ export interface NavLink {
   /** Hidden in snapshot mode — depends on live-change tracking that a static
    * snapshot does not serve (e.g. flow diff). */
   liveOnly?: boolean;
+  /** Shown only when the backend reports this capability (e.g. 'ovs'). */
+  requiresCapability?: string;
 }
 
 export interface NavSection {
@@ -80,6 +82,7 @@ export const navSections: NavSection[] = [
     links: [
       { label: 'Raft Health', href: '/raft-health' },
       { label: 'Chassis Inventory', href: '/chassis-inventory' },
+      { label: 'OVS Visibility', href: '/ovs', requiresCapability: 'ovs' },
       { label: 'Propagation Timeline', href: '/propagation-timeline' },
     ],
   },

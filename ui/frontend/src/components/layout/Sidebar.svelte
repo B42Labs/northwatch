@@ -2,7 +2,11 @@
   import { location, link } from '../../lib/router';
   import { databases } from '../../lib/tables';
   import { navSections, isActiveLink, type NavLink } from '../../lib/nav';
-  import { writeEnabled, snapshotMode } from '../../lib/capabilitiesStore';
+  import {
+    capabilities,
+    writeEnabled,
+    snapshotMode,
+  } from '../../lib/capabilitiesStore';
 
   // Database groups carry a lot of tables, so they start collapsed; the
   // curated sections above stay open.
@@ -21,7 +25,13 @@
       .filter((s) => !s.liveOnly || !$snapshotMode)
       .map((s) => ({
         ...s,
-        links: s.links.filter((l) => !l.liveOnly || !$snapshotMode),
+        links: s.links
+          .filter((l) => !l.liveOnly || !$snapshotMode)
+          .filter(
+            (l) =>
+              !l.requiresCapability ||
+              $capabilities.includes(l.requiresCapability),
+          ),
       })),
   );
 
