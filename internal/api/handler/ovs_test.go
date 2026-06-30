@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,6 +24,21 @@ func setupOVS(t *testing.T) *http.ServeMux {
 	sock, seed := testutil.SetupOVSTestServer(t)
 	testutil.InsertOVSBridgeWithInterface(t, seed, "br-int", "vnet0", map[string]int{"rx_packets": 7, "tx_packets": 9}, "up")
 
+	return ovsMuxForSock(t, sock, func(c client.Client) bool {
+		var ifaces []vs.Interface
+		if err := c.List(context.Background(), &ifaces); err != nil {
+			return false
+		}
+		return len(ifaces) == 1
+	})
+}
+
+// ovsMuxForSock dials a "chassis-1" pool at the given OVS socket, waits until it
+// is connected and the ready predicate holds against its monitored cache, then
+// returns the registered mux. It isolates the pool wiring shared by the seeded
+// fixtures.
+func ovsMuxForSock(t *testing.T, sock string, ready func(client.Client) bool) *http.ServeMux {
+	t.Helper()
 	model, err := vs.FullDatabaseModel()
 	require.NoError(t, err)
 	pool := ovndb.NewOVSPool(model, nil)
@@ -32,13 +48,7 @@ func setupOVS(t *testing.T) *http.ServeMux {
 	c, ok := pool.Client("chassis-1")
 	require.True(t, ok)
 	require.Eventually(t, c.Connected, 5*time.Second, 20*time.Millisecond)
-	require.Eventually(t, func() bool {
-		var ifaces []vs.Interface
-		if err := c.List(context.Background(), &ifaces); err != nil {
-			return false
-		}
-		return len(ifaces) == 1
-	}, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return ready(c) }, 5*time.Second, 20*time.Millisecond)
 
 	mux := http.NewServeMux()
 	RegisterOVS(mux, pool)
@@ -122,6 +132,50 @@ func TestOVSRowNotFound(t *testing.T) {
 	mux := setupOVS(t)
 	w := ovsGet(t, mux, "/api/v1/ovs/chassis-1/interface/00000000-0000-0000-0000-000000000000")
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestOVSNewTablesRoutable(t *testing.T) {
+	mux := setupOVS(t)
+	// The tables widened beyond the original interface/bridge/port/open-vswitch/
+	// manager/controller set: each must be routable (200 + JSON array), not 404.
+	slugs := []string{
+		"ipfix", "sflow", "netflow", "mirror", "qos", "queue",
+		"ct-zone", "ct-timeout-policy", "datapath",
+		"flow-table", "flow-sample-collector-set", "ssl", "autoattach",
+	}
+	for _, slug := range slugs {
+		t.Run(slug, func(t *testing.T) {
+			w := ovsGet(t, mux, "/api/v1/ovs/chassis-1/"+slug)
+			require.Equal(t, http.StatusOK, w.Code)
+			var rows []map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &rows))
+		})
+	}
+}
+
+func TestOVSSSLRedactsPrivateKey(t *testing.T) {
+	sock, seed := testutil.SetupOVSTestServer(t)
+	testutil.InsertOVSSSLRow(t, seed, "SECRET-PRIVATE-KEY", "PUBLIC-CERT", "CA-CERT")
+
+	mux := ovsMuxForSock(t, sock, func(c client.Client) bool {
+		var rows []vs.SSL
+		if err := c.List(context.Background(), &rows); err != nil {
+			return false
+		}
+		return len(rows) == 1
+	})
+
+	w := ovsGet(t, mux, "/api/v1/ovs/chassis-1/ssl")
+	require.Equal(t, http.StatusOK, w.Code)
+	var rows []map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &rows))
+	require.Len(t, rows, 1)
+	// The sensitive key material must never reach the client, under any key;
+	// public certs stay.
+	assert.NotContains(t, w.Body.String(), "SECRET-PRIVATE-KEY")
+	assert.NotContains(t, rows[0], "private_key")
+	assert.Equal(t, "PUBLIC-CERT", rows[0]["certificate"])
+	assert.Equal(t, "CA-CERT", rows[0]["ca_cert"])
 }
 
 func TestOVSUnreachable(t *testing.T) {

@@ -182,6 +182,51 @@ func InsertOVSBridgeWithInterface(t *testing.T, c client.Client, bridgeName, ifa
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+// InsertOVSSSLRow creates an Open_vSwitch root row referencing one SSL row in a
+// single transaction. SSL is a non-root table, so it must be inserted together
+// with the referencing root (via Open_vSwitch.ssl) or OVSDB referential
+// integrity garbage-collects it immediately (mirroring
+// InsertOVSBridgeWithInterface). The row carries the given private key and certs
+// so a test can assert that private_key is redacted while the certs are served.
+func InsertOVSSSLRow(t *testing.T, c client.Client, privateKey, certificate, caCert string) {
+	t.Helper()
+
+	sslNamed := "ssl_row"
+	ssl := &vs.SSL{
+		UUID:        sslNamed,
+		PrivateKey:  privateKey,
+		Certificate: certificate,
+		CaCert:      caCert,
+		ExternalIDs: map[string]string{},
+	}
+	ops, err := c.Create(ssl)
+	require.NoError(t, err)
+	allOps := ops
+
+	sslRef := sslNamed
+	root := &vs.OpenvSwitch{
+		SSL:         &sslRef,
+		ExternalIDs: map[string]string{},
+		OtherConfig: map[string]string{},
+	}
+	ops, err = c.Create(root)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	reply, err := c.Transact(context.Background(), allOps...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, allOps)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		var rows []vs.SSL
+		if err := c.List(context.Background(), &rows); err != nil {
+			return false
+		}
+		return len(rows) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 // SetupServerMonitorTestClient creates an in-memory "_Server" OVSDB test server
 // seeded with the given Database rows (mirroring how a real ovsdb-server exposes
 // Raft cluster state) and returns a connected, monitoring client.
