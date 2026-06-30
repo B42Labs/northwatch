@@ -1,6 +1,6 @@
 .PHONY: build test lint docs-check generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export deb \
 	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
-	lab-compose-up lab-compose-build lab-compose-down lab-compose testbed
+	lab-compose-up lab-compose-build lab-compose-down lab-compose testbed testbed-ovs-map
 
 OVN_VERSION := v24.09.0
 OVN_SCHEMA_BASE := https://raw.githubusercontent.com/ovn-org/ovn/$(OVN_VERSION)
@@ -231,13 +231,52 @@ NORTHWATCH_WRITE_ENABLED ?= true
 # `make testbed NORTHWATCH_LISTEN=:9090`.
 NORTHWATCH_LISTEN ?= :8080
 
+# Per-chassis OVS visibility for the testbed. The mapping keys are chassis
+# system-ids (== SB Chassis.name == OVS external_ids:system-id == the node
+# hostname testbed-node-N) and the values are plaintext OVSDB management
+# addresses derived as tcp:$(TESTBED_OVS_IP_PREFIX).<base+N>:$(TESTBED_OVS_PORT).
+# Each chassis must export its OVSDB first, e.g. on every node:
+#   docker exec openvswitch_vswitchd ovs-vsctl set-manager ptcp:6640
+# Nodes without remote OVSDB are still listed; the pool retries them in the
+# background and serves the reachable ones. Disable with TESTBED_OVS_ENABLED=false.
+TESTBED_OVS_ENABLED     ?= true
+TESTBED_OVS_NODES       ?= 0 1 2 3 4 5
+TESTBED_OVS_NAME_PREFIX ?= testbed-node-
+TESTBED_OVS_IP_PREFIX   ?= 192.168.16
+TESTBED_OVS_IP_BASE     ?= 10
+TESTBED_OVS_PORT        ?= 6640
+TESTBED_OVS_MAP_FILE    ?= $(CURDIR)/ovs-mgmt-addr.testbed.json
+
+ifeq ($(TESTBED_OVS_ENABLED),true)
+TESTBED_OVS_FLAG := --ovs-mgmt-addr-file "$(TESTBED_OVS_MAP_FILE)"
+endif
+
+# Write the system-id -> mgmt-addr mapping file for the testbed nodes (plaintext
+# tcp:; ssl: would additionally need --ovs-tls-cert/-key/-ca).
+testbed-ovs-map:
+	@{ \
+	  echo '{'; \
+	  i=0; \
+	  for n in $(TESTBED_OVS_NODES); do \
+	    octet=$$(($(TESTBED_OVS_IP_BASE) + $$n)); \
+	    if [ $$i -gt 0 ]; then printf ',\n'; fi; \
+	    printf '  "%s%s": "tcp:%s.%s:%s"' '$(TESTBED_OVS_NAME_PREFIX)' "$$n" '$(TESTBED_OVS_IP_PREFIX)' "$$octet" '$(TESTBED_OVS_PORT)'; \
+	    i=$$((i + 1)); \
+	  done; \
+	  printf '\n}\n'; \
+	} > "$(TESTBED_OVS_MAP_FILE)"
+	@echo "Wrote OVS mgmt-addr mapping ($(TESTBED_OVS_MAP_FILE)):"
+	@cat "$(TESTBED_OVS_MAP_FILE)"
+
 testbed: build
 	@test -f "$(OS_CACERT)" || { echo "error: CA cert $(OS_CACERT) not found (clouds.yaml 'cacert')"; exit 1; }
+	@if [ "$(TESTBED_OVS_ENABLED)" = "true" ]; then $(MAKE) --no-print-directory testbed-ovs-map; fi
 	@echo "Starting Northwatch against the OSISM testbed control plane:"
 	@echo "  NB: $(TESTBED_NB)"
 	@echo "  SB: $(TESTBED_SB)"
 	@echo "  OpenStack: $(OS_AUTH_URL) (cacert $(OS_CACERT))"
 	@echo "  Write operations: $(NORTHWATCH_WRITE_ENABLED)"
+	@echo "  OVS visibility: $(TESTBED_OVS_ENABLED)"
 	@echo "  Dashboard: http://localhost$(NORTHWATCH_LISTEN)"
 	OS_AUTH_URL="$(OS_AUTH_URL)" \
 	OS_USERNAME="$(OS_USERNAME)" \
@@ -248,7 +287,7 @@ testbed: build
 	OS_CACERT="$(OS_CACERT)" \
 	NORTHWATCH_WRITE_ENABLED="$(NORTHWATCH_WRITE_ENABLED)" \
 	NORTHWATCH_LISTEN="$(NORTHWATCH_LISTEN)" \
-	./bin/northwatch --ovn-nb-addr "$(TESTBED_NB)" --ovn-sb-addr "$(TESTBED_SB)"
+	./bin/northwatch --ovn-nb-addr "$(TESTBED_NB)" --ovn-sb-addr "$(TESTBED_SB)" $(TESTBED_OVS_FLAG)
 
 clean:
 	rm -rf bin/ dist/ ui/frontend/dist/ ui/frontend/node_modules/
