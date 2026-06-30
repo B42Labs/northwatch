@@ -619,7 +619,12 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 			}
 			provider, err := enrich.NewOpenStackProvider(ctx, osCfg)
 			if err != nil {
-				return nil, fmt.Errorf("creating OpenStack provider: %w", err)
+				// Enrichment is an optional add-on (it decorates ports with
+				// OpenStack names); a failure to reach OpenStack must not stop
+				// Northwatch from serving the OVN databases. Warn and continue
+				// without enrichment.
+				fmt.Fprintf(os.Stderr, "warning: cluster %q: OpenStack enrichment disabled: %v\n", cc.Name, err)
+				return enrich.NewEnricher(nil, 0), nil
 			}
 			fmt.Printf("Cluster %q: OpenStack enrichment enabled\n", cc.Name)
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
@@ -641,7 +646,10 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 			fmt.Println("Authenticating with OpenStack...")
 			provider, err := enrich.NewOpenStackProvider(ctx, cfg)
 			if err != nil {
-				return nil, fmt.Errorf("creating OpenStack provider: %w", err)
+				// Optional enrichment: warn and continue without it rather than
+				// failing startup (see the per-cluster case above).
+				fmt.Fprintf(os.Stderr, "warning: OpenStack enrichment disabled: %v\n", err)
+				return enrich.NewEnricher(nil, 0), nil
 			}
 			fmt.Println("OpenStack enrichment enabled")
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
