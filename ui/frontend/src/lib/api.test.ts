@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { getTopology, listOvsMembers, listOvsTable } from './api';
+import {
+  ApiError,
+  getOvsEntity,
+  getTopology,
+  listOvsMembers,
+  listOvsTable,
+} from './api';
 
 function mockFetch(body: unknown): void {
   vi.stubGlobal(
@@ -115,5 +121,37 @@ describe('OVS visibility endpoints', () => {
     mockFetch(null);
 
     expect(await listOvsTable('node-0', 'bridge')).toEqual([]);
+  });
+
+  it('gets a single entity with encoded path segments via the global mux', async () => {
+    const body = { _uuid: 'uuid-1', name: 'br-int' };
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      json: async () => body,
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await getOvsEntity('node/0', 'interface', 'uuid-1');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/ovs/node%2F0/interface/uuid-1',
+    );
+    expect(result).toEqual(body);
+  });
+
+  it('surfaces a missing entity as an ApiError', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      json: async () => ({ error: 'not found' }),
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const err = await getOvsEntity('node-0', 'interface', 'missing').catch(
+      (e) => e,
+    );
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 404, message: 'not found' });
   });
 });
