@@ -146,6 +146,12 @@ describe('resolveRoute', () => {
     );
   });
 
+  it('resolves OVS visibility', () => {
+    expect(resolveRoute('/ovs')).toMatchObject({
+      component: 'ovs-visibility',
+    });
+  });
+
   it('resolves write builder', () => {
     const route = resolveRoute('/write');
     expect(route.component).toBe('write-builder');

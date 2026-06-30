@@ -103,6 +103,8 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { component: 'raft-health', ...m };
   if ((m = matchRoute('/chassis-inventory', path)))
     return { component: 'chassis-inventory', ...m };
+  if ((m = matchRoute('/ovs', path)))
+    return { component: 'ovs-visibility', ...m };
   if ((m = matchRoute('/propagation-timeline', path)))
     return { component: 'propagation-timeline', ...m };
 
