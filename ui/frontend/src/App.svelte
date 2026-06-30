@@ -37,6 +37,7 @@
   import RaftHealth from './routes/RaftHealth.svelte';
   import ChassisInventory from './routes/ChassisInventory.svelte';
   import OvsVisibility from './routes/OvsVisibility.svelte';
+  import OvsDetail from './routes/OvsDetail.svelte';
   import PropagationTimeline from './routes/PropagationTimeline.svelte';
   let route = $derived(resolveRoute($location));
 </script>
@@ -119,6 +120,12 @@
       <ChassisInventory />
     {:else if route.component === 'ovs-visibility'}
       <OvsVisibility />
+    {:else if route.component === 'ovs-detail'}
+      <OvsDetail
+        chassis={route.params.chassis}
+        table={route.params.table}
+        uuid={route.params.uuid}
+      />
     {:else if route.component === 'propagation-timeline'}
       <PropagationTimeline />
     {:else}

@@ -23,13 +23,21 @@ export interface RouteMatch {
   query: Record<string, string>;
 }
 
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
 export function matchRoute(pattern: string, path: string): RouteMatch | null {
   const [pathname, queryString] = path.split('?');
   const query: Record<string, string> = {};
   if (queryString) {
     for (const param of queryString.split('&')) {
       const [key, value] = param.split('=');
-      query[decodeURIComponent(key)] = decodeURIComponent(value || '');
+      query[safeDecode(key)] = safeDecode(value || '');
     }
   }
 
@@ -41,7 +49,7 @@ export function matchRoute(pattern: string, path: string): RouteMatch | null {
   const params: Record<string, string> = {};
   for (let i = 0; i < patternParts.length; i++) {
     if (patternParts[i].startsWith(':')) {
-      params[patternParts[i].slice(1)] = decodeURIComponent(pathParts[i]);
+      params[patternParts[i].slice(1)] = safeDecode(pathParts[i]);
     } else if (patternParts[i] !== pathParts[i]) {
       return null;
     }
@@ -103,6 +111,8 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { component: 'raft-health', ...m };
   if ((m = matchRoute('/chassis-inventory', path)))
     return { component: 'chassis-inventory', ...m };
+  if ((m = matchRoute('/ovs/:chassis/:table/:uuid', path)))
+    return { component: 'ovs-detail', ...m };
   if ((m = matchRoute('/ovs', path)))
     return { component: 'ovs-visibility', ...m };
   if ((m = matchRoute('/propagation-timeline', path)))
