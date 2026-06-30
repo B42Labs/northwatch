@@ -97,10 +97,10 @@ This surface is **opt-in**: it appears only when the server is started with
 
 `{chassis}` is the **system-id** — the same `name` as in the [chassis
 inventory](#chassis-inventory) (`external_ids:system-id` on the OVS instance) —
-so it joins directly to the SB view. `{table}` is one of exactly six
-whitelisted tables:
+so it joins directly to the SB view. `{table}` is one of the whitelisted
+vswitchd tables (the OVSDB table name lowercased with `_` rendered as `-`):
 
-| `{table}` | What only the OVS instance provides |
+| `{table}` | What the OVS instance holds |
 |---|---|
 | `interface` | `statistics` (rx/tx packets/bytes/errors/dropped), `link_state`, `admin_state`, `link_speed`, `mtu`, `ofport`, `mac_in_use`, `error`, driver `status`. |
 | `bridge` | The real bridges (`br-int`, `br-ex`, provider bridges), `datapath_type`, `datapath_id`, physical ports. |
@@ -108,6 +108,19 @@ whitelisted tables:
 | `open-vswitch` | `ovs_version`, DPDK state, available `iface_types`/`datapath_types`. |
 | `manager` | `is_connected` — whether the OVSDB manager connection is up. |
 | `controller` | `is_connected` — whether `ovn-controller` is attached to `br-int`. |
+| `ipfix` | IPFIX flow-export config — collector `targets`, sampling, cache timeouts. |
+| `sflow` | sFlow agent config — collector `targets`, sampling and polling. |
+| `netflow` | NetFlow collector config — `targets`, active timeout, engine IDs. |
+| `mirror` | Port-mirror (SPAN/RSPAN) config — selected source/output ports. |
+| `qos` | QoS policies attached to ports — `type`, queues, `other_config`. |
+| `queue` | Per-queue config referenced by QoS — DSCP, min/max rate. |
+| `ct-zone` | Conntrack zone → timeout-policy bindings. |
+| `ct-timeout-policy` | Conntrack timeout policies by protocol state. |
+| `datapath` | Datapath instances — `datapath_version`, capabilities, conntrack zones. |
+| `flow-table` | OpenFlow table config — name, flow limits, eviction policy. |
+| `flow-sample-collector-set` | IPFIX flow-sample collector sets bound to a bridge. |
+| `ssl` | SSL config — `certificate`, `ca_cert`, `bootstrap_ca_cert`. `private_key` is **omitted** so key material is never served. |
+| `autoattach` | IEEE 802.1AB Auto-Attach mappings. |
 
 Reachability semantics:
 
