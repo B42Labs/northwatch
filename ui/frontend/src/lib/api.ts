@@ -128,6 +128,22 @@ export const OVS_TABLES: { slug: string; label: string }[] = [
   { slug: 'open-vswitch', label: 'Open_vSwitch' },
   { slug: 'controller', label: 'Controller' },
   { slug: 'manager', label: 'Manager' },
+  // Monitoring / export-config tables.
+  { slug: 'ipfix', label: 'IPFIX' },
+  { slug: 'sflow', label: 'sFlow' },
+  { slug: 'netflow', label: 'NetFlow' },
+  { slug: 'mirror', label: 'Mirror' },
+  { slug: 'qos', label: 'QoS' },
+  { slug: 'queue', label: 'Queue' },
+  // Conntrack tables.
+  { slug: 'ct-zone', label: 'CT_Zone' },
+  { slug: 'ct-timeout-policy', label: 'CT_Timeout_Policy' },
+  { slug: 'datapath', label: 'Datapath' },
+  // Remaining tables. The ssl row omits private_key (redacted server-side).
+  { slug: 'flow-table', label: 'Flow_Table' },
+  { slug: 'flow-sample-collector-set', label: 'Flow_Sample_Collector_Set' },
+  { slug: 'ssl', label: 'SSL' },
+  { slug: 'autoattach', label: 'AutoAttach' },
 ];
 
 export async function listOvsMembers(): Promise<OvsMemberStatus[]> {
