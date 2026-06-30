@@ -268,7 +268,7 @@ testbed-ovs-map:
 	@echo "Wrote OVS mgmt-addr mapping ($(TESTBED_OVS_MAP_FILE)):"
 	@cat "$(TESTBED_OVS_MAP_FILE)"
 
-testbed: build
+testbed: build-all
 	@test -f "$(OS_CACERT)" || { echo "error: CA cert $(OS_CACERT) not found (clouds.yaml 'cacert')"; exit 1; }
 	@if [ "$(TESTBED_OVS_ENABLED)" = "true" ]; then $(MAKE) --no-print-directory testbed-ovs-map; fi
 	@echo "Starting Northwatch against the OSISM testbed control plane:"
