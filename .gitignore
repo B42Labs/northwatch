@@ -39,6 +39,7 @@ northwatch-snapshot.json
 # Generated
 openapi-export/
 openapi.json
+ovs-mgmt-addr.testbed.json
 
 # Tools
 .serena/

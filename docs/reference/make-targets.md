@@ -96,6 +96,17 @@ OpenStack RC file first (the `OS_*` defaults honour the environment):
 | `OS_AUTH_URL` … `OS_CACERT` | values from `clouds.yaml` | OpenStack credentials and the CA bundle. |
 | `NORTHWATCH_WRITE_ENABLED` | `true` | Enable write operations. |
 | `NORTHWATCH_LISTEN` | `:8080` | Dashboard / API listen address. |
+| `TESTBED_OVS_ENABLED` | `true` | Enable per-chassis OVS visibility (writes the mapping file and passes `--ovs-mgmt-addr-file`). |
+| `TESTBED_OVS_NODES` | `0 1 2 3 4 5` | Node indices included in the OVS mapping. |
+| `TESTBED_OVS_IP_PREFIX` / `TESTBED_OVS_IP_BASE` | `192.168.16` / `10` | Mgmt-addr IP is `<prefix>.<base + index>`. |
+| `TESTBED_OVS_NAME_PREFIX` / `TESTBED_OVS_PORT` | `testbed-node-` / `6640` | Chassis system-id is `<name-prefix><index>`; OVSDB port. |
+| `TESTBED_OVS_MAP_FILE` | `ovs-mgmt-addr.testbed.json` | Generated system-id → mgmt-addr mapping file. |
+
+`make testbed-ovs-map` (re)generates the OVS system-id → mgmt-addr mapping file
+on its own. Each chassis must export its OVSDB first
+(`ovs-vsctl set-manager ptcp:6640`); unreachable nodes are retried in the
+background and the reachable ones are served. The mapping uses plaintext `tcp:`
+addresses — `ssl:` endpoints additionally need the `--ovs-tls-*` flags.
 
 ## Useful variables
 
