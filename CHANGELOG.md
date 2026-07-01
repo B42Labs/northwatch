@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Fleet-wide OVS health on the OVS Visibility overview. A new
+  `GET /api/v1/ovs/health` aggregates the per-chassis monitored caches into
+  fleet totals — bridges, ports and interfaces — plus counts of interfaces
+  that are down (`link_state=down`) or erroring (non-zero `rx/tx` errors or
+  drops), with a per-chassis breakdown. Aggregation runs off the caches (no
+  new connections) and handles partial outages: an unreachable chassis is
+  excluded from every total (never counted as healthy) but still listed with
+  `connected=false`. The overview tiles now show these totals and a down/error
+  indicator, and the chassis picker flags a chassis with down or erroring
+  interfaces beyond its connection dot. See
+  [HTTP API](https://b42labs.github.io/northwatch/reference/api).
 - Opt-in, read-only per-chassis Open_vSwitch (vswitchd) visibility. When the
   server is started with `--ovs-mgmt-addr-file` (a JSON map of chassis
   system-id to OVSDB management address), Northwatch opens one monitored

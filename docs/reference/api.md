@@ -92,6 +92,7 @@ This surface is **opt-in**: it appears only when the server is started with
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/ovs` | Fleet status: one entry per configured chassis with its `system_id`, management `addr` and whether Northwatch is `connected`. |
+| GET | `/api/v1/ovs/health` | Aggregated fleet-wide health: bridge/port/interface totals and down/erroring interface counts across connected chassis, with a per-chassis breakdown. |
 | GET | `/api/v1/ovs/{chassis}/{table}` | List rows of one OVS table on one chassis. |
 | GET | `/api/v1/ovs/{chassis}/{table}/{uuid}` | One row by UUID. |
 | GET | `/api/v1/ovs/{chassis}/interface/{uuid}/correlation` | Correlate a live interface with its Southbound `Port_Binding`. |
@@ -129,6 +130,19 @@ Reachability semantics:
 - A registered chassis that is currently **unreachable** returns **503**
   (`chassis unreachable`) — distinct from 404, so an outage is observable. One
   dead chassis never affects the others or the NB/SB views.
+
+**Fleet health.** `GET /api/v1/ovs/health` turns the per-chassis connection
+counts into a real health summary. It sums `bridges`, `ports` and `interfaces`
+across all connected chassis and counts interfaces that are **down**
+(`link_state=down`) or **erroring** (any of `rx_errors`, `tx_errors`,
+`rx_dropped`, `tx_dropped` non-zero) as `down_interfaces` and
+`error_interfaces`, alongside `chassis`, `connected` and `unreachable` counts.
+`members` is the per-chassis breakdown (`system_id`, `connected`, and the same
+counts per chassis). Aggregation runs off the monitored caches — no new
+connections — and handles partial outages: an **unreachable** chassis is
+**excluded from every total** (never counted as healthy) but still listed in
+`members` with `connected=false` and zero counts, so a green aggregate can
+never hide a problem chassis.
 
 **OVN correlation.** `GET /api/v1/ovs/{chassis}/interface/{uuid}/correlation`
 ties live OVS state to OVN intent — the Northwatch *correlate* differentiator.
