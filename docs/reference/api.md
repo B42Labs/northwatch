@@ -94,6 +94,7 @@ This surface is **opt-in**: it appears only when the server is started with
 | GET | `/api/v1/ovs` | Fleet status: one entry per configured chassis with its `system_id`, management `addr` and whether Northwatch is `connected`. |
 | GET | `/api/v1/ovs/{chassis}/{table}` | List rows of one OVS table on one chassis. |
 | GET | `/api/v1/ovs/{chassis}/{table}/{uuid}` | One row by UUID. |
+| GET | `/api/v1/ovs/{chassis}/interface/{uuid}/correlation` | Correlate a live interface with its Southbound `Port_Binding`. |
 
 `{chassis}` is the **system-id** — the same `name` as in the [chassis
 inventory](#chassis-inventory) (`external_ids:system-id` on the OVS instance) —
@@ -128,6 +129,18 @@ Reachability semantics:
 - A registered chassis that is currently **unreachable** returns **503**
   (`chassis unreachable`) — distinct from 404, so an outage is observable. One
   dead chassis never affects the others or the NB/SB views.
+
+**OVN correlation.** `GET /api/v1/ovs/{chassis}/interface/{uuid}/correlation`
+ties live OVS state to OVN intent — the Northwatch *correlate* differentiator.
+It resolves the interface's `external_ids:iface-id` to the Southbound
+`Port_Binding` whose `logical_port` matches, surfacing the bound logical port,
+its `up` state, `datapath` and bound `chassis` (with `bound_here` set when the
+port is bound on this same chassis). `drift` flags where the Southbound reports
+the port up but the live interface is down or erroring. Correlation degrades
+gracefully: `bound` is `false` with no `binding` when the interface carries no
+`iface-id` or no matching `Port_Binding` exists. It reads only the Southbound
+cache (no NB dependency) and, like the table routes, returns **404** for an
+unknown chassis or interface UUID and **503** when the chassis is unreachable.
 
 **Operator setup.** `ovsdb-server` listens only on a local Unix socket by
 default; remote access must be enabled per chassis, e.g.
