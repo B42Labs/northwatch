@@ -1,6 +1,12 @@
 <script lang="ts">
-  import { getOvsEntity, OVS_TABLES } from '../lib/api';
+  import { getOvsEntity, listOvsTable, OVS_TABLES } from '../lib/api';
   import { interfaceSignals, mapSections, type Signal } from '../lib/ovsDetail';
+  import {
+    buildLabelIndex,
+    ovsRefHref,
+    ovsRefLabel,
+    referenceTargets,
+  } from '../lib/ovsRefs';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
@@ -19,6 +25,9 @@
   let entity: Record<string, unknown> | null = $state(null);
   let loading = $state(true);
   let error = $state('');
+  // UUID → label for this row's resolved reference targets, fetched from the
+  // same chassis so reference cells show a name and link through.
+  let refIndex = $state<Map<string, string>>(new Map());
 
   let reqId = 0;
   async function load(
@@ -29,10 +38,26 @@
     const myId = ++reqId;
     loading = true;
     error = '';
+    refIndex = new Map();
     try {
       const result = await getOvsEntity(targetChassis, targetTable, targetUuid);
       if (myId !== reqId) return;
       entity = result;
+      // Resolve this row's reference columns by fetching the labelled target
+      // tables for the same chassis. Per-target failures degrade to short
+      // UUIDs (labels only), so a transient target never breaks the entity.
+      const targets = referenceTargets(targetTable);
+      if (targets.length > 0) {
+        const fetched = await Promise.all(
+          targets.map((slug) =>
+            listOvsTable(targetChassis, slug).catch(() => []),
+          ),
+        );
+        if (myId !== reqId) return;
+        refIndex = buildLabelIndex(
+          targets.map((slug, i) => ({ slug, rows: fetched[i] })),
+        );
+      }
     } catch (e) {
       if (myId !== reqId) return;
       error = e instanceof Error ? e.message : 'Failed to load entity';
@@ -49,6 +74,8 @@
   let tableLabel = $derived(
     OVS_TABLES.find((t) => t.slug === table)?.label ?? table,
   );
+  let refHref = $derived(ovsRefHref(chassis, table));
+  let refLabel = $derived(ovsRefLabel(refIndex, table));
   let title = $derived.by(() => {
     const name = entity?.name;
     return typeof name === 'string' && name ? name : uuid;
@@ -91,7 +118,13 @@
     {/if}
 
     <div class="flex flex-col gap-4">
-      <PropertyCard title="Properties" data={entity} exclude={excluded} />
+      <PropertyCard
+        title="Properties"
+        data={entity}
+        exclude={excluded}
+        {refHref}
+        {refLabel}
+      />
 
       {#each sections as section (section.key)}
         <Card title={section.key} padding="none">
