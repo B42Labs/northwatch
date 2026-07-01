@@ -41,6 +41,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tables and matching UUIDs by hand. Resolution stays within the selected
   chassis cache (no cross-chassis joins); references whose target row is
   unfetched or nameless still link but show the short UUID.
+- Live OVS state is now correlated with OVN intent — the *correlate*
+  differentiator. `GET /api/v1/ovs/{chassis}/interface/{uuid}/correlation`
+  resolves an interface's `external_ids:iface-id` to the Southbound
+  `Port_Binding` whose `logical_port` matches, surfacing the bound logical
+  port, its `up` state, `datapath` and bound `chassis` next to the live
+  interface, and flags `drift` where the Southbound reports the port up but
+  the interface is down or erroring. The OVS interface detail view renders an
+  **OVN correlation** section from this endpoint; it degrades gracefully when
+  the `iface-id` or the Southbound mapping is absent. The OVS Visibility and
+  Chassis Inventory pages now link each other by system-id (`?chassis=`). Reads
+  only the Southbound cache (no NB dependency, no new OVSDB connections) and is
+  wired to the default cluster. See
+  [HTTP API](https://b42labs.github.io/northwatch/reference/api).
 - Aggregated chassis inventory built entirely from the existing Southbound
   cache (no new OVSDB connections): `GET /api/v1/sb/chassis-inventory` and
   `/{name}`. Each entry joins `Chassis`, `Encap`, `Chassis_Private`,
