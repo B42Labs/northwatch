@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   ApiError,
   getOvsEntity,
+  getOvsFleetHealth,
   getOvsInterfaceCorrelation,
   getTopology,
   listOvsMembers,
@@ -104,6 +105,38 @@ describe('OVS visibility endpoints', () => {
     mockFetch(body);
 
     expect(await listOvsMembers()).toEqual(body);
+  });
+
+  it('fetches fleet health from the global mux', async () => {
+    const body = {
+      chassis: 2,
+      connected: 1,
+      unreachable: 1,
+      bridges: 3,
+      ports: 4,
+      interfaces: 5,
+      down_interfaces: 1,
+      error_interfaces: 2,
+      members: [{ system_id: 'node-0', connected: true }],
+    };
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      json: async () => body,
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await getOvsFleetHealth();
+
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/ovs/health');
+    expect(result).toEqual(body);
+  });
+
+  it('normalizes a null members list to an empty array', async () => {
+    mockFetch({ chassis: 0, connected: 0, unreachable: 0, members: null });
+
+    const result = await getOvsFleetHealth();
+
+    expect(result.members).toEqual([]);
   });
 
   it('encodes the chassis and table path segments', async () => {
