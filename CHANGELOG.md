@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `flow-sample-collector-set`, `ssl`, `autoattach`). No new connections; the
   `ssl` row omits `private_key` so SSL key material is never served (the
   public `certificate`/`ca_cert` stay).
+- The per-chassis OVS list and detail views now resolve UUID reference
+  columns (`Bridge.ports`, `Port.interfaces`, `Bridge.controller`,
+  `Bridge.mirrors`, and similar) to the target row's `name` (or `target`
+  for `controller`/`manager`) and link each to that row's detail view, so a
+  Bridge → its Ports → their Interfaces can be walked without switching
+  tables and matching UUIDs by hand. Resolution stays within the selected
+  chassis cache (no cross-chassis joins); references whose target row is
+  unfetched or nameless still link but show the short UUID.
 - Aggregated chassis inventory built entirely from the existing Southbound
   cache (no new OVSDB connections): `GET /api/v1/sb/chassis-inventory` and
   `/{name}`. Each entry joins `Chassis`, `Encap`, `Chassis_Private`,
