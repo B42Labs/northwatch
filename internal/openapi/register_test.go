@@ -29,6 +29,7 @@ func TestBuildSpec_HasExpectedPaths(t *testing.T) {
 		"/api/v1/ovs",
 		"/api/v1/ovs/{chassis}/{table}",
 		"/api/v1/ovs/{chassis}/{table}/{uuid}",
+		"/api/v1/ovs/{chassis}/interface/{uuid}/correlation",
 		"/api/v1/sb/port-bindings",
 		"/api/v1/sb/logical-flows",
 		"/api/v1/correlated/logical-switches",

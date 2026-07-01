@@ -187,6 +187,14 @@ func registerOVS(b *Builder) {
 		Parameters:  []Parameter{pathParam("chassis"), pathParam("table"), pathParam("uuid")},
 		Responses:   jsonOK("Single OVS table row"),
 	})
+	b.AddOperation("/api/v1/ovs/{chassis}/interface/{uuid}/correlation", "get", &Operation{
+		OperationID: "getOVSInterfaceCorrelation",
+		Summary:     "Correlate a live OVS interface with its Southbound Port_Binding",
+		Description: "Joins the live OVS interface (by UUID on this chassis) to OVN intent: its external_ids:iface-id is resolved to the SB Port_Binding whose logical_port matches, surfacing the bound logical port, its up state, datapath and bound chassis. Drift is flagged when SB reports the port up but the live interface is down or erroring. Degrades gracefully — bound is false with no binding when the interface has no iface-id or no matching Port_Binding exists. chassis is the system-id (= SB Chassis.name). 404 for an unknown chassis or interface UUID; 503 when the chassis is registered but currently unreachable.",
+		Tags:        []string{tag},
+		Parameters:  []Parameter{pathParam("chassis"), pathParam("uuid")},
+		Responses:   jsonOK("Interface correlation with the bound Port_Binding and drift"),
+	})
 }
 
 func registerCorrelated(b *Builder) {
