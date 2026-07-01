@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    listOvsMembers,
+    getOvsFleetHealth,
     listOvsTable,
     OVS_TABLES,
-    type OvsMemberStatus,
+    type OvsChassisHealth,
+    type OvsFleetHealth,
   } from '../lib/api';
   import {
     buildLabelIndex,
@@ -12,6 +13,7 @@
     ovsRefLabel,
     referenceTargets,
   } from '../lib/ovsRefs';
+  import { chassisProblems, fleetTiles } from '../lib/ovsHealth';
   import { push, link } from '../lib/router';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
@@ -23,11 +25,13 @@
   // via ?chassis=<system-id>, so the two views of the same node line up.
   let { chassis = '' }: { chassis?: string } = $props();
 
-  // Fleet status: one entry per chassis in the OVS pool. addr is intentionally
-  // omitted by the backend, so we only render system-id + connection state.
-  let members: OvsMemberStatus[] | null = $state(null);
-  let membersLoading = $state(true);
-  let membersError = $state('');
+  // Fleet health: the aggregated fleet-wide totals plus one health entry per
+  // chassis in the OVS pool (system-id, connection state, and its bridge/port/
+  // interface and down/erroring counts). addr is intentionally omitted by the
+  // backend, so the picker renders system-id + connection + problem state only.
+  let health = $state<OvsFleetHealth | null>(null);
+  let healthLoading = $state(true);
+  let healthError = $state('');
 
   let selectedChassis = $state('');
   let selectedTable = $state('interface');
@@ -49,20 +53,11 @@
     label: t.label,
   }));
 
-  let memberList: OvsMemberStatus[] = $derived(members ?? []);
+  let memberList: OvsChassisHealth[] = $derived(health?.members ?? []);
 
   let selectedConnected = $derived(
     memberList.find((m) => m.system_id === selectedChassis)?.connected ?? false,
   );
-
-  let summary = $derived.by(() => {
-    const connected = memberList.filter((m) => m.connected).length;
-    return {
-      total: memberList.length,
-      connected,
-      unreachable: memberList.length - connected,
-    };
-  });
 
   // Derive columns from the first 50 rows. OVSDB rows are homogeneous so this
   // captures all columns; _uuid and name lead so the primary view is useful.
@@ -82,28 +77,31 @@
   let refHref = $derived(ovsRefHref(selectedChassis, selectedTable));
   let refLabel = $derived(ovsRefLabel(refIndex, selectedTable));
 
-  async function loadMembers() {
-    membersLoading = true;
-    membersError = '';
+  async function loadHealth() {
+    healthLoading = true;
+    healthError = '';
     try {
-      const data = await listOvsMembers();
-      members = data;
+      const data = await getOvsFleetHealth();
+      health = data;
       // Keep the current selection if it still exists; otherwise prefer the
       // chassis requested via ?chassis=, then the first connected chassis
       // (falling back to the first listed).
-      const stillThere = data.some((m) => m.system_id === selectedChassis);
+      const stillThere = data.members.some(
+        (m) => m.system_id === selectedChassis,
+      );
       if (!stillThere) {
         const preferred = chassis
-          ? data.find((m) => m.system_id === chassis)
+          ? data.members.find((m) => m.system_id === chassis)
           : undefined;
-        const first = preferred ?? data.find((m) => m.connected) ?? data[0];
+        const first =
+          preferred ?? data.members.find((m) => m.connected) ?? data.members[0];
         selectedChassis = first?.system_id ?? '';
       }
     } catch (e) {
-      membersError = e instanceof Error ? e.message : 'Failed to load';
-      members = [];
+      healthError = e instanceof Error ? e.message : 'Failed to load';
+      health = null;
     } finally {
-      membersLoading = false;
+      healthLoading = false;
     }
   }
 
@@ -163,7 +161,7 @@
   });
 
   async function refresh() {
-    await loadMembers();
+    await loadHealth();
     nonce++;
   }
 
@@ -176,7 +174,7 @@
     );
   }
 
-  onMount(loadMembers);
+  onMount(loadHealth);
 </script>
 
 <PageHeader
@@ -192,24 +190,13 @@
 </PageHeader>
 
 <DataState
-  loading={membersLoading}
-  error={membersError}
+  loading={healthLoading}
+  error={healthError}
   empty={memberList.length === 0}
   emptyMessage="no OVS chassis configured"
   emptyHint="Set the system-id → mgmt-addr mapping to enable per-chassis OVS visibility."
 >
-  <StatTiles
-    class="mb-4 w-full"
-    tiles={[
-      { label: 'Chassis', value: summary.total },
-      { label: 'Connected', value: summary.connected, variant: 'success' },
-      {
-        label: 'Unreachable',
-        value: summary.unreachable,
-        variant: summary.unreachable > 0 ? 'warning' : 'neutral',
-      },
-    ]}
-  />
+  <StatTiles class="mb-4 w-full" tiles={health ? fleetTiles(health) : []} />
 
   <!-- Chassis selector -->
   <div class="mb-4 flex flex-col gap-1.5">
@@ -230,6 +217,7 @@
     <div class="flex flex-wrap gap-1.5">
       {#each memberList as m (m.system_id)}
         {@const active = m.system_id === selectedChassis}
+        {@const problems = chassisProblems(m)}
         <button
           type="button"
           class="flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-xs transition-colors {active
@@ -243,6 +231,13 @@
             aria-hidden="true">{m.connected ? '●' : '○'}</span
           >
           <span class="break-all">{m.system_id}</span>
+          {#if m.connected && problems > 0}
+            <span
+              class="text-error"
+              title="{m.down_interfaces} down, {m.error_interfaces} erroring interface(s)"
+              >▲ {problems}</span
+            >
+          {/if}
         </button>
       {/each}
     </div>
