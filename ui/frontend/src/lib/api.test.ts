@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   ApiError,
   getOvsEntity,
+  getOvsInterfaceCorrelation,
   getTopology,
   listOvsMembers,
   listOvsTable,
@@ -153,5 +154,21 @@ describe('OVS visibility endpoints', () => {
     );
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 404, message: 'not found' });
+  });
+
+  it('correlates an interface via the global mux with encoded path segments', async () => {
+    const body = { iface_id: 'lsp-a', bound: false };
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      json: async () => body,
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await getOvsInterfaceCorrelation('node/0', 'uuid-1');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/ovs/node%2F0/interface/uuid-1/correlation',
+    );
+    expect(result).toEqual(body);
   });
 });

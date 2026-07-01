@@ -172,6 +172,39 @@ export function getOvsEntity(
   );
 }
 
+/** One SB Port_Binding realizing an OVS interface (from the correlation
+ * endpoint), with its chassis and datapath resolved to labels. */
+export interface OvsBinding {
+  uuid: string;
+  logical_port: string;
+  type?: string;
+  up?: boolean;
+  chassis?: string;
+  bound_here: boolean;
+  datapath?: string;
+  datapath_uuid?: string;
+}
+
+/** Correlation of a live OVS interface with OVN intent. bound is false — with no
+ * binding — when the interface carries no iface-id or no SB Port_Binding matches
+ * it; drift flags where SB reports the port up but the interface is down or
+ * erroring. */
+export interface OvsInterfaceCorrelation {
+  iface_id?: string;
+  bound: boolean;
+  binding?: OvsBinding;
+  drift?: string[];
+}
+
+export function getOvsInterfaceCorrelation(
+  chassis: string,
+  uuid: string,
+): Promise<OvsInterfaceCorrelation> {
+  return getGlobal(
+    `/api/v1/ovs/${encodeURIComponent(chassis)}/interface/${encodeURIComponent(uuid)}/correlation`,
+  );
+}
+
 // Correlated response types
 export type OvsdbEntity = Record<string, unknown>;
 
