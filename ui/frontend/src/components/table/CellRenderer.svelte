@@ -5,9 +5,11 @@
   let {
     value,
     refHref,
+    refLabel,
   }: {
     value: unknown;
     refHref?: (uuid: string) => string | null;
+    refLabel?: (uuid: string) => string | null;
   } = $props();
 
   const UUID_RE =
@@ -35,6 +37,14 @@
     }
     return '';
   }
+
+  function getLabel(uuid: string): string | undefined {
+    if (refLabel) {
+      const l = refLabel(uuid);
+      if (l) return l;
+    }
+    return undefined;
+  }
 </script>
 
 {#if value === null || value === undefined}
@@ -46,14 +56,24 @@
     <span class="badge badge-error badge-sm">false</span>
   {/if}
 {:else if isUuid(value)}
-  <UuidLink uuid={value} short={true} href={getHref(value)} />
+  <UuidLink
+    uuid={value}
+    short={true}
+    href={getHref(value)}
+    label={getLabel(value)}
+  />
 {:else if Array.isArray(value)}
   {#if value.length === 0}
     <span class="italic text-base-content/40">empty</span>
   {:else if value.length <= 3 && value.every(isUuid)}
     <div class="flex flex-col gap-0.5">
       {#each value as item (item)}
-        <UuidLink uuid={item} short={true} href={getHref(item)} />
+        <UuidLink
+          uuid={item}
+          short={true}
+          href={getHref(item)}
+          label={getLabel(item)}
+        />
       {/each}
     </div>
   {:else}
@@ -62,7 +82,12 @@
       <div class="mt-1 flex max-h-32 flex-col gap-0.5 overflow-y-auto">
         {#each value as item, i (i)}
           {#if isUuid(item)}
-            <UuidLink uuid={item} short={true} href={getHref(item)} />
+            <UuidLink
+              uuid={item}
+              short={true}
+              href={getHref(item)}
+              label={getLabel(item)}
+            />
           {:else}
             <span class="font-mono">{String(item)}</span>
           {/if}

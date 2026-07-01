@@ -8,6 +8,7 @@
     allColumns = [],
     onRowClick,
     refHref,
+    refLabel,
     changedUuids = new Map(),
   }: {
     rows: Record<string, unknown>[];
@@ -15,6 +16,9 @@
     allColumns?: string[];
     onRowClick?: (row: Record<string, unknown>) => void;
     refHref?: (column: string) => ((uuid: string) => string | null) | undefined;
+    refLabel?: (
+      column: string,
+    ) => ((uuid: string) => string | null) | undefined;
     changedUuids?: Map<string, number>;
   } = $props();
 
@@ -183,7 +187,11 @@
           >
             {#each displayColumns as col (col)}
               <td class="max-w-xs whitespace-nowrap align-top">
-                <CellRenderer value={row[col]} refHref={refHref?.(col)} />
+                <CellRenderer
+                  value={row[col]}
+                  refHref={refHref?.(col)}
+                  refLabel={refLabel?.(col)}
+                />
               </td>
             {/each}
           </tr>

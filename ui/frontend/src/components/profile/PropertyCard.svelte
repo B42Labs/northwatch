@@ -6,10 +6,16 @@
     title,
     data,
     exclude = [],
+    refHref,
+    refLabel,
   }: {
     title: string;
     data: Record<string, unknown>;
     exclude?: string[];
+    refHref?: (column: string) => ((uuid: string) => string | null) | undefined;
+    refLabel?: (
+      column: string,
+    ) => ((uuid: string) => string | null) | undefined;
   } = $props();
 
   let fields = $derived(
@@ -29,7 +35,13 @@
               class="w-48 whitespace-nowrap align-top text-xs font-medium text-base-content/55"
               >{key}</td
             >
-            <td class="align-top"><CellRenderer {value} /></td>
+            <td class="align-top"
+              ><CellRenderer
+                {value}
+                refHref={refHref?.(key)}
+                refLabel={refLabel?.(key)}
+              /></td
+            >
           </tr>
         {/each}
       </tbody>
