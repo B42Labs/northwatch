@@ -6,6 +6,12 @@
     OVS_TABLES,
     type OvsMemberStatus,
   } from '../lib/api';
+  import {
+    buildLabelIndex,
+    ovsRefHref,
+    ovsRefLabel,
+    referenceTargets,
+  } from '../lib/ovsRefs';
   import { push } from '../lib/router';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
@@ -25,6 +31,10 @@
   let rows: Record<string, unknown>[] = $state([]);
   let rowsLoading = $state(false);
   let rowsError = $state('');
+  // UUID → label for the selected table's resolved reference targets, fetched
+  // from the same chassis so reference cells show a name and link through to
+  // that row's detail view.
+  let refIndex = $state<Map<string, string>>(new Map());
 
   // Bumping this forces the row effect to refetch even when the selection is
   // unchanged (e.g. the Refresh button).
@@ -65,6 +75,9 @@
 
   let primaryColumns = $derived(allColumns.slice(0, 6));
 
+  let refHref = $derived(ovsRefHref(selectedChassis, selectedTable));
+  let refLabel = $derived(ovsRefLabel(refIndex, selectedTable));
+
   async function loadMembers() {
     membersLoading = true;
     membersError = '';
@@ -86,16 +99,40 @@
     }
   }
 
+  // Guards against out-of-order responses: each load claims an id, and a stale
+  // response (a later selection already superseded it) drops its results rather
+  // than clobbering rows/refIndex from a different request. Mirrors
+  // OvsDetail.svelte.
+  let rowsReqId = 0;
   async function loadRows(chassis: string, table: string) {
+    const myId = ++rowsReqId;
     rowsLoading = true;
     rowsError = '';
+    refIndex = new Map();
     try {
-      rows = await listOvsTable(chassis, table);
+      const fetchedRows = await listOvsTable(chassis, table);
+      if (myId !== rowsReqId) return;
+      rows = fetchedRows;
+      // Resolve reference cells to the target rows' names by fetching the
+      // labelled target tables for the same chassis. Per-target failures
+      // degrade to short UUIDs (labels only), so a transient target never
+      // breaks the row load.
+      const targets = referenceTargets(table);
+      if (targets.length > 0) {
+        const fetched = await Promise.all(
+          targets.map((slug) => listOvsTable(chassis, slug).catch(() => [])),
+        );
+        if (myId !== rowsReqId) return;
+        refIndex = buildLabelIndex(
+          targets.map((slug, i) => ({ slug, rows: fetched[i] })),
+        );
+      }
     } catch (e) {
+      if (myId !== rowsReqId) return;
       rowsError = e instanceof Error ? e.message : 'Failed to load';
       rows = [];
     } finally {
-      rowsLoading = false;
+      if (myId === rowsReqId) rowsLoading = false;
     }
   }
 
@@ -111,6 +148,7 @@
       rows = [];
       rowsError = '';
       rowsLoading = false;
+      refIndex = new Map();
       return;
     }
     loadRows(chassis, table);
@@ -225,6 +263,8 @@
         columns={primaryColumns}
         {allColumns}
         onRowClick={handleRowClick}
+        {refHref}
+        {refLabel}
       />
     </DataState>
   {/if}
