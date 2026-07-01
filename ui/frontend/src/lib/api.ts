@@ -152,6 +152,41 @@ export async function listOvsMembers(): Promise<OvsMemberStatus[]> {
   return data ?? [];
 }
 
+/** Per-chassis OVS health breakdown. For an unreachable chassis (connected
+ * false) every count is zero — it is excluded from the fleet totals. */
+export interface OvsChassisHealth {
+  system_id: string;
+  connected: boolean;
+  bridges: number;
+  ports: number;
+  interfaces: number;
+  down_interfaces: number;
+  error_interfaces: number;
+}
+
+/** Aggregated fleet-wide OVS health: connection counts, summed
+ * bridge/port/interface totals across connected chassis, the down/erroring
+ * interface counts, and the per-chassis breakdown. Unreachable chassis are
+ * counted in `chassis`/`unreachable` but excluded from every other total. */
+export interface OvsFleetHealth {
+  chassis: number;
+  connected: number;
+  unreachable: number;
+  bridges: number;
+  ports: number;
+  interfaces: number;
+  down_interfaces: number;
+  error_interfaces: number;
+  members: OvsChassisHealth[];
+}
+
+export async function getOvsFleetHealth(): Promise<OvsFleetHealth> {
+  const data = await getGlobal<OvsFleetHealth>('/api/v1/ovs/health');
+  // The backend marshals an empty (nil) members slice to JSON null; normalize
+  // so callers can always iterate a real array.
+  return { ...data, members: data.members ?? [] };
+}
+
 export async function listOvsTable(
   chassis: string,
   table: string,
