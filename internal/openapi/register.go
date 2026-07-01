@@ -172,6 +172,13 @@ func registerOVS(b *Builder) {
 		Tags:        []string{tag},
 		Responses:   jsonOK("Array of OVS chassis connection statuses"),
 	})
+	b.AddOperation("/api/v1/ovs/health", "get", &Operation{
+		OperationID: "getOVSFleetHealth",
+		Summary:     "Aggregated fleet-wide OVS health",
+		Description: "Sums bridges, ports and interfaces across all connected chassis and counts interfaces that are down (link_state=down) or erroring (non-zero rx/tx errors or drops), with a per-chassis breakdown. Aggregation runs off the per-chassis monitored caches (no new connections). Unreachable chassis are excluded from the totals — never counted as healthy — but still listed with connected=false and zero counts. Present only when OVS visibility is enabled via --ovs-mgmt-addr-file.",
+		Tags:        []string{tag},
+		Responses:   jsonOK("Fleet OVS health with totals and per-chassis breakdown"),
+	})
 	b.AddOperation("/api/v1/ovs/{chassis}/{table}", "get", &Operation{
 		OperationID: "listOVSTable",
 		Summary:     "List rows of a per-chassis Open_vSwitch table",

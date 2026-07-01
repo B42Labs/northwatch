@@ -2,13 +2,18 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
 
 	"github.com/b42labs/northwatch/internal/api"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/vs"
+	"github.com/b42labs/northwatch/internal/ovshealth"
 )
 
 // ovsTableAccess holds the list/get closures for one whitelisted OVS table,
@@ -110,6 +115,45 @@ var ovsTables = map[string]ovsTableAccess{
 	"autoattach":                ovsAccess[vs.AutoAttach](),
 }
 
+// ovsPool is the read-only view of the chassis connection pool the fleet-health
+// aggregation needs: the fleet membership and a client lookup by system-id.
+// *ovndb.OVSPool satisfies it; tests substitute a fake to inject a chassis whose
+// cache read fails.
+type ovsPool interface {
+	Members() []ovndb.OVSMemberStatus
+	Client(systemID string) (client.Client, bool)
+}
+
+// ovsHealthTTL bounds how long a computed fleet-health snapshot is served before
+// it is recomputed. It coalesces bursts of /api/v1/ovs/health polls into at most
+// one fleet-wide cache fan-out per interval, so a short-polling dashboard (or an
+// unthrottled caller) cannot force a full Bridge/Port/Interface materialization
+// across every chassis on every request.
+const ovsHealthTTL = time.Second
+
+// healthCache memoizes the most recent fleet-health snapshot for ovsHealthTTL.
+// The mutex is held across the recompute so a burst of concurrent requests
+// coalesces onto a single fan-out rather than each triggering its own.
+type healthCache struct {
+	mu  sync.Mutex
+	at  time.Time
+	val ovshealth.FleetHealth
+}
+
+// get returns the cached fleet health when it is younger than ovsHealthTTL,
+// otherwise it recomputes, stores and returns a fresh snapshot. now is passed in
+// so tests can drive the TTL deterministically.
+func (hc *healthCache) get(ctx context.Context, pool ovsPool, now time.Time) ovshealth.FleetHealth {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	if !hc.at.IsZero() && now.Sub(hc.at) < ovsHealthTTL {
+		return hc.val
+	}
+	hc.val = ovsFleetHealth(ctx, pool)
+	hc.at = now
+	return hc.val
+}
+
 // RegisterOVS registers the read-only per-chassis Open_vSwitch endpoints,
 // addressed by system-id (the SB Chassis.name / OVS external_ids:system-id join
 // key). GET /api/v1/ovs reports the fleet connection status; the per-chassis
@@ -117,6 +161,11 @@ var ovsTables = map[string]ovsTableAccess{
 func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 	mux.HandleFunc("GET /api/v1/ovs", func(w http.ResponseWriter, r *http.Request) {
 		api.WriteJSON(w, http.StatusOK, pool.Members())
+	})
+
+	var health healthCache
+	mux.HandleFunc("GET /api/v1/ovs/health", func(w http.ResponseWriter, r *http.Request) {
+		api.WriteJSON(w, http.StatusOK, health.get(r.Context(), pool, time.Now()))
 	})
 
 	mux.HandleFunc("GET /api/v1/ovs/{chassis}/{table}", func(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +202,53 @@ func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 		}
 		api.WriteJSON(w, http.StatusOK, row)
 	})
+}
+
+// ovsFleetHealth reads the live bridges, ports and interfaces from every
+// connected chassis's monitored cache and aggregates them into a fleet-wide
+// health summary. An unreachable chassis is listed but its cache is not read, so
+// it is excluded from the totals rather than counted as healthy. A connected
+// chassis whose cache read fails is treated the same way — logged and excluded —
+// so one node's failure degrades that node rather than blanking the whole fleet.
+func ovsFleetHealth(ctx context.Context, pool ovsPool) ovshealth.FleetHealth {
+	members := pool.Members()
+	caches := make([]ovshealth.ChassisCache, 0, len(members))
+	for _, m := range members {
+		cc := ovshealth.ChassisCache{SystemID: m.SystemID}
+		// Only read a connected chassis. Client is always present for a
+		// registered member (the pool has no removal path); the ok guard keeps
+		// the aggregation correct if that ever changes by treating a vanished
+		// member as unreachable.
+		if c, ok := pool.Client(m.SystemID); m.Connected && ok {
+			if err := listChassisCache(ctx, c, &cc); err != nil {
+				// Exclude just this chassis: reset its partially-filled cache so
+				// it aggregates as unreachable (connected=false, zero counts).
+				log.Printf("ovs: health: excluding chassis %s: %v", m.SystemID, err)
+				cc = ovshealth.ChassisCache{SystemID: m.SystemID}
+			} else {
+				cc.Connected = true
+			}
+		}
+		caches = append(caches, cc)
+	}
+	return ovshealth.Aggregate(caches)
+}
+
+// listChassisCache reads a connected chassis's bridges, ports and interfaces
+// from its monitored cache into cc. The reads hit the in-memory cache and
+// effectively never fail; a genuine read error is returned so the caller can
+// exclude the chassis rather than fail the whole fleet.
+func listChassisCache(ctx context.Context, c client.Client, cc *ovshealth.ChassisCache) error {
+	if err := c.List(ctx, &cc.Bridges); err != nil {
+		return fmt.Errorf("listing bridges: %w", err)
+	}
+	if err := c.List(ctx, &cc.Ports); err != nil {
+		return fmt.Errorf("listing ports: %w", err)
+	}
+	if err := c.List(ctx, &cc.Interfaces); err != nil {
+		return fmt.Errorf("listing interfaces: %w", err)
+	}
+	return nil
 }
 
 // resolveOVSChassis resolves the {chassis} path value to a connected client. It
