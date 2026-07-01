@@ -4,11 +4,13 @@
   import {
     listChassisInventory,
     getChassisInventory,
+    listOvsMembers,
     type ChassisInventoryEntry,
     type ChassisInventoryDetail,
     type ChassisLiveness,
   } from '../lib/api';
   import type { Variant } from '../lib/status';
+  import { link } from '../lib/router';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
@@ -16,9 +18,17 @@
   import Badge from '../components/ui/Badge.svelte';
   import KeyValueTable from '../components/ui/KeyValueTable.svelte';
 
+  // chassis auto-expands the matching row when arriving from the OVS view via
+  // ?chassis=<system-id>, so the two views of the same node line up.
+  let { chassis = '' }: { chassis?: string } = $props();
+
   let data: ChassisInventoryEntry[] | null = $state(null);
   let loading = $state(true);
   let error = $state('');
+
+  // system-ids that have a live OVS pool connection, so their row can link to
+  // the OVS view. Best-effort — empty when OVS visibility is disabled.
+  let ovsMembers = new SvelteSet<string>();
 
   let livenessFilter = $state('all');
   const filterOptions = [
@@ -126,7 +136,20 @@
     return { text: `lag ${l.nb_cfg}/${l.sb_nb_cfg}`, variant };
   }
 
-  onMount(() => load());
+  async function loadOvsMembers() {
+    // Best-effort: OVS visibility may be disabled (404) or unavailable in
+    // snapshot/multi-cluster mode, in which case no OVS links are shown.
+    const members = await listOvsMembers().catch(() => []);
+    for (const m of members) ovsMembers.add(m.system_id);
+  }
+
+  onMount(async () => {
+    await Promise.all([load(), loadOvsMembers()]);
+    // Auto-expand the chassis deep-linked from the OVS view.
+    if (chassis && (data ?? []).some((c) => c.name === chassis)) {
+      toggle(chassis);
+    }
+  });
 </script>
 
 <PageHeader
@@ -186,17 +209,27 @@
             {@const enc = c.encaps ?? []}
             <tr class="border-base-300/60">
               <td>
-                <button
-                  class="flex items-center gap-1.5 text-left transition-colors hover:text-primary"
-                  onclick={() => toggle(c.name)}
-                  aria-expanded={expanded.has(c.name)}
-                >
-                  <span
-                    class="select-none text-base-content/40"
-                    aria-hidden="true">{expanded.has(c.name) ? '▾' : '▸'}</span
+                <div class="flex items-center gap-2">
+                  <button
+                    class="flex items-center gap-1.5 text-left transition-colors hover:text-primary"
+                    onclick={() => toggle(c.name)}
+                    aria-expanded={expanded.has(c.name)}
                   >
-                  <span class="break-all text-xs">{c.name}</span>
-                </button>
+                    <span
+                      class="select-none text-base-content/40"
+                      aria-hidden="true"
+                      >{expanded.has(c.name) ? '▾' : '▸'}</span
+                    >
+                    <span class="break-all text-xs">{c.name}</span>
+                  </button>
+                  {#if ovsMembers.has(c.name)}
+                    <a
+                      class="font-mono text-2xs text-primary hover:underline"
+                      href={link(`/ovs?chassis=${encodeURIComponent(c.name)}`)}
+                      >OVS →</a
+                    >
+                  {/if}
+                </div>
               </td>
               <td class="text-xs text-base-content/70">{c.hostname || '—'}</td>
               <td>

@@ -12,12 +12,16 @@
     ovsRefLabel,
     referenceTargets,
   } from '../lib/ovsRefs';
-  import { push } from '../lib/router';
+  import { push, link } from '../lib/router';
   import PageHeader from '../components/ui/PageHeader.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
   import SegmentedControl from '../components/ui/SegmentedControl.svelte';
   import DataTable from '../components/table/DataTable.svelte';
+
+  // chassis preselects a system-id when arriving from the SB chassis inventory
+  // via ?chassis=<system-id>, so the two views of the same node line up.
+  let { chassis = '' }: { chassis?: string } = $props();
 
   // Fleet status: one entry per chassis in the OVS pool. addr is intentionally
   // omitted by the backend, so we only render system-id + connection state.
@@ -84,11 +88,15 @@
     try {
       const data = await listOvsMembers();
       members = data;
-      // Keep the current selection if it still exists; otherwise default to the
-      // first connected chassis (falling back to the first listed).
+      // Keep the current selection if it still exists; otherwise prefer the
+      // chassis requested via ?chassis=, then the first connected chassis
+      // (falling back to the first listed).
       const stillThere = data.some((m) => m.system_id === selectedChassis);
       if (!stillThere) {
-        const first = data.find((m) => m.connected) ?? data[0];
+        const preferred = chassis
+          ? data.find((m) => m.system_id === chassis)
+          : undefined;
+        const first = preferred ?? data.find((m) => m.connected) ?? data[0];
         selectedChassis = first?.system_id ?? '';
       }
     } catch (e) {
@@ -205,10 +213,20 @@
 
   <!-- Chassis selector -->
   <div class="mb-4 flex flex-col gap-1.5">
-    <span
-      class="font-mono text-2xs uppercase tracking-wider text-base-content/45"
-      >Chassis</span
-    >
+    <div class="flex items-center gap-2">
+      <span
+        class="font-mono text-2xs uppercase tracking-wider text-base-content/45"
+        >Chassis</span
+      >
+      {#if selectedChassis}
+        <a
+          class="font-mono text-2xs text-primary hover:underline"
+          href={link(
+            `/chassis-inventory?chassis=${encodeURIComponent(selectedChassis)}`,
+          )}>SB chassis →</a
+        >
+      {/if}
+    </div>
     <div class="flex flex-wrap gap-1.5">
       {#each memberList as m (m.system_id)}
         {@const active = m.system_id === selectedChassis}

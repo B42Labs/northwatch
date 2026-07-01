@@ -117,9 +117,9 @@
     {:else if route.component === 'raft-health'}
       <RaftHealth />
     {:else if route.component === 'chassis-inventory'}
-      <ChassisInventory />
+      <ChassisInventory chassis={route.query.chassis || ''} />
     {:else if route.component === 'ovs-visibility'}
-      <OvsVisibility />
+      <OvsVisibility chassis={route.query.chassis || ''} />
     {:else if route.component === 'ovs-detail'}
       <OvsDetail
         chassis={route.params.chassis}
