@@ -155,19 +155,31 @@ func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 	})
 }
 
+// resolveOVSChassis resolves the {chassis} path value to a connected client. It
+// writes the appropriate error (404 unknown chassis, 503 unreachable chassis)
+// and returns ok=false when the request cannot be served. The correlation
+// handler shares these reachability semantics with the table routes.
+func resolveOVSChassis(w http.ResponseWriter, r *http.Request, pool *ovndb.OVSPool) (client.Client, bool) {
+	chassis := r.PathValue("chassis")
+	c, ok := pool.Client(chassis)
+	if !ok {
+		api.WriteError(w, http.StatusNotFound, "unknown chassis")
+		return nil, false
+	}
+	if !c.Connected() {
+		api.WriteError(w, http.StatusServiceUnavailable, "chassis unreachable")
+		return nil, false
+	}
+	return c, true
+}
+
 // resolveOVS resolves the {chassis} and {table} path values to a connected
 // client and the table's access closures. It writes the appropriate error
 // (404 unknown chassis, 503 unreachable chassis, 404 unknown table) and returns
 // ok=false when the request cannot be served.
 func resolveOVS(w http.ResponseWriter, r *http.Request, pool *ovndb.OVSPool) (client.Client, ovsTableAccess, bool) {
-	chassis := r.PathValue("chassis")
-	c, ok := pool.Client(chassis)
+	c, ok := resolveOVSChassis(w, r, pool)
 	if !ok {
-		api.WriteError(w, http.StatusNotFound, "unknown chassis")
-		return nil, ovsTableAccess{}, false
-	}
-	if !c.Connected() {
-		api.WriteError(w, http.StatusServiceUnavailable, "chassis unreachable")
 		return nil, ovsTableAccess{}, false
 	}
 	table := r.PathValue("table")

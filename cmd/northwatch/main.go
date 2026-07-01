@@ -483,6 +483,7 @@ func registerDefaultRoutes(
 	handler.RegisterCapabilities(mux, def.Enricher.HasProvider(), cfg.WriteEnabled, multiCluster, ovsPool != nil, snapInfo)
 	if ovsPool != nil {
 		handler.RegisterOVS(mux, ovsPool)
+		handler.RegisterOVSCorrelation(mux, ovsPool, def.DBs.SB)
 	}
 	handler.RegisterNB(mux, def.DBs.NB)
 	handler.RegisterSB(mux, def.DBs.SB)

@@ -182,6 +182,87 @@ func InsertOVSBridgeWithInterface(t *testing.T, c client.Client, bridgeName, ifa
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+// InsertOVSInterfaceWithIfaceID creates an Open_vSwitch root row referencing one
+// Bridge → Port → Interface graph like InsertOVSBridgeWithInterface, but stamps
+// the interface's external_ids:iface-id and link_state so a correlation test can
+// join the live OVS interface to an SB Port_Binding.logical_port. As with
+// InsertOVSBridgeWithInterface, the non-root bridge/port/interface must be
+// created together with the referencing root or OVSDB referential integrity
+// garbage-collects them immediately.
+func InsertOVSInterfaceWithIfaceID(t *testing.T, c client.Client, bridgeName, ifaceName, ifaceID, linkState string) {
+	t.Helper()
+
+	var allOps []ovsdb.Operation
+
+	ifaceNamed := "iface_" + ifaceName
+	ls := linkState
+	iface := &vs.Interface{
+		UUID:        ifaceNamed,
+		Name:        ifaceName,
+		Type:        "system",
+		LinkState:   &ls,
+		Statistics:  map[string]int{},
+		ExternalIDs: map[string]string{"iface-id": ifaceID},
+		Options:     map[string]string{},
+		Status:      map[string]string{},
+	}
+	ops, err := c.Create(iface)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	portNamed := "port_" + ifaceName
+	port := &vs.Port{
+		UUID:        portNamed,
+		Name:        ifaceName,
+		Interfaces:  []string{ifaceNamed},
+		ExternalIDs: map[string]string{},
+		OtherConfig: map[string]string{},
+	}
+	ops, err = c.Create(port)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	bridgeNamed := "bridge_" + bridgeName
+	bridge := &vs.Bridge{
+		UUID:         bridgeNamed,
+		Name:         bridgeName,
+		DatapathType: "system",
+		Ports:        []string{portNamed},
+		ExternalIDs:  map[string]string{},
+		OtherConfig:  map[string]string{},
+	}
+	ops, err = c.Create(bridge)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	root := &vs.OpenvSwitch{
+		Bridges:     []string{bridgeNamed},
+		ExternalIDs: map[string]string{},
+		OtherConfig: map[string]string{},
+	}
+	ops, err = c.Create(root)
+	require.NoError(t, err)
+	allOps = append(allOps, ops...)
+
+	reply, err := c.Transact(context.Background(), allOps...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, allOps)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		var ifaces []vs.Interface
+		if err := c.List(context.Background(), &ifaces); err != nil {
+			return false
+		}
+		for _, i := range ifaces {
+			if i.Name == ifaceName {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 // InsertOVSSSLRow creates an Open_vSwitch root row referencing one SSL row in a
 // single transaction. SSL is a non-root table, so it must be inserted together
 // with the referencing root (via Open_vSwitch.ssl) or OVSDB referential

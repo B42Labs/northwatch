@@ -1,0 +1,66 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/ovn-kubernetes/libovsdb/client"
+
+	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
+	"github.com/b42labs/northwatch/internal/ovsdb/vs"
+	"github.com/b42labs/northwatch/internal/ovscorrelate"
+)
+
+// RegisterOVSCorrelation registers the per-chassis OVS↔OVN correlation endpoint.
+// It reads a live OVS interface from the chassis's monitored cache and resolves
+// its external_ids:iface-id against the default cluster's Southbound cache
+// (sbClient) to surface the bound Port_Binding. Because only the default cluster
+// wires an OVS pool, the endpoint is default-cluster-only.
+func RegisterOVSCorrelation(mux *http.ServeMux, pool *ovndb.OVSPool, sbClient client.Client) {
+	cor := &ovscorrelate.Correlator{SB: sbClient}
+
+	mux.HandleFunc("GET /api/v1/ovs/{chassis}/interface/{uuid}/correlation", func(w http.ResponseWriter, r *http.Request) {
+		c, ok := resolveOVSChassis(w, r, pool)
+		if !ok {
+			return
+		}
+		uuid := r.PathValue("uuid")
+		if uuid == "" {
+			api.WriteError(w, http.StatusBadRequest, "uuid is required")
+			return
+		}
+
+		var ifaces []vs.Interface
+		if err := c.WhereCache(func(i *vs.Interface) bool {
+			return i.UUID == uuid
+		}).List(r.Context(), &ifaces); err != nil {
+			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if len(ifaces) == 0 {
+			api.WriteError(w, http.StatusNotFound, "not found")
+			return
+		}
+		iface := ifaces[0]
+
+		result, err := cor.ForInterface(r.Context(), ovscorrelate.LiveInterface{
+			SystemID:  r.PathValue("chassis"),
+			IfaceID:   iface.ExternalIDs["iface-id"],
+			LinkState: derefStr(iface.LinkState),
+			Error:     derefStr(iface.Error),
+		})
+		if err != nil {
+			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, result)
+	})
+}
+
+// derefStr returns the pointed-to string, or "" when the pointer is nil.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
