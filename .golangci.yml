@@ -21,4 +21,20 @@ linters:
       - internal/ovsdb/nb
       - internal/ovsdb/sb
       - internal/ovsdb/vs
+      # Vendored Go sources under node_modules (e.g. flatted/golang) are not
+      # ours to lint; shield the local `make lint` run from them.
+      - ui/frontend/node_modules
+    generated: strict
+
+# Enforce gofmt so formatting drift cannot re-accumulate: `golangci-lint run`
+# (both `make lint` and the CI lint job) now fails on unformatted code.
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - internal/ovsdb/nb
+      - internal/ovsdb/sb
+      - internal/ovsdb/vs
+      - ui/frontend/node_modules
     generated: strict
