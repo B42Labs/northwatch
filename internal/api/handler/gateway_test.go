@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,10 +18,9 @@ import (
 func TestGatewayHealth(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	mux := http.NewServeMux()
-	RegisterGatewayHealth(mux, nbc, sbc)
+	RegisterGatewayHealth(mux, nbc, sbc, 60*time.Second)
 
 	getReport := func(t *testing.T) gateway.Report {
 		t.Helper()
@@ -47,6 +47,10 @@ func TestGatewayHealth(t *testing.T) {
 	t.Run("detects stuck failover", func(t *testing.T) {
 		ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 		ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+		// Both chassis in sync via Chassis_Private (OVN >= 20.06) so both are alive.
+		testutil.InsertSBGlobal(t, sbc, 5)
+		testutil.InsertChassisPrivate(t, sbc, "netnode-1", &ch1, 5, 1)
+		testutil.InsertChassisPrivate(t, sbc, "netnode-2", &ch2, 5, 1)
 		grp := testutil.InsertHAChassisGroup(t, sbc, "grp-ext", []testutil.HAChassisEntry{
 			{ChassisUUID: ch1, Priority: 30},
 			{ChassisUUID: ch2, Priority: 20},

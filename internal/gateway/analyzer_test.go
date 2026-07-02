@@ -39,13 +39,37 @@ func seedGateway(t *testing.T, nbc, sbc client.Client, lrpName, network, fip str
 	testutil.InsertGatewayRouter(t, nbc, "router-"+lrpName, lrpName, []string{network}, fips)
 }
 
+// liveGen is the nb_cfg generation SB_Global advertises in the alive fixtures.
+const liveGen = 5
+
+// seedAlive marks a chassis in sync with SB_Global.nb_cfg (liveGen) via its
+// Chassis_Private row, so gateway election treats it as alive. On OVN >= 20.06
+// nb_cfg is written to Chassis_Private, not Chassis, so this is the correct
+// liveness signal.
+func seedAlive(t *testing.T, sbc client.Client, name, chassisUUID string) {
+	t.Helper()
+	testutil.InsertChassisPrivate(t, sbc, name, &chassisUUID, liveGen, 1)
+}
+
+// seedStale marks a chassis lagging the current nb_cfg generation with an old
+// timestamp, so it is treated as stale (not alive) for election.
+func seedStale(t *testing.T, sbc client.Client, name, chassisUUID string) {
+	t.Helper()
+	testutil.InsertChassisPrivate(t, sbc, name, &chassisUUID, 0, 1)
+}
+
 func TestAnalyze_Healthy(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 	ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+	// Modern OVN: both chassis are in sync via Chassis_Private (Chassis.nb_cfg is
+	// left 0). Both must be alive — the regression against the false fleet-wide
+	// no-viable-candidate that reading the deprecated Chassis.nb_cfg produced.
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
+	seedAlive(t, sbc, "netnode-2", ch2)
 	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "10.10.141.24", &ch1, []testutil.HAChassisEntry{
 		{ChassisUUID: ch1, Priority: 30},
 		{ChassisUUID: ch2, Priority: 20},
@@ -79,15 +103,23 @@ func TestAnalyze_Healthy(t *testing.T) {
 	}
 	assert.Equal(t, "netnode-1", activeMember.Name)
 	assert.Equal(t, "netnode-1", desiredMember.Name)
+
+	// Both in-sync members must be alive and not stale.
+	for _, m := range gw.Members {
+		assert.True(t, m.Alive, "member %s must be alive", m.Name)
+		assert.False(t, m.Stale, "member %s must not be stale", m.Name)
+	}
 }
 
 func TestAnalyze_FailoverStuck(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 	ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
+	seedAlive(t, sbc, "netnode-2", ch2)
 	// Bound to the LOWER-priority chassis while the higher one is alive.
 	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "10.10.141.24", &ch2, []testutil.HAChassisEntry{
 		{ChassisUUID: ch1, Priority: 30},
@@ -117,9 +149,10 @@ func TestAnalyze_FailoverStuck(t *testing.T) {
 func TestAnalyze_NoOwner(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
 	// Active chassis is nil -> blackhole.
 	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "", nil, []testutil.HAChassisEntry{
 		{ChassisUUID: ch1, Priority: 30},
@@ -137,11 +170,13 @@ func TestAnalyze_NoOwner(t *testing.T) {
 func TestAnalyze_NoCandidate(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	// NB generation far ahead of the chassis -> all members stale -> not alive.
-	testutil.InsertNBGlobal(t, nbc, 50, 0, 0)
-
+	// SB_Global generation far ahead of the chassis, and their Chassis_Private
+	// timestamps are old -> all members stale -> not alive.
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 	ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+	testutil.InsertSBGlobal(t, sbc, 50)
+	seedStale(t, sbc, "netnode-1", ch1)
+	seedStale(t, sbc, "netnode-2", ch2)
 	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "", &ch1, []testutil.HAChassisEntry{
 		{ChassisUUID: ch1, Priority: 30},
 		{ChassisUUID: ch2, Priority: 20},
@@ -163,9 +198,10 @@ func TestAnalyze_NoCandidate(t *testing.T) {
 func TestAnalyze_Degraded(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 50, 0, 0) // ch1 stale
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
+	testutil.InsertSBGlobal(t, sbc, 50)
+	seedStale(t, sbc, "netnode-1", ch1) // ch1 lagging -> stale
 	// No HA group and no gateway-chassis list -> pinned to a single (stale) chassis.
 	testutil.InsertChassisRedirectBinding(t, sbc, "cr-lrp-solo", &ch1, "")
 	testutil.InsertGatewayRouter(t, nbc, "router-solo", "lrp-solo", []string{"10.10.150.1/24"}, nil)
@@ -183,9 +219,10 @@ func TestAnalyze_Degraded(t *testing.T) {
 func TestAnalyze_NotGWCapable(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
 	setCMSOptions(t, sbc, ch1, "enable-chassis-as-gw=false") // present but not a gateway
 	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "", &ch1, []testutil.HAChassisEntry{
 		{ChassisUUID: ch1, Priority: 30},
@@ -208,10 +245,12 @@ func TestAnalyze_NotGWCapable(t *testing.T) {
 func TestAnalyze_Conflict(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 	ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
+	seedAlive(t, sbc, "netnode-2", ch2)
 
 	// Two routers, each healthy on its own chassis, but both serve the same FIP.
 	seedGateway(t, nbc, sbc, "lrp-a", "10.10.141.1/24", "10.10.141.24", &ch1, []testutil.HAChassisEntry{
@@ -234,10 +273,12 @@ func TestAnalyze_Conflict(t *testing.T) {
 func TestAnalyze_GWList(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 	ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
+	seedAlive(t, sbc, "netnode-2", ch2)
 	// Legacy gateway_chassis list instead of an HA group; bound to lower priority.
 	insertGatewayChassisBinding(t, sbc, "cr-lrp-legacy", &ch2, []gcEntry{
 		{chassis: ch1, prio: 30},
@@ -255,10 +296,36 @@ func TestAnalyze_GWList(t *testing.T) {
 	assert.Len(t, gw.Members, 2)
 }
 
+func TestAnalyze_MissingChassisPrivateNotAlive(t *testing.T) {
+	nbc := testutil.SetupNBTestClient(t)
+	sbc := testutil.SetupSBTestClient(t)
+
+	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
+	ch2 := testutil.InsertChassis(t, sbc, "netnode-2", "host-2", "10.0.0.2")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1) // ch1 has a controller heartbeat
+	// ch2 has NO Chassis_Private row -> no heartbeat -> not alive.
+	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "", &ch1, []testutil.HAChassisEntry{
+		{ChassisUUID: ch1, Priority: 30},
+		{ChassisUUID: ch2, Priority: 20},
+	})
+
+	rep, err := (&Analyzer{NB: nbc, SB: sbc}).Analyze(context.Background())
+	require.NoError(t, err)
+
+	gw := gatewayByCR(t, rep, "cr-lrp-ext")
+	byName := map[string]Member{}
+	for _, m := range gw.Members {
+		byName[m.Name] = m
+	}
+	assert.True(t, byName["netnode-1"].Alive, "chassis with a heartbeat must be alive")
+	assert.False(t, byName["netnode-2"].Alive, "chassis without Chassis_Private must not be alive")
+	assert.True(t, byName["netnode-2"].Stale)
+}
+
 func TestAnalyze_NoGateways(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
-	testutil.InsertNBGlobal(t, nbc, 0, 0, 0)
 	// A regular VIF port binding must be ignored.
 	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
 	testutil.InsertPortBinding(t, sbc, "vif-1", "", &ch1)
