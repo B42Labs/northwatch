@@ -5,10 +5,33 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 )
+
+// staleHeader is set on responses whose backing OVSDB caches are not currently
+// authoritative (the client is disconnected/reconnecting, or a snapshot session
+// has suspended the live monitors). Consumers can surface a staleness warning
+// instead of trusting a silently-frozen cache.
+const staleHeader = "X-Northwatch-Stale"
+
+// staleHeaderMiddleware marks default-cluster /api/v1 responses as stale when
+// ready reports false. Cluster-scoped routes (/api/v1/clusters/...) are
+// attributed per cluster by the proxy, so they are skipped here. A nil ready
+// predicate disables the marker.
+func staleHeaderMiddleware(ready func() bool, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ready != nil &&
+			strings.HasPrefix(r.URL.Path, "/api/v1/") &&
+			!strings.HasPrefix(r.URL.Path, "/api/v1/clusters/") &&
+			!ready() {
+			w.Header().Set(staleHeader, "true")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // Server is the Northwatch HTTP server. It owns the http.ServeMux that
 // individual handler packages register routes against.
@@ -22,7 +45,13 @@ type Server struct {
 // provided to instrument the mux (e.g. with metrics middleware).
 func NewServer(addr string, dbs *ovndb.OVNDatabases, wrappers ...func(http.Handler) http.Handler) *Server {
 	mux := http.NewServeMux()
-	var handler http.Handler = mux
+	// Wrap the mux innermost so the stale marker is set before any caller
+	// wrapper (e.g. metrics) runs.
+	var ready func() bool
+	if dbs != nil {
+		ready = dbs.Ready
+	}
+	var handler http.Handler = staleHeaderMiddleware(ready, mux)
 	for _, wrap := range wrappers {
 		handler = wrap(handler)
 	}

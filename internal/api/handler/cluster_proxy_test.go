@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/b42labs/northwatch/internal/cluster"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
+	"github.com/b42labs/northwatch/internal/testutil"
 )
 
 func TestClusterProxy_UnknownCluster(t *testing.T) {
@@ -70,6 +72,35 @@ func TestClusterProxy_RoutesToCorrectCluster(t *testing.T) {
 	var body2 map[string]any
 	require.NoError(t, json.Unmarshal(w2.Body.Bytes(), &body2))
 	assert.Equal(t, "staging", body2["cluster"])
+}
+
+func TestClusterProxy_StaleHeader(t *testing.T) {
+	nbC := testutil.SetupNBTestClient(t)
+	sbC := testutil.SetupSBTestClient(t)
+	dbs := &ovndb.OVNDatabases{NB: nbC, SB: sbC}
+
+	reg := cluster.NewRegistry()
+	reg.Register("prod", &cluster.Cluster{Name: "prod", DBs: dbs})
+
+	mux := http.NewServeMux()
+	RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
+		subMux.HandleFunc("GET /api/v1/test", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+	})
+
+	// Ready cluster: no stale header.
+	require.True(t, dbs.Ready())
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters/prod/test", nil))
+	assert.Empty(t, w.Header().Get("X-Northwatch-Stale"))
+
+	// Not ready (clients closed): stale header set for that cluster.
+	dbs.Close()
+	require.False(t, dbs.Ready())
+	w2 := httptest.NewRecorder()
+	mux.ServeHTTP(w2, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters/prod/test", nil))
+	assert.Equal(t, "true", w2.Header().Get("X-Northwatch-Stale"))
 }
 
 func TestClusterProxy_DynamicAddRemove(t *testing.T) {
