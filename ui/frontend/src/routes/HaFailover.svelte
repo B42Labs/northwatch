@@ -15,6 +15,7 @@
     cancelPlan,
     type Plan,
   } from '../lib/writeApi';
+  import { get } from '../lib/api';
 
   // --- Types ---
 
@@ -98,14 +99,6 @@
     chassisChain: ResolvedChassisEntry[];
     crPortName: string | null;
     activeChassis: string | null; // SB-active chassis UUID (actual runtime)
-  }
-
-  // --- Fetch helper ---
-
-  async function fetchJson<T>(path: string): Promise<T> {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
   }
 
   // --- State ---
@@ -225,14 +218,14 @@
         nbGwChassis,
         nbLrps,
       ] = await Promise.all([
-        fetchJson<SbHaChassisGroup[]>('/api/v1/sb/ha-chassis-groups'),
-        fetchJson<SbHaChassisEntry[]>('/api/v1/sb/ha-chassis'),
-        fetchJson<ChassisRecord[]>('/api/v1/sb/chassis'),
-        fetchJson<PortBindingRecord[]>('/api/v1/sb/port-bindings'),
-        fetchJson<NbHaChassisGroup[]>('/api/v1/nb/ha-chassis-groups'),
-        fetchJson<NbHaChassisEntry[]>('/api/v1/nb/ha-chassis'),
-        fetchJson<NbGatewayChassisEntry[]>('/api/v1/nb/gateway-chassis'),
-        fetchJson<NbLogicalRouterPort[]>('/api/v1/nb/logical-router-ports'),
+        get<SbHaChassisGroup[]>('/api/v1/sb/ha-chassis-groups'),
+        get<SbHaChassisEntry[]>('/api/v1/sb/ha-chassis'),
+        get<ChassisRecord[]>('/api/v1/sb/chassis'),
+        get<PortBindingRecord[]>('/api/v1/sb/port-bindings'),
+        get<NbHaChassisGroup[]>('/api/v1/nb/ha-chassis-groups'),
+        get<NbHaChassisEntry[]>('/api/v1/nb/ha-chassis'),
+        get<NbGatewayChassisEntry[]>('/api/v1/nb/gateway-chassis'),
+        get<NbLogicalRouterPort[]>('/api/v1/nb/logical-router-ports'),
       ]);
 
       // --- SB lookups (for display) ---
