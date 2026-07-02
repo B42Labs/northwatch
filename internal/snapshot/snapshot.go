@@ -213,7 +213,7 @@ func serveDump(d Dump, clientModel model.ClientDBModel, schema ovsdb.DatabaseSch
 		return "", nil, fmt.Errorf("creating %s server: %w", schema.Name, err)
 	}
 
-	if err := loadDump(db, dbModel, schema.Name, d); err != nil {
+	if err := loadDump(db, dbModel, schema, d); err != nil {
 		srv.Close()
 		return "", nil, err
 	}
@@ -242,12 +242,28 @@ func serveDump(d Dump, clientModel model.ClientDBModel, schema ovsdb.DatabaseSch
 
 // loadDump inserts every row of a dump into the in-memory database in a single
 // transaction, preserving original UUIDs so cross-table references stay valid.
-func loadDump(db database.Database, dbModel model.DatabaseModel, dbName string, d Dump) error {
+//
+// snapshot.Capture reads tables at slightly different instants, so a capture
+// from a churning production database can contain a reference to a row that was
+// deleted (or not yet created) between reads. Rather than hard-failing the whole
+// load on such a dangling reference, prune each reference that points outside the
+// set of UUIDs actually present in the dump.
+func loadDump(db database.Database, dbModel model.DatabaseModel, schema ovsdb.DatabaseSchema, d Dump) error {
+	dbName := schema.Name
+
 	tables := make([]string, 0, len(d.Tables))
 	for t := range d.Tables {
 		tables = append(tables, t)
 	}
 	sort.Strings(tables) // deterministic operation order
+
+	// Collect every UUID present in this dump so dangling references can be pruned.
+	present := make(map[string]struct{})
+	for _, recs := range d.Tables {
+		for _, rec := range recs {
+			present[rec.UUID] = struct{}{}
+		}
+	}
 
 	var ops []ovsdb.Operation
 	for _, table := range tables {
@@ -271,6 +287,7 @@ func loadDump(db database.Database, dbModel model.DatabaseModel, dbName string, 
 			// server, not as regular columns.
 			delete(row, "_uuid")
 			delete(row, "_version")
+			row = pruneDanglingRowRefs(schema, table, row, present)
 			ops = append(ops, ovsdb.Operation{
 				Op:    ovsdb.OperationInsert,
 				Table: table,

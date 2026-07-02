@@ -196,6 +196,70 @@ func pruneDanglingRefs(schema ovsdb.DatabaseSchema, table string, data map[strin
 	return out
 }
 
+// pruneDanglingRowRefs is the wire-typed sibling of pruneDanglingRefs: it drops
+// UUID references in a mapper-built ovsdb.Row that point to rows not in present,
+// so the in-memory server's referential integrity check accepts a dump captured
+// from a churning database. It operates on the OVSDB wire types (ovsdb.UUID,
+// ovsdb.OvsSet, ovsdb.OvsMap) rather than the history-style native map.
+func pruneDanglingRowRefs(schema ovsdb.DatabaseSchema, table string, row ovsdb.Row, present map[string]struct{}) ovsdb.Row {
+	ts, ok := schema.Tables[table]
+	if !ok {
+		return row
+	}
+	isPresent := func(uuid string) bool {
+		_, ok := present[uuid]
+		return ok
+	}
+
+	for col, val := range row {
+		cs := ts.Column(col)
+		if cs == nil || cs.TypeObj == nil {
+			continue
+		}
+		keyRef := isUUIDRef(cs.TypeObj.Key)
+		valRef := isUUIDRef(cs.TypeObj.Value)
+		if !keyRef && !valRef {
+			continue
+		}
+
+		switch v := val.(type) {
+		case ovsdb.UUID: // required atomic reference
+			if keyRef && v.GoUUID != "" && !isPresent(v.GoUUID) {
+				delete(row, col)
+			}
+		case ovsdb.OvsSet: // optional atomic (max 1) or set of references
+			if !keyRef {
+				continue
+			}
+			kept := make([]any, 0, len(v.GoSet))
+			for _, e := range v.GoSet {
+				if u, ok := e.(ovsdb.UUID); ok && !isPresent(u.GoUUID) {
+					continue
+				}
+				kept = append(kept, e)
+			}
+			row[col] = ovsdb.OvsSet{GoSet: kept}
+		case ovsdb.OvsMap: // map with references as keys and/or values
+			kept := make(map[any]any, len(v.GoMap))
+			for mk, mv := range v.GoMap {
+				if keyRef {
+					if u, ok := mk.(ovsdb.UUID); ok && !isPresent(u.GoUUID) {
+						continue
+					}
+				}
+				if valRef {
+					if u, ok := mv.(ovsdb.UUID); ok && !isPresent(u.GoUUID) {
+						continue
+					}
+				}
+				kept[mk] = mv
+			}
+			row[col] = ovsdb.OvsMap{GoMap: kept}
+		}
+	}
+	return row
+}
+
 // isUUIDRef reports whether a base type is a UUID that references another table.
 func isUUIDRef(bt *ovsdb.BaseType) bool {
 	if bt == nil || bt.Type != ovsdb.TypeUUID {
