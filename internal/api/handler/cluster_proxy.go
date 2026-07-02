@@ -66,6 +66,12 @@ func RegisterClusterProxy(mainMux *http.ServeMux, reg *cluster.Registry, registe
 			return
 		}
 
+		// Mark the response stale when this cluster's backing databases are not
+		// ready (disconnected/reconnecting, or suspended by a snapshot session).
+		if c, ok := reg.Get(name); ok && c.DBs != nil && !c.DBs.Ready() {
+			w.Header().Set("X-Northwatch-Stale", "true")
+		}
+
 		// Rewrite path: /api/v1/clusters/prod/nb/... -> /api/v1/nb/...
 		rest := r.PathValue("path")
 		newPath := "/api/v1/" + rest
