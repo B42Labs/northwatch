@@ -150,9 +150,11 @@ func TestEngine_SilencedAlertsDoNotNotify(t *testing.T) {
 	sub := hub.Subscribe()
 	sub.AddFilter(events.Filter{Database: "alert", Tables: []string{"*"}})
 
-	var notified atomic.Int32
+	// evaluate calls the notifier synchronously in this goroutine, so a plain
+	// slice needs no synchronization.
+	var notified []Alert
 	engine := NewEngine(hub, time.Hour)
-	engine.SetNotifier(func(ctx context.Context, alerts []Alert) { notified.Add(int32(len(alerts))) })
+	engine.SetNotifier(func(ctx context.Context, alerts []Alert) { notified = append(notified, alerts...) })
 
 	firingRule := func(name string) Rule {
 		return Rule{Name: name, Severity: SeverityWarning, Check: func(ctx context.Context) ([]Alert, error) {
@@ -166,7 +168,8 @@ func TestEngine_SilencedAlertsDoNotNotify(t *testing.T) {
 	engine.evaluate(context.Background())
 
 	// The silenced alert must neither page nor publish; the loud one must do both.
-	assert.Equal(t, int32(1), notified.Load(), "only the unsilenced alert may notify")
+	require.Len(t, notified, 1, "only the unsilenced alert may notify")
+	assert.Equal(t, "loud", notified[0].Rule)
 
 	select {
 	case e := <-sub.C:

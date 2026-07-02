@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,7 +29,7 @@ func TestStaleHeaderMiddleware(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := staleHeaderMiddleware(tc.ready, ok)
 			w := httptest.NewRecorder()
-			h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, tc.path, nil))
+			h.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.path, nil))
 
 			got := w.Header().Get(staleHeader)
 			if tc.wantStale {

@@ -51,7 +51,7 @@ func NewServer(addr string, dbs *ovndb.OVNDatabases, wrappers ...func(http.Handl
 	if dbs != nil {
 		ready = dbs.Ready
 	}
-	var handler http.Handler = staleHeaderMiddleware(ready, mux)
+	handler := staleHeaderMiddleware(ready, mux)
 	for _, wrap := range wrappers {
 		handler = wrap(handler)
 	}
