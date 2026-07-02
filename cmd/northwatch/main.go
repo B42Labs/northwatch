@@ -113,14 +113,17 @@ func runSnapshot(args []string) error {
 		return fmt.Errorf("creating SB model: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	fmt.Println("Connecting to OVN databases...")
 	mon := ovndb.MonitorOptions{
 		BatchDelay: *monitorBatchDelay,
 		SkipTables: config.SplitCSV(*monitorSkipTables),
 	}
+	// Scale the connect deadline with the staged-monitor config, as the server
+	// does, so capturing a snapshot with a large --monitor-batch-delay does not
+	// time out.
+	ctx, cancel := context.WithTimeout(context.Background(), mon.ConnectTimeout(60*time.Second, nbModel, sbModel))
+	defer cancel()
+
+	fmt.Println("Connecting to OVN databases...")
 	dbs, err := ovndb.Connect(ctx, *nbAddr, *sbAddr, nbModel, sbModel, mon)
 	if err != nil {
 		return fmt.Errorf("connecting to OVN: %w", err)
@@ -166,8 +169,10 @@ func run() error {
 		snapInfo = info
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// The startup context has no fixed deadline: each cluster derives its own
+	// connect timeout from the staged-monitor config (see buildCluster), so a
+	// large --monitor-batch-delay cannot deterministically fail startup.
+	ctx := context.Background()
 
 	// Build cluster registry from config
 	reg := cluster.NewRegistry()
@@ -412,13 +417,19 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 		// database; skip the Raft monitors to avoid noisy connect warnings.
 		SkipServerMonitors: cfg.SnapshotFile != "",
 	}
-	dbs, err := ovndb.Connect(ctx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel, mon)
+
+	// Scale the connect deadline with the staged-monitor config so a large
+	// --monitor-batch-delay (per-table sleep) does not exceed a fixed timeout.
+	connectCtx, cancel := context.WithTimeout(ctx, mon.ConnectTimeout(30*time.Second, nbModel, sbModel))
+	defer cancel()
+
+	dbs, err := ovndb.Connect(connectCtx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel, mon)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
 	}
 	fmt.Printf("Connected to OVN databases for cluster %q\n", cc.Name)
 
-	enricher, err := buildEnricher(ctx, cfg, cc)
+	enricher, err := buildEnricher(connectCtx, cfg, cc)
 	if err != nil {
 		dbs.Close()
 		return nil, nil, fmt.Errorf("cluster %q: %w", cc.Name, err)

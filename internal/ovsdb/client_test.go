@@ -141,6 +141,40 @@ func TestReady_WhileSuspended(t *testing.T) {
 	assert.True(t, dbs.Ready())
 }
 
+func TestMonitorOptions_ConnectTimeout(t *testing.T) {
+	nbModel, err := nb.FullDatabaseModel()
+	require.NoError(t, err)
+	sbModel, err := sb.FullDatabaseModel()
+	require.NoError(t, err)
+	base := 30 * time.Second
+
+	t.Run("no batching returns base", func(t *testing.T) {
+		got := MonitorOptions{}.ConnectTimeout(base, nbModel, sbModel)
+		assert.Equal(t, base, got)
+	})
+
+	t.Run("scales by table count and batch delay", func(t *testing.T) {
+		nbCount := len(monitoredTables(nbModel, nil))
+		sbCount := len(monitoredTables(sbModel, nil))
+		maxCount := nbCount
+		if sbCount > maxCount {
+			maxCount = sbCount
+		}
+		require.Positive(t, maxCount)
+
+		got := MonitorOptions{BatchDelay: time.Second}.ConnectTimeout(base, nbModel, sbModel)
+		assert.Equal(t, base+time.Duration(maxCount)*time.Second, got)
+	})
+
+	t.Run("skip tables lower the count", func(t *testing.T) {
+		all := MonitorOptions{BatchDelay: time.Second}.ConnectTimeout(base, nbModel, sbModel)
+		skipped := MonitorOptions{BatchDelay: time.Second, SkipTables: monitoredTables(sbModel, nil)}.
+			ConnectTimeout(base, nbModel, sbModel)
+		// Skipping every SB table cannot make the timeout larger.
+		assert.LessOrEqual(t, skipped, all)
+	})
+}
+
 func TestConnect_InvalidNBAddr(t *testing.T) {
 	nbAddr := fmt.Sprintf("unix:%s/nonexistent.sock", t.TempDir())
 
