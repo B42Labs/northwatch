@@ -16,6 +16,11 @@ type InputError struct {
 
 func (e *InputError) Error() string { return e.Message }
 
+// ErrStaleState is returned by Apply when the plan's preconditions no longer
+// hold: a row it targets was changed or deleted between preview and apply.
+// Handlers map it to 409 Conflict.
+var ErrStaleState = errors.New("plan preconditions no longer hold: the database changed since preview")
+
 // IsInputError reports whether err (or any error in its chain) is an InputError.
 func IsInputError(err error) bool {
 	var ie *InputError

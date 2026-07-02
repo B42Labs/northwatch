@@ -155,6 +155,79 @@ func TestEngineApplyUpdateNonScalar(t *testing.T) {
 	})
 }
 
+func setLSExternalIDs(t *testing.T, c client.Client, uuid string, m map[string]string) {
+	t.Helper()
+	ls := &nb.LogicalSwitch{UUID: uuid}
+	require.NoError(t, c.Get(context.Background(), ls))
+	ls.ExternalIDs = m
+	ops, err := c.Where(ls).Update(ls, &ls.ExternalIDs)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+}
+
+func deleteLS(t *testing.T, c client.Client, uuid string) {
+	t.Helper()
+	ls := &nb.LogicalSwitch{UUID: uuid}
+	ops, err := c.Where(ls).Delete()
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &nb.LogicalSwitch{UUID: uuid}) != nil
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// TestEngineApplyStaleState verifies the apply-time revalidation: an update
+// whose target row changed since preview, or whose target was deleted, aborts
+// with ErrStaleState and records an error audit entry.
+func TestEngineApplyStaleState(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	engine := setupTestEngine(t, nbClient)
+
+	t.Run("updated row", func(t *testing.T) {
+		uuid := testutil.InsertLogicalSwitch(t, nbClient, "ls-stale-upd")
+		setLSExternalIDs(t, nbClient, uuid, map[string]string{"k": "v1"})
+
+		plan, err := engine.Preview(context.Background(), []WriteOperation{{
+			Action: "update", Table: "Logical_Switch", UUID: uuid,
+			Fields: jsonFields(t, `{"external_ids":{"k":"v2"}}`),
+		}})
+		require.NoError(t, err)
+
+		// Change the row out of band after preview.
+		setLSExternalIDs(t, nbClient, uuid, map[string]string{"k": "other"})
+
+		entry, err := engine.Apply(context.Background(), plan.ID, plan.ApplyToken, "tester")
+		require.ErrorIs(t, err, ErrStaleState)
+		require.NotNil(t, entry)
+		assert.Equal(t, "error", entry.Result)
+
+		// The out-of-band value must survive (no silent overwrite).
+		ls := getLogicalSwitch(t, nbClient, uuid)
+		assert.Equal(t, map[string]string{"k": "other"}, ls.ExternalIDs)
+	})
+
+	t.Run("deleted row", func(t *testing.T) {
+		uuid := testutil.InsertLogicalSwitch(t, nbClient, "ls-stale-del")
+
+		plan, err := engine.Preview(context.Background(), []WriteOperation{{
+			Action: "update", Table: "Logical_Switch", UUID: uuid,
+			Fields: jsonFields(t, `{"external_ids":{"k":"v"}}`),
+		}})
+		require.NoError(t, err)
+
+		deleteLS(t, nbClient, uuid)
+
+		_, err = engine.Apply(context.Background(), plan.ID, plan.ApplyToken, "tester")
+		require.ErrorIs(t, err, ErrStaleState)
+	})
+}
+
 // TestEngineDryRunNoPlanStored verifies DryRun computes diffs without persisting a
 // plan or a snapshot.
 func TestEngineDryRunNoPlanStored(t *testing.T) {
