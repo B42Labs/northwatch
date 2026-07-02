@@ -30,6 +30,11 @@ func (c *PlanCache) Store(plan *Plan) {
 }
 
 // Get retrieves a plan by ID. Returns false for expired or missing plans.
+//
+// It returns a shallow copy of the cached plan so callers that mutate value
+// fields (e.g. Status during Apply) cannot race a concurrent handler
+// serializing the same plan. The Operations/Diffs slices are shared but only
+// read by callers.
 func (c *PlanCache) Get(id string) (*Plan, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -38,11 +43,11 @@ func (c *PlanCache) Get(id string) (*Plan, bool) {
 		return nil, false
 	}
 	if time.Now().After(plan.ExpiresAt) {
-		plan.Status = "expired"
 		delete(c.plans, id)
 		return nil, false
 	}
-	return plan, true
+	cp := *plan
+	return &cp, true
 }
 
 // Delete removes a plan from the cache.
