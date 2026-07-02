@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/testutil"
@@ -11,13 +12,14 @@ import (
 )
 
 func TestStaleChassis(t *testing.T) {
-	nbClient := testutil.SetupNBTestClient(t)
 	sbClient := testutil.SetupSBTestClient(t)
 
-	testutil.InsertNBGlobal(t, nbClient, 10, 0, 0)
-	testutil.InsertChassis(t, sbClient, "ch-1", "host-1", "10.0.0.1") // NbCfg defaults to 0, lag=10
+	testutil.InsertSBGlobal(t, sbClient, 10)
+	chUUID := testutil.InsertChassis(t, sbClient, "ch-1", "host-1", "10.0.0.1")
+	// Chassis_Private lags SB_Global (nb_cfg 0 vs 10) with an old timestamp.
+	testutil.InsertChassisPrivate(t, sbClient, "ch-1", &chUUID, 0, 1)
 
-	rule := StaleChassis(nbClient, sbClient, 2)
+	rule := StaleChassis(sbClient, 30*time.Second)
 	alerts := rule.Check(context.Background())
 	require.Len(t, alerts, 1)
 	assert.Equal(t, "stale_chassis_config", alerts[0].Rule)
@@ -25,16 +27,28 @@ func TestStaleChassis(t *testing.T) {
 	assert.Equal(t, SeverityWarning, alerts[0].Severity)
 }
 
-func TestStaleChassis_NoLag(t *testing.T) {
-	nbClient := testutil.SetupNBTestClient(t)
+func TestStaleChassis_InSync(t *testing.T) {
 	sbClient := testutil.SetupSBTestClient(t)
 
-	testutil.InsertNBGlobal(t, nbClient, 0, 0, 0) // NbCfg=0, chassis defaults to 0, lag=0
-	testutil.InsertChassis(t, sbClient, "ch-1", "host-1", "10.0.0.1")
+	testutil.InsertSBGlobal(t, sbClient, 5)
+	chUUID := testutil.InsertChassis(t, sbClient, "ch-1", "host-1", "10.0.0.1")
+	testutil.InsertChassisPrivate(t, sbClient, "ch-1", &chUUID, 5, 1) // acknowledged current gen
 
-	rule := StaleChassis(nbClient, sbClient, 2)
+	rule := StaleChassis(sbClient, 30*time.Second)
 	alerts := rule.Check(context.Background())
 	assert.Empty(t, alerts)
+}
+
+func TestStaleChassis_MissingPrivate(t *testing.T) {
+	sbClient := testutil.SetupSBTestClient(t)
+
+	testutil.InsertSBGlobal(t, sbClient, 5)
+	testutil.InsertChassis(t, sbClient, "ch-1", "host-1", "10.0.0.1") // no Chassis_Private row
+
+	rule := StaleChassis(sbClient, 30*time.Second)
+	alerts := rule.Check(context.Background())
+	require.Len(t, alerts, 1)
+	assert.Contains(t, alerts[0].Message, "no ovn-controller heartbeat")
 }
 
 func TestPortDown(t *testing.T) {
