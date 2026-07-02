@@ -12,7 +12,7 @@
 
   let { uuid }: { uuid: string } = $props();
 
-  let data: Record<string, unknown> | null = $state(null);
+  let data = $state<Record<string, unknown> | null>(null);
   let loading = $state(true);
   let error = $state('');
   let refetchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -41,7 +41,10 @@
     loading = true;
     error = '';
     try {
-      data = (await getCorrelatedRouter(targetUuid)) as Record<string, unknown>;
+      data = (await getCorrelatedRouter(targetUuid)) as unknown as Record<
+        string,
+        unknown
+      >;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load router';
       data = null;

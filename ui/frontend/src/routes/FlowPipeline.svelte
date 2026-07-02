@@ -25,7 +25,7 @@
   let datapaths: Record<string, unknown>[] = $state([]);
   let selectedDatapath = $state('');
   let datapathsLoading = $state(true);
-  let flowData: FlowPipelineResponse | null = $state(null);
+  let flowData = $state<FlowPipelineResponse | null>(null);
   let flowsLoading = $state(false);
   let error = $state('');
   let searchQuery = $state('');

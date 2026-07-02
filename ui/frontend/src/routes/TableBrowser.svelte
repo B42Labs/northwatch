@@ -15,7 +15,7 @@
   let rows: Record<string, unknown>[] = $state([]);
   let loading = $state(true);
   let error = $state('');
-  let tableDef: TableDef | undefined = $state(undefined);
+  let tableDef = $state<TableDef | undefined>(undefined);
   let currentChangedUuids = $derived($changedUuidsStore);
 
   // Derive columns from the first 50 rows. OVSDB rows are homogeneous so this

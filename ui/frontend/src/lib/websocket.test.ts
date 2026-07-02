@@ -50,7 +50,7 @@ describe('NorthwatchWebSocket', () => {
     MockWebSocket.instances = [];
     vi.useFakeTimers();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (global as any).WebSocket = MockWebSocket;
+    (globalThis as any).WebSocket = MockWebSocket;
   });
 
   afterEach(() => {

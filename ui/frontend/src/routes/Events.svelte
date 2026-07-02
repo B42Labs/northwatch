@@ -87,7 +87,7 @@
     const unsubscribe = subscribeToTables('*', ['*'], (wsEvent: WsEvent) => {
       const liveRecord: EventRecord = {
         id: --liveEventId,
-        timestamp: wsEvent.timestamp ?? new Date().toISOString(),
+        timestamp: new Date(wsEvent.ts).toISOString(),
         type: wsEvent.type,
         database: wsEvent.database,
         table: wsEvent.table,
