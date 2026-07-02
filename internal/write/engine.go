@@ -38,6 +38,14 @@ type Engine struct {
 	mu          sync.Mutex
 	rateLimiter *rateLimiter
 	resolver    *impact.Resolver // optional, enables impact analysis on delete operations
+	// nbReady reports whether the NB cache is currently authoritative (the
+	// client is connected and its monitors are not suspended). Cache-based
+	// reference existence checks are only trustworthy when it returns true; when
+	// it returns false — a reconnect in progress, or a snapshot session that has
+	// purged the live cache — those checks are skipped and OVSDB's server-side
+	// referential integrity is relied on instead. A nil predicate (the default,
+	// used in tests) treats the cache as always authoritative.
+	nbReady func() bool
 }
 
 // NewEngine creates a new write Engine with the given rate limit (operations per minute, 0 = unlimited).
@@ -84,6 +92,15 @@ func (e *Engine) Start(ctx context.Context) func() {
 // SetResolver sets the impact resolver for computing dependency analysis on delete operations.
 func (e *Engine) SetResolver(r *impact.Resolver) {
 	e.resolver = r
+}
+
+// SetReadyFunc sets the predicate that reports whether the NB cache is currently
+// authoritative. Call it during setup (before serving) with the live cluster's
+// readiness check so cache-based reference validation is skipped while the cache
+// is non-authoritative (reconnecting or a snapshot session has suspended the
+// live monitors). See the nbReady field for the rationale.
+func (e *Engine) SetReadyFunc(f func() bool) {
+	e.nbReady = f
 }
 
 // Schema returns the schema for all writable tables.
@@ -561,24 +578,33 @@ func (e *Engine) generateToken(planID string, snapshotID int64) string {
 }
 
 // validateOps runs basic and reference validation for a set of operations.
+// Structural and single-database failures are always user input errors (400);
+// reference validation may surface either an *InputError (400) or an
+// infrastructure error (500), so its error chain is preserved with %w.
 func (e *Engine) validateOps(ctx context.Context, ops []WriteOperation) error {
 	for i, op := range ops {
 		if err := ValidateOperation(op, e.registry); err != nil {
-			return fmt.Errorf("operation %d: %w", i, err)
+			return &InputError{Message: fmt.Sprintf("operation %d: %s", i, err)}
 		}
 	}
 	if err := ValidateSingleDatabase(ops, e.registry); err != nil {
-		return err
+		return &InputError{Message: err.Error()}
 	}
+	// The cache is authoritative for reference existence only when the NB
+	// monitors are live; during a reconnect or a suspended snapshot session the
+	// cache is empty/frozen, so a missing referenced row would be a false
+	// negative. When not authoritative, defer existence to OVSDB's server-side
+	// referential integrity rather than rejecting a valid write with a 400.
+	cacheAuthoritative := e.nbReady == nil || e.nbReady()
 	for i, op := range ops {
 		spec, err := e.registry.Get(op.Table)
 		if err != nil {
-			return fmt.Errorf("operation %d: %w", i, err)
+			return &InputError{Message: fmt.Sprintf("operation %d: %s", i, err)}
 		}
 		if spec.Database == "sb" {
 			continue
 		}
-		if err := ValidateReferences(ctx, op, e.nbClient); err != nil {
+		if err := ValidateReferences(ctx, op, spec, e.nbClient, cacheAuthoritative); err != nil {
 			return fmt.Errorf("operation %d: %w", i, err)
 		}
 	}
