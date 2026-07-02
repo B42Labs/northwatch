@@ -25,6 +25,8 @@ jobs:
         run: npm run lint
       - name: Prettier
         run: npm run format:check
+      - name: Svelte Check
+        run: npm run check
       - name: Tests
         run: npm run test
 
@@ -40,7 +42,9 @@ jobs:
         run: make ensure-ui-dist
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # Pinned for reproducible CI; bump deliberately (Dependabot does not
+          # update this input). Keep in sync with the developer toolchain.
+          version: v2.11.3
 
   test:
     name: Test
@@ -55,7 +59,7 @@ jobs:
       - name: Run tests
         run: |
           COVERPKGS=$(go list ./internal/... | grep -v '/ovsdb/nb$' | grep -v '/ovsdb/sb$' | grep -v '/ovsdb/vs$' | paste -sd, -)
-          go test -v -coverprofile=coverage.out -coverpkg="$COVERPKGS" ./...
+          go test -race -v -coverprofile=coverage.out -coverpkg="$COVERPKGS" ./...
       - name: Check coverage threshold
         run: |
           total=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
@@ -139,6 +143,8 @@ jobs:
           go-version-file: go.mod
       - name: Ensure UI dist exists
         run: make ensure-ui-dist
-      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      # Pinned for reproducible CI; bump deliberately (Dependabot does not
+      # update `go install` @version pins). Keep in sync with vuln-schedule.yml.
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
       - name: Run govulncheck
         run: govulncheck ./...
