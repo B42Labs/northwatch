@@ -30,7 +30,7 @@
     load_balancers: LBView[];
   }
 
-  let data: LBResponse | null = $state(null);
+  let data = $state<LBResponse | null>(null);
   let loading = $state(true);
   let error = $state('');
   let searchQuery = $state('');

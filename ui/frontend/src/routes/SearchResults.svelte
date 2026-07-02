@@ -9,7 +9,7 @@
 
   let { query }: { query: string } = $props();
 
-  let result: SearchResponse | null = $state(null);
+  let result = $state<SearchResponse | null>(null);
   let loading = $state(false);
   let error = $state('');
 

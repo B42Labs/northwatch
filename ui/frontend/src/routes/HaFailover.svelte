@@ -571,6 +571,94 @@
   {/snippet}
 </PageHeader>
 
+<!-- Shared chassis-selection panel (evacuate / restore). Declared at the top
+     level so it is a local snippet rendered via {@render} below, not a prop
+     passed to an enclosing component. -->
+{#snippet selectionPanel(opts: SelectionPanelOpts)}
+  <div class="mb-4 rounded border border-base-300 bg-base-100 p-4">
+    <div class="mb-3 flex items-center justify-between">
+      <div>
+        <div
+          class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        >
+          {opts.title}
+        </div>
+        <div class="font-prose mt-1 text-xs text-base-content/55">
+          {opts.description}
+        </div>
+      </div>
+      <button
+        class="btn btn-ghost btn-sm border-base-300"
+        aria-label="Close"
+        onclick={opts.onclose}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+    </div>
+    <div class="overflow-x-auto rounded border border-base-300">
+      <table class="table table-xs font-mono">
+        <thead>
+          <tr>
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Chassis</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >Hostname</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              >{opts.countHeader}</th
+            >
+            <th
+              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+            ></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each opts.rows as chassis (chassis.name)}
+            <tr class="border-base-300/60 hover:bg-base-300/40">
+              <td class="text-xs">{chassis.name}</td>
+              <td class="text-xs text-base-content/70"
+                >{chassis.hostname || '—'}</td
+              >
+              <td>
+                <Badge
+                  text="{chassis.count} group{chassis.count !== 1 ? 's' : ''}"
+                  variant={opts.countVariant(chassis.count)}
+                />
+              </td>
+              <td class="text-right">
+                <button
+                  class="btn btn-xs font-mono normal-case {opts.actionClass}"
+                  onclick={() => opts.onaction(chassis.name)}
+                  disabled={actionLoading}
+                >
+                  {opts.actionLabel}
+                </button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{/snippet}
+
 <!-- Read-only detection: highest-priority-alive (desired) vs Port_Binding.chassis
      (actual) for every chassisredirect port. Works regardless of write mode. -->
 <GatewayHealthPanel />
@@ -609,92 +697,6 @@
       </button>
     {/if}
   </div>
-
-  <!-- Shared chassis-selection panel (evacuate / restore) -->
-  {#snippet selectionPanel(opts: SelectionPanelOpts)}
-    <div class="mb-4 rounded border border-base-300 bg-base-100 p-4">
-      <div class="mb-3 flex items-center justify-between">
-        <div>
-          <div
-            class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
-          >
-            {opts.title}
-          </div>
-          <div class="font-prose mt-1 text-xs text-base-content/55">
-            {opts.description}
-          </div>
-        </div>
-        <button
-          class="btn btn-ghost btn-sm border-base-300"
-          aria-label="Close"
-          onclick={opts.onclose}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-      <div class="overflow-x-auto rounded border border-base-300">
-        <table class="table table-xs font-mono">
-          <thead>
-            <tr>
-              <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
-                >Chassis</th
-              >
-              <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
-                >Hostname</th
-              >
-              <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
-                >{opts.countHeader}</th
-              >
-              <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
-              ></th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each opts.rows as chassis (chassis.name)}
-              <tr class="border-base-300/60 hover:bg-base-300/40">
-                <td class="text-xs">{chassis.name}</td>
-                <td class="text-xs text-base-content/70"
-                  >{chassis.hostname || '—'}</td
-                >
-                <td>
-                  <Badge
-                    text="{chassis.count} group{chassis.count !== 1 ? 's' : ''}"
-                    variant={opts.countVariant(chassis.count)}
-                  />
-                </td>
-                <td class="text-right">
-                  <button
-                    class="btn btn-xs font-mono normal-case {opts.actionClass}"
-                    onclick={() => opts.onaction(chassis.name)}
-                    disabled={actionLoading}
-                  >
-                    {opts.actionLabel}
-                  </button>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  {/snippet}
 
   <!-- Evacuate chassis selection panel -->
   {#if showEvacuateDropdown && !evacuateTarget}

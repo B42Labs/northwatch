@@ -11,7 +11,7 @@
 
   let { uuid }: { uuid: string } = $props();
 
-  let data: Record<string, unknown> | null = $state(null);
+  let data = $state<Record<string, unknown> | null>(null);
   let loading = $state(true);
   let error = $state('');
   let refetchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -40,7 +40,7 @@
     loading = true;
     error = '';
     try {
-      data = (await getCorrelatedChassis(targetUuid)) as Record<
+      data = (await getCorrelatedChassis(targetUuid)) as unknown as Record<
         string,
         unknown
       >;

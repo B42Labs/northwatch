@@ -30,7 +30,7 @@
     summary: { shadows: number; conflicts: number; redundant: number };
   }
 
-  let data: AuditResult | null = $state(null);
+  let data = $state<AuditResult | null>(null);
   let loading = $state(true);
   let error = $state('');
   let typeFilter = $state('all');

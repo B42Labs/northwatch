@@ -51,7 +51,7 @@
     next_hops: NextHop[];
   }
 
-  let data: Report | null = $state(null);
+  let data = $state<Report | null>(null);
   let loading = $state(true);
   let error = $state('');
   let statusFilter = $state('all');

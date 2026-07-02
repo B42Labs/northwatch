@@ -20,7 +20,7 @@
   let timeRange = $state<5 | 15 | 30 | 0>(30);
   let timeRangeValue = $state('30');
   let autoRefresh = $state(false);
-  let diffData: FlowDiffResponse | null = $state(null);
+  let diffData = $state<FlowDiffResponse | null>(null);
   let loading = $state(false);
   let error = $state('');
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;

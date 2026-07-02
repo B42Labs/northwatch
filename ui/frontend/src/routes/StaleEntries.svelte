@@ -37,7 +37,7 @@
     entries: StaleEntry[];
   }
 
-  let data: StaleResult | null = $state(null);
+  let data = $state<StaleResult | null>(null);
   let loading = $state(true);
   let error = $state('');
   let typeFilter = $state('all');

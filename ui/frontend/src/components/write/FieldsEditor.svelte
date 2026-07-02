@@ -32,10 +32,10 @@
 
   let mode: 'form' | 'json' = $state('form');
   let rows: FieldRow[] = $state([{ key: '', value: '' }]);
-  let entityFields: Record<string, unknown> | null = $state(null);
+  let entityFields = $state<Record<string, unknown> | null>(null);
   let loadingEntity = $state(false);
   let schemas: TableSchema[] = $state([]);
-  let currentSchema: TableSchema | undefined = $state(undefined);
+  let currentSchema = $state<TableSchema | undefined>(undefined);
 
   // Load schema once
   $effect(() => {

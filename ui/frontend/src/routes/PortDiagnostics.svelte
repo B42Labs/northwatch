@@ -11,7 +11,7 @@
   import { severityVariant, accentBorderClass } from '../lib/status';
   import { SvelteSet } from 'svelte/reactivity';
 
-  let data: PortDiagnosticsSummary | null = $state(null);
+  let data = $state<PortDiagnosticsSummary | null>(null);
   let loading = $state(true);
   let error = $state('');
   let searchQuery = $state('');

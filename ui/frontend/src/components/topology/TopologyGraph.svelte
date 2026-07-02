@@ -22,10 +22,16 @@
   let hoveredNode: TopologyNode | null = $state(null);
   let infoPos = $state({ x: 0, y: 0 });
 
-  const palette: Record<
-    string,
-    { fill: string; stroke: string; glow: string; label: string } | string
-  > = {
+  type NodeStyle = {
+    fill: string;
+    stroke: string;
+    glow: string;
+    label: string;
+  };
+
+  // Per-node-type styling, keyed by TopologyNode.type (a plain string, so the
+  // map is string-indexed for dynamic lookups like nodeStyles[d.type]).
+  const nodeStyles: Record<string, NodeStyle> = {
     switch: {
       fill: '#2563eb',
       stroke: '#1d4ed8',
@@ -56,6 +62,10 @@
       glow: 'rgba(245,158,11,0.25)',
       label: 'VM Port',
     },
+  };
+
+  // Shared, non-node colors (edges, background, text).
+  const colors = {
     edgeLogical: '#64748b',
     edgeBinding: '#94a3b8',
     bg: '#0f172a',
@@ -187,14 +197,14 @@
       .attr('orient', 'auto')
       .append('path')
       .attr('d', 'M0,0 L10,3 L0,6')
-      .attr('fill', palette.edgeLogical);
+      .attr('fill', colors.edgeLogical);
 
     // Background + grid
     svg
       .append('rect')
       .attr('width', width)
       .attr('height', height)
-      .attr('fill', palette.bg);
+      .attr('fill', colors.bg);
 
     const gridGroup = svg.append('g').attr('class', 'grid');
     const gridSize = 40;
@@ -282,8 +292,8 @@
       .attr('fill', 'none')
       .attr('stroke', (d) =>
         d.type === 'vm-binding'
-          ? palette['vm-port'].stroke
-          : palette.edgeBinding,
+          ? nodeStyles['vm-port'].stroke
+          : colors.edgeBinding,
       )
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '4 4')
@@ -295,7 +305,7 @@
       .data(fgLinks)
       .join('path')
       .attr('fill', 'none')
-      .attr('stroke', palette.edgeLogical)
+      .attr('stroke', colors.edgeLogical)
       .attr('stroke-width', 2)
       .attr('stroke-opacity', 0.8)
       .attr('marker-end', 'url(#arrow-logical)');
@@ -340,22 +350,22 @@
       .attr('r', (d) => glowRadius(d.type))
       .attr('fill', (d) => {
         if (d.type === 'chassis' && d.metadata?.role === 'gateway')
-          return palette.gateway.glow;
-        return palette[d.type]?.glow ?? 'transparent';
+          return nodeStyles.gateway.glow;
+        return nodeStyles[d.type]?.glow ?? 'transparent';
       })
       .attr('filter', 'url(#glow)');
 
     // Node shapes
     node.each(function (d) {
       const el = d3.select(this);
-      const colors = palette[d.type];
-      if (!colors) return;
+      const style = nodeStyles[d.type];
+      if (!style) return;
 
       if (d.type === 'vm-port') {
         el.append('circle')
           .attr('r', 10)
-          .attr('fill', colors.fill)
-          .attr('stroke', colors.stroke)
+          .attr('fill', style.fill)
+          .attr('stroke', style.stroke)
           .attr('stroke-width', 1.5);
         const isUp = d.metadata?.up === 'true';
         el.append('circle')
@@ -365,7 +375,7 @@
           .attr('fill', isUp ? '#22c55e' : '#ef4444');
       } else if (d.type === 'chassis') {
         const isGateway = d.metadata?.role === 'gateway';
-        const c = isGateway ? palette.gateway : colors;
+        const c = isGateway ? nodeStyles.gateway : style;
         el.append('rect')
           .attr('x', -24)
           .attr('y', -18)
@@ -434,8 +444,8 @@
       } else if (d.type === 'router') {
         el.append('path')
           .attr('d', 'M 0 -20 L 24 0 L 0 20 L -24 0 Z')
-          .attr('fill', colors.fill)
-          .attr('stroke', colors.stroke)
+          .attr('fill', style.fill)
+          .attr('stroke', style.stroke)
           .attr('stroke-width', 2);
         el.append('path')
           .attr('d', 'M -8 0 L 6 0 M 2 -4 L 6 0 L 2 4')
@@ -450,8 +460,8 @@
           .attr('width', 44)
           .attr('height', 32)
           .attr('rx', 5)
-          .attr('fill', colors.fill)
-          .attr('stroke', colors.stroke)
+          .attr('fill', style.fill)
+          .attr('stroke', style.stroke)
           .attr('stroke-width', 2);
         for (let i = -2; i <= 2; i++) {
           el.append('circle')
@@ -472,7 +482,7 @@
       .attr('font-size', (d) => (d.type === 'vm-port' ? '9px' : '11px'))
       .attr('font-weight', '500')
       .attr('fill', (d) =>
-        d.type === 'vm-port' ? palette.textMuted : palette.text,
+        d.type === 'vm-port' ? colors.textMuted : colors.text,
       )
       .attr('class', 'select-none');
 
@@ -548,15 +558,15 @@
 
     // --- Legend ---
     const legendItems: { label: string; color: string; shape: string }[] = [
-      { label: 'Switch', color: palette.switch.fill, shape: 'rect' },
-      { label: 'Router', color: palette.router.fill, shape: 'diamond' },
-      { label: 'Chassis', color: palette.chassis.fill, shape: 'rect' },
-      { label: 'Gateway', color: palette.gateway.fill, shape: 'rect' },
+      { label: 'Switch', color: nodeStyles.switch.fill, shape: 'rect' },
+      { label: 'Router', color: nodeStyles.router.fill, shape: 'diamond' },
+      { label: 'Chassis', color: nodeStyles.chassis.fill, shape: 'rect' },
+      { label: 'Gateway', color: nodeStyles.gateway.fill, shape: 'rect' },
     ];
     if (hasVMs) {
       legendItems.push({
         label: 'VM Port',
-        color: palette['vm-port'].fill,
+        color: nodeStyles['vm-port'].fill,
         shape: 'circle',
       });
     }
@@ -609,17 +619,14 @@
         .attr('x', 20)
         .attr('y', 10)
         .attr('font-size', '11px')
-        .attr('fill', palette.textMuted)
+        .attr('fill', colors.textMuted)
         .text(item.label);
     });
   }
 </script>
 
 <div bind:this={containerEl} class="relative h-full w-full">
-  <svg
-    bind:this={svgRef}
-    class="h-full w-full"
-    style="background: {palette.bg};"
+  <svg bind:this={svgRef} class="h-full w-full" style="background: {colors.bg};"
   ></svg>
 
   {#if hoveredNode}
@@ -627,10 +634,11 @@
       hoveredNode.type === 'chassis' &&
       hoveredNode.metadata?.role === 'gateway'}
     {@const hdrColor =
-      (isGw ? palette.gateway : palette[hoveredNode.type])?.fill ?? '#6b7280'}
+      (isGw ? nodeStyles.gateway : nodeStyles[hoveredNode.type])?.fill ??
+      '#6b7280'}
     {@const hdrLabel = isGw
       ? 'Gateway Chassis'
-      : (palette[hoveredNode.type]?.label ?? hoveredNode.type)}
+      : (nodeStyles[hoveredNode.type]?.label ?? hoveredNode.type)}
     <div
       class="pointer-events-none absolute z-50"
       style="left: {infoPos.x}px; top: {infoPos.y}px;"
