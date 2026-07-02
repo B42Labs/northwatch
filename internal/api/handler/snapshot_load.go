@@ -27,9 +27,13 @@ func handleLoadSnapshot(mgr *snapshotsession.Manager) http.HandlerFunc {
 		}
 		ld, err := mgr.Load(r.Context(), id)
 		if err != nil {
-			if errors.Is(err, history.ErrNotFound) {
+			switch {
+			case errors.Is(err, history.ErrNotFound):
 				api.WriteError(w, http.StatusNotFound, "snapshot not found")
-			} else {
+			case errors.Is(err, snapshotsession.ErrTooManyLoaded),
+				errors.Is(err, snapshotsession.ErrLoadInProgress):
+				api.WriteError(w, http.StatusConflict, err.Error())
+			default:
 				api.WriteError(w, http.StatusInternalServerError, err.Error())
 			}
 			return
