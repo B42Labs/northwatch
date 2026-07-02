@@ -17,6 +17,10 @@ spec at `/api/v1/openapi.json`. See [Explore the API](/how-to/explore-the-api).
 - Detail endpoints (`.../{uuid}`) return a single object, or `404` with
   `{"error": "not found"}`.
 - Errors return the matching HTTP status with `{"error": "<message>"}`.
+- Responses served from a cluster whose OVSDB caches are not currently
+  authoritative — the client is reconnecting, or a snapshot session has suspended
+  the live monitors — carry an `X-Northwatch-Stale: true` header. `/readyz`
+  returns `503` in the suspended case.
 
 ## System & health
 
@@ -134,9 +138,12 @@ Reachability semantics:
 **Fleet health.** `GET /api/v1/ovs/health` turns the per-chassis connection
 counts into a real health summary. It sums `bridges`, `ports` and `interfaces`
 across all connected chassis and counts interfaces that are **down**
-(`link_state=down`) or **erroring** (any of `rx_errors`, `tx_errors`,
-`rx_dropped`, `tx_dropped` non-zero) as `down_interfaces` and
-`error_interfaces`, alongside `chassis`, `connected` and `unreachable` counts.
+(`link_state=down`), **erroring** (`rx_errors`/`tx_errors` that increased since
+the previous read) or **dropping** (`rx_dropped`/`tx_dropped` that increased) as
+`down_interfaces`, `error_interfaces` and `drop_interfaces`, alongside `chassis`,
+`connected` and `unreachable` counts. Erroring and dropping are **delta-based**:
+the cumulative counters are compared between reads, so a single historical error
+does not flag an interface forever (the counters reset on process restart).
 `members` is the per-chassis breakdown (`system_id`, `connected`, and the same
 counts per chassis). Aggregation runs off the monitored caches — no new
 connections — and handles partial outages: an **unreachable** chassis is

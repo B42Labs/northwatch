@@ -75,10 +75,13 @@ A cluster has at most one enrichment provider.
   `/api/v1/clusters/{name}/...`.
 - The enrichment cache TTL is global, set with `--enrichment-cache-ttl`, not in
   the file.
-- The chassis-inventory staleness threshold is global, set with
+- The chassis staleness threshold is global, set with
   `--chassis-stale-threshold`, not in the file. It controls when an out-of-sync
-  chassis is flagged `stale` (not `alive`/down — a present, in-sync chassis is
-  always alive). Raise it to tolerate slower config propagation before flagging.
+  chassis is flagged `stale`. Beyond the chassis inventory, it also drives
+  gateway HA-member liveness (a stale member is not a viable election candidate)
+  and the `stale_chassis_config` alert. Liveness is derived from
+  `Chassis_Private.nb_cfg` vs `SB_Global.nb_cfg` (correct on OVN ≥ 20.06). Raise
+  it to tolerate slower config propagation before flagging.
 - Per-chassis [OVS visibility](/reference/cli) (`--ovs-mgmt-addr-file` and the
   `--ovs-tls-*` material) is global and wired to the default cluster, not part
   of this file. Its own mapping file lists the chassis to connect to.

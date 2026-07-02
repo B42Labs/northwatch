@@ -31,6 +31,10 @@ NB and SB load concurrently, so the added startup time is roughly
 but the one dominant table is still a single reply — batching does not chunk
 *within* a table.
 
+The startup connect deadline scales with this delay (base `30s` plus
+`delay × table count`), so a large `--monitor-batch-delay` — e.g. `1s` on a huge
+database — no longer risks a fixed timeout aborting startup mid-load.
+
 ## Skip the dominant tables entirely
 
 `--monitor-skip-tables` never monitors the listed tables at all. This is the real

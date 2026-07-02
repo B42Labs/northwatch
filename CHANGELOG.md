@@ -142,6 +142,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `internal/search`, and `internal/api`.
 
 ### Fixed
+- Write operations touching non-scalar columns (`external_ids`, `options`,
+  set/reference fields) now round-trip correctly: row construction is routed
+  through the typed hydrator plus libovsdb's mapper, so map/set/UUID fields are
+  wire-encoded as RFC 7047 `["map",…]`/`["set",…]`/`["uuid",…]` instead of being
+  marshaled as plain JSON and rejected or corrupted at apply.
+- Apply now re-validates the plan and asserts each target row still holds its
+  pre-apply values with OVSDB `wait` operations, so an update to a since-changed
+  or since-deleted row aborts with a conflict instead of silently no-op-ing.
+- The plan cache returns a copy, ending a data race between a plan being applied
+  and the same plan being serialized by `GET /api/v1/write/plans/{id}`.
+- Write reference validation is derived from the NB schema (all writable tables,
+  not three), and cache-list failures are reported as server errors rather than
+  treated as "does not exist".
+- Audit-store insert failures are logged instead of silently dropped.
+- Loading a snapshot session no longer corrupts monitoring: the history
+  collector, alert engine, and flowdiff collector are paused while the live
+  monitors are suspended, so there are no empty "auto" snapshots, no false
+  `flow_count_anomaly` (or webhook) on the 100% cache drop, and no
+  re-population event flood on resume.
+- Gateway and fleet health are correct on OVN ≥ 20.06: chassis liveness is
+  derived from `Chassis_Private.nb_cfg` vs `SB_Global.nb_cfg` (a shared helper
+  with the chassis inventory) instead of the deprecated `Chassis.nb_cfg`, which
+  reported every chassis stale and produced fleet-wide false
+  `no-viable-candidate` errors. The `stale_chassis_config` alert uses the same
+  signal.
+- Silenced alerts no longer fire webhooks or WebSocket events — silences are
+  now consulted before notifying, for both fire and resolve.
+- Alert rules distinguish a read failure from "no alerts": a rule that errors
+  (e.g. during an OVSDB reconnect) no longer resolves and re-fires every active
+  alert. `flow_count_anomaly` ignores a zero-count read (a purged cache).
+- `uuid[:8]` display truncation is rune-safe and no longer panics on short
+  identifiers (alert HA-failover messages, topology labels, SVG export).
+- Multi-cluster UI no longer mixes clusters: the MAC-table, NAT and HA-failover
+  pages route reads through the cluster-scoped API client, and the WebSocket
+  connects to the active cluster's endpoint (reconnecting on cluster change)
+  instead of always the default cluster.
+- The cluster switcher surfaces a "sources unavailable" indicator when the
+  cluster list fails to load instead of silently disappearing.
+- The startup connect timeout scales with `--monitor-batch-delay` × table
+  count, so a large staged-load delay documented for huge deployments no longer
+  deterministically fails startup. The `snapshot` subcommand rejects a
+  malformed `NORTHWATCH_MONITOR_BATCH_DELAY` instead of silently ignoring it.
+- Both OVSDB clients are closed on any `Connect` error path, and a `Connect`
+  called per snapshot load no longer leaks reconnect state.
 - Live events in the Events view now show the server-side event time
   (`ts`) instead of the client receive time — the view read a
   `wsEvent.timestamp` field that does not exist on the WebSocket payload.
@@ -165,6 +209,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact string comparison flagged every router port in every deployment.
 
 ### Changed
+- Write **rollback** is scoped to restoring changed fields on rows that still
+  exist. Rows deleted since the snapshot are reported in a new plan `warnings`
+  field rather than recreated (recreation would assign new UUIDs and dangle
+  every reference), and rows created after the snapshot are left untouched.
+- Write endpoints return more precise status codes: `429` for rate-limit
+  rejections (dry-run is now rate-limited too), `409` for a stale-state
+  conflict at apply, `400` for input errors, and `500` for infrastructure
+  failures — instead of mapping every engine error to `400`.
+- `/readyz` returns `503` while a snapshot session is loaded (the live monitors
+  are suspended and the caches purged), and responses served from a
+  not-ready/suspended cluster carry an `X-Northwatch-Stale: true` header so
+  clients can flag stale data.
+- Loaded snapshot sessions are capped (default 4, `409` when exceeded), the slow
+  load work runs outside the manager lock, and a session's backing servers are
+  torn down after a short drain grace so in-flight requests finish.
+- Snapshot **load** tolerates dangling references: a capture from a churning
+  database whose rows reference since-deleted rows loads with the dangling
+  references pruned instead of failing wholesale.
+- Fleet OVS health is delta-based: an interface is flagged erroring or dropping
+  only when its cumulative `rx/tx` counters increase between reads (not on any
+  non-zero lifetime counter), so a single historical error no longer trends the
+  tile permanently red. Drops are reported separately via a new
+  `drop_interfaces` field, and the fleet tile counters reset on process restart.
+- `--chassis-stale-threshold` now also drives gateway HA-member liveness and the
+  `stale_chassis_config` alert (not only the chassis inventory).
 - CI is now a trustworthy gate: the test job runs the race detector,
   `svelte-check` runs on the frontend, gofmt is enforced via
   golangci-lint, tool versions (golangci-lint, govulncheck) are pinned,
