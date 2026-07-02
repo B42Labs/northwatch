@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--version` flag: prints the build version and exits. Release builds
+  inject the tag via `-ldflags "-X main.version=<tag>"`; other builds
+  report `dev`.
 - Fleet-wide OVS health on the OVS Visibility overview. A new
   `GET /api/v1/ovs/health` aggregates the per-chassis monitored caches into
   fleet totals — bridges, ports and interfaces — plus counts of interfaces
@@ -139,6 +142,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `internal/search`, and `internal/api`.
 
 ### Fixed
+- Live events in the Events view now show the server-side event time
+  (`ts`) instead of the client receive time — the view read a
+  `wsEvent.timestamp` field that does not exist on the WebSocket payload.
 - The generated OpenAPI spec described the write rollback operation as
   "Rollback to a snapshot (not yet implemented)" with a `501` response, but the
   feature is implemented and returns `200` with a reversing preview plan. The
@@ -159,6 +165,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact string comparison flagged every router port in every deployment.
 
 ### Changed
+- CI is now a trustworthy gate: the test job runs the race detector,
+  `svelte-check` runs on the frontend, gofmt is enforced via
+  golangci-lint, tool versions (golangci-lint, govulncheck) are pinned,
+  a scheduled workflow runs `govulncheck` daily against `main`, and
+  Dependabot keeps Go modules, npm packages, and GitHub Actions updated.
 - `write.PlanCache.StartCleanup` now accepts a context and exits when it is
   cancelled. `write.Engine.Start` returns a stop function so the background
   cleanup goroutine no longer leaks at shutdown.

@@ -16,6 +16,7 @@ Run `./bin/northwatch --help` to see the same list at runtime.
 | `--ovn-sb-addr` | `NORTHWATCH_OVN_SB_ADDR` | *(required)* | OVN Southbound address. Comma-separated for Raft failover. |
 | `--config-file` | `NORTHWATCH_CONFIG_FILE` | *(none)* | Path to a JSON multi-cluster config file. When set, `--ovn-nb-addr` / `--ovn-sb-addr` are ignored. |
 | `--snapshot` | `NORTHWATCH_SNAPSHOT` | *(none)* | Serve a snapshot file offline. Takes precedence over `--ovn-*-addr` and `--config-file`. |
+| `--version` | — | — | Print the build version and exit. Release builds report the release tag; other builds report `dev`. |
 
 Exactly one connection source is required: a snapshot, a config file, or both
 flat NB/SB addresses.
