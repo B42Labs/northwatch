@@ -40,7 +40,23 @@ import (
 	northwatchUI "github.com/b42labs/northwatch/ui"
 )
 
+// version is the build version. Release builds inject the tag via
+// -ldflags "-X main.version=<tag>" (see .github/workflows/release.yml);
+// non-release binaries report "dev".
+var version = "dev"
+
 func main() {
+	// "northwatch --version" (also -version / version) prints the build version
+	// and exits. This is intercepted before run(), because config.Parse rejects
+	// invocations without NB/SB addresses.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--version", "-version", "version":
+			fmt.Println("northwatch " + version)
+			return
+		}
+	}
+
 	// Stage 1 of the offline workflow: "northwatch snapshot" captures the live
 	// NB/SB databases to a file. Without the subcommand we run the server.
 	if len(os.Args) > 1 && os.Args[1] == "snapshot" {
