@@ -421,49 +421,56 @@ func (e *Engine) readCurrentState(ctx context.Context, table, uuid string) (map[
 	return api.ModelToMap(modelPtr.Interface()), nil
 }
 
-// buildOVSDBOps converts WriteOperations into raw ovsdb.Operation structs.
-func (e *Engine) buildOVSDBOps(ops []WriteOperation) ([]ovsdb.Operation, error) {
+// buildOVSDBOps converts WriteOperations into ovsdb.Operation structs using the
+// libovsdb client's typed mapper, so map/set/reference columns are wire-encoded
+// as RFC 7047 ["map",...]/["set",...]/["uuid",...] rather than plain JSON. Row
+// construction is delegated to MapToModel + the client's Create/Update/Delete.
+func (e *Engine) buildOVSDBOps(c client.Client, ops []WriteOperation) ([]ovsdb.Operation, error) {
 	var ovsdbOps []ovsdb.Operation
 
 	for _, op := range ops {
+		spec, err := e.registry.Get(op.Table)
+		if err != nil {
+			return nil, err
+		}
+
 		switch op.Action {
 		case "create":
-			row := make(map[string]interface{})
-			for k, v := range op.Fields {
-				row[k] = toOVSDBValue(v)
+			m, err := MapToModel(op.Fields, spec.ModelType)
+			if err != nil {
+				return nil, fmt.Errorf("building %s row: %w", op.Table, err)
 			}
-			ovsdbOps = append(ovsdbOps, ovsdb.Operation{
-				Op:    "insert",
-				Table: op.Table,
-				Row:   row,
-			})
+			created, err := c.Create(m)
+			if err != nil {
+				return nil, fmt.Errorf("encoding create for %s: %w", op.Table, err)
+			}
+			ovsdbOps = append(ovsdbOps, created...)
 
 		case "update":
-			row := make(map[string]interface{})
-			for k, v := range op.Fields {
-				row[k] = toOVSDBValue(v)
+			m, err := hydrateWithUUID(op.Fields, op.UUID, spec.ModelType)
+			if err != nil {
+				return nil, fmt.Errorf("building %s row: %w", op.Table, err)
 			}
-			ovsdbOps = append(ovsdbOps, ovsdb.Operation{
-				Op:    "update",
-				Table: op.Table,
-				Where: []ovsdb.Condition{{
-					Column:   "_uuid",
-					Function: ovsdb.ConditionEqual,
-					Value:    ovsdb.UUID{GoUUID: op.UUID},
-				}},
-				Row: row,
-			})
+			ptrs, err := fieldPointersByTag(m, fieldTags(op.Fields))
+			if err != nil {
+				return nil, fmt.Errorf("resolving update fields for %s: %w", op.Table, err)
+			}
+			updated, err := c.Where(m).Update(m, ptrs...)
+			if err != nil {
+				return nil, fmt.Errorf("encoding update for %s/%s: %w", op.Table, op.UUID, err)
+			}
+			ovsdbOps = append(ovsdbOps, updated...)
 
 		case "delete":
-			ovsdbOps = append(ovsdbOps, ovsdb.Operation{
-				Op:    "delete",
-				Table: op.Table,
-				Where: []ovsdb.Condition{{
-					Column:   "_uuid",
-					Function: ovsdb.ConditionEqual,
-					Value:    ovsdb.UUID{GoUUID: op.UUID},
-				}},
-			})
+			m, err := hydrateWithUUID(nil, op.UUID, spec.ModelType)
+			if err != nil {
+				return nil, fmt.Errorf("building %s row: %w", op.Table, err)
+			}
+			deleted, err := c.Where(m).Delete()
+			if err != nil {
+				return nil, fmt.Errorf("encoding delete for %s/%s: %w", op.Table, op.UUID, err)
+			}
+			ovsdbOps = append(ovsdbOps, deleted...)
 
 		default:
 			return nil, fmt.Errorf("unknown action %q", op.Action)
@@ -473,20 +480,24 @@ func (e *Engine) buildOVSDBOps(ops []WriteOperation) ([]ovsdb.Operation, error) 
 	return ovsdbOps, nil
 }
 
-// toOVSDBValue converts Go native types to OVSDB wire types where needed.
-// In particular, map[string]string must be converted to ovsdb.OvsMap for
-// the libovsdb server to accept it.
-func toOVSDBValue(v any) any {
-	switch m := v.(type) {
-	case map[string]string:
-		goMap := make(map[any]any, len(m))
-		for k, val := range m {
-			goMap[k] = val
-		}
-		return ovsdb.OvsMap{GoMap: goMap}
-	default:
-		return v
+// hydrateWithUUID builds a model from fields plus the given _uuid, so libovsdb's
+// Where(model) matches the row by UUID for update/delete operations.
+func hydrateWithUUID(fields map[string]any, uuid string, modelType reflect.Type) (any, error) {
+	merged := make(map[string]any, len(fields)+1)
+	for k, v := range fields {
+		merged[k] = v
 	}
+	merged["_uuid"] = uuid
+	return MapToModel(merged, modelType)
+}
+
+// fieldTags returns the ovsdb column tags (map keys) of an operation's fields.
+func fieldTags(fields map[string]any) []string {
+	tags := make([]string, 0, len(fields))
+	for k := range fields {
+		tags = append(tags, k)
+	}
+	return tags
 }
 
 // recordAudit persists an audit entry (best-effort).
@@ -563,7 +574,7 @@ func (e *Engine) clientForOps(ops []WriteOperation) (client.Client, error) {
 
 // transactOps builds OVSDB operations from WriteOperations and transacts them on the given client.
 func (e *Engine) transactOps(ctx context.Context, c client.Client, ops []WriteOperation) error {
-	ovsdbOps, err := e.buildOVSDBOps(ops)
+	ovsdbOps, err := e.buildOVSDBOps(c, ops)
 	if err != nil {
 		return fmt.Errorf("building OVSDB operations: %w", err)
 	}
