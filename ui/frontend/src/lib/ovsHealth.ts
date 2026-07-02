@@ -6,11 +6,11 @@
 import type { Variant } from './status';
 import type { OvsChassisHealth, OvsFleetHealth } from './api';
 
-/** chassisProblems is the number of interfaces on a chassis that are down or
- * erroring — the count that flags a connected chassis in the picker beyond its
- * connection dot. */
+/** chassisProblems is the number of interfaces on a chassis that are down,
+ * erroring or dropping — the count that flags a connected chassis in the picker
+ * beyond its connection dot. */
 export function chassisProblems(m: OvsChassisHealth): number {
-  return m.down_interfaces + m.error_interfaces;
+  return m.down_interfaces + m.error_interfaces + m.drop_interfaces;
 }
 
 /** HealthTile is one overview summary tile. Its shape matches StatTiles' Tile so
@@ -54,7 +54,13 @@ export function fleetTiles(h: OvsFleetHealth): HealthTile[] {
       label: 'Errored',
       value: h.error_interfaces,
       variant: countVariant(h.error_interfaces, 'error'),
-      hint: 'interfaces with rx/tx errors or drops',
+      hint: 'interfaces whose rx/tx error counters increased',
+    },
+    {
+      label: 'Dropping',
+      value: h.drop_interfaces,
+      variant: countVariant(h.drop_interfaces, 'warning'),
+      hint: 'interfaces whose rx/tx drop counters increased',
     },
   ];
 }

@@ -234,7 +234,7 @@
           {#if m.connected && problems > 0}
             <span
               class="text-error"
-              title="{m.down_interfaces} down, {m.error_interfaces} erroring interface(s)"
+              title="{m.down_interfaces} down, {m.error_interfaces} erroring, {m.drop_interfaces} dropping interface(s)"
               >▲ {problems}</span
             >
           {/if}

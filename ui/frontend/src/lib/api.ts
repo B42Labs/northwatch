@@ -162,6 +162,7 @@ export interface OvsChassisHealth {
   interfaces: number;
   down_interfaces: number;
   error_interfaces: number;
+  drop_interfaces: number;
 }
 
 /** Aggregated fleet-wide OVS health: connection counts, summed
@@ -177,6 +178,7 @@ export interface OvsFleetHealth {
   interfaces: number;
   down_interfaces: number;
   error_interfaces: number;
+  drop_interfaces: number;
   members: OvsChassisHealth[];
 }
 
