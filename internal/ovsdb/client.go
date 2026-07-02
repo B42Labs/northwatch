@@ -160,12 +160,18 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 	}()
 	wg.Wait()
 
+	// On any failure close BOTH clients: a client whose own Connect/monitor
+	// failed is not closed by connectAndMonitor, so closing only the peer would
+	// leak the failed client's reconnect state. snapshotsession calls Connect at
+	// runtime per load, so a leak accumulates.
 	if nbErr != nil {
+		nbClient.Close()
 		sbClient.Close()
 		return nil, fmt.Errorf("connecting to NB: %w", nbErr)
 	}
 	if sbErr != nil {
 		nbClient.Close()
+		sbClient.Close()
 		return nil, fmt.Errorf("connecting to SB: %w", sbErr)
 	}
 
@@ -265,7 +271,8 @@ func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbMode
 
 	cookies, err := startMonitor(ctx, c, dbModel, mon)
 	if err != nil {
-		c.Close()
+		// Do not close here: Connect closes both clients on any error path, so
+		// cleanup is centralized and never double-closes.
 		return nil, fmt.Errorf("monitoring %s: %w", addr, err)
 	}
 
