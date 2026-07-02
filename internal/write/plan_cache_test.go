@@ -78,6 +78,22 @@ func TestPlanCache_Cleanup(t *testing.T) {
 	assert.False(t, okB)
 }
 
+func TestPlanCache_GetReturnsCopy(t *testing.T) {
+	cache := NewPlanCache(5 * time.Minute)
+	cache.Store(&Plan{ID: "plan-copy", Status: "pending"})
+
+	first, ok := cache.Get("plan-copy")
+	require.True(t, ok)
+	// Mutating a returned plan must not affect the cached entry or a
+	// concurrent reader (the plan-cache serialize race).
+	first.Status = "applied"
+
+	second, ok := cache.Get("plan-copy")
+	require.True(t, ok)
+	assert.Equal(t, "pending", second.Status)
+	assert.NotSame(t, first, second, "Get must return distinct pointers")
+}
+
 func TestPlanCache_StoreUpdatesExpiry(t *testing.T) {
 	cache := NewPlanCache(1 * time.Hour)
 
