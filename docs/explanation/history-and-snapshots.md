@@ -44,6 +44,31 @@ multi-cluster, and suspends the live OVN monitors while it is loaded (resuming
 them on eject). This is why the snapshot becomes browsable instantly and why the
 live view pauses rather than competing with it.
 
+While a snapshot session is loaded, suspending the live monitors purges the
+default cluster's caches. To keep this from corrupting monitoring data, the
+subsystems bound to those caches are paused for the duration:
+
+- **Auto-snapshots** and **event persistence** are skipped, so no empty "auto"
+  history snapshot is recorded and the re-population events emitted on resume are
+  not persisted.
+- **Alert evaluation** is short-circuited, so the 100% cache drop does not fire
+  `flow_count_anomaly` (or its webhook) and active alerts are preserved.
+- **Flow-diff** collection drops events, so the purge and re-add are not recorded
+  as a flow anomaly.
+
+`/readyz` reflects the suspension by returning `503` while a snapshot is loaded,
+and live data responses carry an `X-Northwatch-Stale: true` header. Note that a
+**manual** `POST /api/v1/history/snapshots` and the write-engine preview still
+run against the purged cache while suspended — writing or capturing while a
+snapshot session is loaded is an operator error.
+
+Loaded sessions are capped (default 4; a further load returns `409`) because each
+keeps two in-memory OVSDB servers and full client caches resident until unloaded.
+On unload the backing servers are kept alive for a short drain grace so in-flight
+requests finish before their state is torn down. A capture from a churning
+production database can reference a row deleted between the per-table reads; such
+dangling references are pruned on load rather than failing the load wholesale.
+
 ## Offline replay
 
 The standalone offline mode (`--snapshot <file>`) reuses the exact same idea at

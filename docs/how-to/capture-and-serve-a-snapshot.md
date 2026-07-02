@@ -67,6 +67,13 @@ curl -s -X POST http://localhost:8080/api/v1/snapshots/<id>/load
 curl -s -X POST http://localhost:8080/api/v1/snapshots/<id>/unload
 ```
 
+While a snapshot is loaded, `/readyz` returns `503` and the history, alert and
+flow-diff collectors are paused so the suspended live view does not record bogus
+data. Loaded sessions are capped (a further load returns `409`). A capture from a
+churning database can reference rows deleted between reads; those dangling
+references are pruned on load rather than failing the load. See [History &
+snapshots](/explanation/history-and-snapshots#loading-a-snapshot-at-runtime).
+
 You can also import a previously exported snapshot file:
 
 ```bash

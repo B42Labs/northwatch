@@ -70,6 +70,23 @@ curl -s -X POST http://localhost:8080/api/v1/write/rollback    # roll back a cha
 curl -s -X POST http://localhost:8080/api/v1/write/restore     # restore prior state
 ```
 
+`rollback` restores changed fields on rows that still exist; rows deleted since
+the snapshot are reported in the plan's `warnings` (they are not recreated). See
+[Write safety](/explanation/write-safety#rollback-restores-changed-fields-only).
+
+## Status codes
+
+The write endpoints use precise status codes so a client can react correctly:
+
+| Status | Meaning |
+| ------ | ------- |
+| `200`  | Success (preview/dry-run/apply/rollback returned a result) |
+| `400`  | Invalid request — malformed body, unknown field, missing/nonexistent reference |
+| `404`  | Plan or audit entry not found or expired |
+| `409`  | Plan preconditions no longer hold — a target row changed since preview |
+| `429`  | Rate limit exceeded (`--write-rate-limit`); applies to dry-run too |
+| `500`  | Server-side/infrastructure failure |
+
 ## Audit log
 
 Every applied mutation is recorded with timestamp and before/after state:

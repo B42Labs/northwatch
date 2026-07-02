@@ -28,19 +28,44 @@ Writes are a two-phase workflow rather than a single mutating call:
 Separating the decision ("this is the change") from the action ("apply it now")
 is what makes a preview meaningful: the thing you reviewed is the thing that runs.
 
+Because a plan can be applied up to `--write-plan-ttl` after it was previewed,
+apply re-validates the plan against the live database and asserts — with OVSDB
+`wait` operations — that each target row still holds the values captured at
+preview time. If a targeted row changed or was deleted in the meantime, apply
+aborts with a `409 Conflict` (`plan preconditions no longer hold`) rather than
+silently applying against a row that has moved on.
+
+## Rollback restores changed fields only
+
+Rollback compares a stored snapshot to the live NB state and produces a preview
+plan that restores the fields that changed — on rows that **still exist**. It is
+deliberately narrow:
+
+- Rows **deleted** since the snapshot are **not** recreated. Recreating a row
+  gives it a new server-assigned UUID, which would dangle every reference to the
+  old UUID (e.g. `Logical_Switch.ports`). Such rows are listed in the plan's
+  `warnings` instead.
+- Rows **created** after the snapshot are left untouched.
+
+Rollback is therefore a "restore what changed" operation, not a full
+point-in-time revert.
+
 ## Audit log
 
 Every applied mutation is recorded with a timestamp and the before/after state,
 queryable at `/api/v1/write/audit`. Combined with the history store's automatic
 snapshots, this gives you both "what was changed, by which operation" and "what
-the whole deployment looked like around then."
+the whole deployment looked like around then." A failure to persist an audit
+entry is logged (the mutation itself has already been applied), so a lost audit
+trail is at least diagnosable rather than silent.
 
 ## Rate limiting
 
 Applied writes are bounded by `--write-rate-limit` (default `30` per minute). This
 is a blast-radius limit: it caps how fast an automated client — or a runaway loop —
 can change OVN, buying time to notice and stop a bad actor before it has rewritten
-the deployment.
+the deployment. Preview, dry-run, apply, and rollback are all subject to the
+limit; a rejected request returns `429 Too Many Requests`.
 
 ## Operational actions
 
