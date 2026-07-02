@@ -345,6 +345,25 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 	return cookies, nil
 }
 
+// ConnectTimeout returns a connect deadline that accounts for staged monitor
+// loading. With the default (BatchDelay <= 0) it is base. When BatchDelay > 0,
+// startMonitor sleeps BatchDelay between each per-table monitor request, so the
+// initial cache load takes far longer than base; scale the deadline by the
+// number of tables. NB and SB stage concurrently, so use the larger of the two
+// table counts rather than their sum. This keeps a documented
+// --monitor-batch-delay (e.g. 1s on a huge database) from deterministically
+// exceeding a fixed startup timeout.
+func (m MonitorOptions) ConnectTimeout(base time.Duration, nbModel, sbModel model.ClientDBModel) time.Duration {
+	if m.BatchDelay <= 0 {
+		return base
+	}
+	n := len(monitoredTables(nbModel, m.SkipTables))
+	if s := len(monitoredTables(sbModel, m.SkipTables)); s > n {
+		n = s
+	}
+	return base + m.BatchDelay*time.Duration(n)
+}
+
 // monitoredTables returns the sorted table names of a database model, excluding
 // any whose name appears in skip. Sorting keeps the monitor order deterministic.
 func monitoredTables(dbModel model.ClientDBModel, skip []string) []string {
