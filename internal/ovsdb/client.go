@@ -368,9 +368,20 @@ func monitoredTables(dbModel model.ClientDBModel, skip []string) []string {
 }
 
 // Ready reports whether both NB and SB clients currently have an active
-// connection to their OVSDB servers.
+// connection to their OVSDB servers AND the monitors are not suspended. While a
+// snapshot session is loaded the live monitors are suspended and the caches are
+// purged, so a "connected but suspended" state must not read as ready — the data
+// routes would otherwise serve empty 200s and /readyz would stay green.
 func (d *OVNDatabases) Ready() bool {
-	return d.NB.Connected() && d.SB.Connected()
+	return d.NB.Connected() && d.SB.Connected() && !d.Suspended()
+}
+
+// Suspended reports whether the live NB/SB monitors are currently suspended
+// (see SuspendMonitors). Collectors and readiness checks gate on it.
+func (d *OVNDatabases) Suspended() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.suspended
 }
 
 // SuspendMonitors cancels the NB and SB table monitors so the live OVSDB servers

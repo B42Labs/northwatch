@@ -105,6 +105,42 @@ func TestConnect(t *testing.T) {
 	assert.True(t, dbs.Ready())
 }
 
+func TestReady_WhileSuspended(t *testing.T) {
+	nbAddr, nbCleanup := setupNBServer(t)
+	defer nbCleanup()
+	sbAddr, sbCleanup := setupSBServer(t)
+	defer sbCleanup()
+
+	nbModel, err := nb.FullDatabaseModel()
+	require.NoError(t, err)
+	sbModel, err := sb.FullDatabaseModel()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	require.NoError(t, err)
+	defer dbs.Close()
+
+	require.True(t, dbs.Ready())
+	require.False(t, dbs.Suspended())
+
+	// The in-memory test server does not implement MonitorCancel, so toggle the
+	// suspended flag directly to exercise the Ready()/Suspended() gating.
+	dbs.mu.Lock()
+	dbs.suspended = true
+	dbs.mu.Unlock()
+	assert.True(t, dbs.Suspended())
+	assert.False(t, dbs.Ready(), "Ready must be false while monitors are suspended")
+
+	dbs.mu.Lock()
+	dbs.suspended = false
+	dbs.mu.Unlock()
+	assert.False(t, dbs.Suspended())
+	assert.True(t, dbs.Ready())
+}
+
 func TestConnect_InvalidNBAddr(t *testing.T) {
 	nbAddr := fmt.Sprintf("unix:%s/nonexistent.sock", t.TempDir())
 
