@@ -1,5 +1,6 @@
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { NorthwatchWebSocket, type WsEvent, type WsState } from './websocket';
+import { clusterApiPrefix, activeClusterInfo } from './clusterStore';
 
 // Singleton WebSocket instance — created lazily on first subscription
 let wsInstance: NorthwatchWebSocket | null = null;
@@ -11,11 +12,25 @@ const HIGHLIGHT_DURATION = 5000;
 
 function getWsInstance(): NorthwatchWebSocket {
   if (!wsInstance) {
-    wsInstance = new NorthwatchWebSocket();
-    wsInstance.onStateChange((state) => {
+    const ws = new NorthwatchWebSocket();
+    wsInstance = ws;
+    ws.onStateChange((state) => {
       wsConnectionState.set(state);
     });
-    wsInstance.connect();
+    // Follow the active cluster: point the socket at the cluster's ws endpoint
+    // and reconnect on switch. Snapshot clusters serve no /ws route on their
+    // sub-mux, so disconnect while one is active.
+    derived([clusterApiPrefix, activeClusterInfo], ([$prefix, $info]) => ({
+      prefix: $prefix,
+      isSnapshot: $info?.mode === 'snapshot',
+    })).subscribe(({ prefix, isSnapshot }) => {
+      if (isSnapshot) {
+        ws.disconnect();
+      } else {
+        ws.setUrl(prefix);
+        ws.connect();
+      }
+    });
   }
   return wsInstance;
 }

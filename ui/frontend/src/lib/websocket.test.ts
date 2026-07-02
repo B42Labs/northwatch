@@ -196,4 +196,103 @@ describe('NorthwatchWebSocket', () => {
     expect(events).toHaveLength(0);
     ws.disconnect();
   });
+
+  function count(mock: MockWebSocket, action: string): number {
+    return mock.sentMessages.filter((m) => JSON.parse(m).action === action)
+      .length;
+  }
+
+  it('refcounts subscriptions so a second subscriber survives the first unsubscribe', () => {
+    const ws = new NorthwatchWebSocket('ws://localhost/api/v1/ws');
+    ws.connect();
+    const mock = MockWebSocket.instances[0];
+    mock.simulateOpen();
+
+    ws.subscribe('nb', ['Logical_Switch']);
+    ws.subscribe('nb', ['Logical_Switch']);
+
+    // subscribe sent once for two subscribers (no duplicate pending entry)
+    expect(count(mock, 'subscribe')).toBe(1);
+
+    // first unsubscribe: still one subscriber, no unsubscribe sent
+    ws.unsubscribe('nb', ['Logical_Switch']);
+    expect(count(mock, 'unsubscribe')).toBe(0);
+
+    // second unsubscribe: last subscriber leaves, unsubscribe sent once
+    ws.unsubscribe('nb', ['Logical_Switch']);
+    expect(count(mock, 'unsubscribe')).toBe(1);
+
+    ws.disconnect();
+  });
+
+  it('dedups subscriptions independent of table order and resends each once', () => {
+    const ws = new NorthwatchWebSocket('ws://localhost/api/v1/ws');
+    ws.connect();
+    MockWebSocket.instances[0].simulateOpen();
+
+    ws.subscribe('nb', ['A', 'B']);
+    ws.subscribe('nb', ['B', 'A']); // same set, reversed order
+
+    expect(count(MockWebSocket.instances[0], 'subscribe')).toBe(1);
+
+    // Reconnect and confirm the single entry is resent exactly once.
+    MockWebSocket.instances[0].simulateClose();
+    vi.advanceTimersByTime(1500);
+    MockWebSocket.instances[1].simulateOpen();
+
+    expect(count(MockWebSocket.instances[1], 'subscribe')).toBe(1);
+
+    ws.disconnect();
+  });
+
+  it('setUrl reconnects to the new cluster prefix and re-sends active subscriptions', () => {
+    const ws = new NorthwatchWebSocket('ws://localhost/api/v1/ws');
+    ws.connect();
+    MockWebSocket.instances[0].simulateOpen();
+    ws.subscribe('nb', ['Logical_Switch']);
+
+    ws.setUrl('/api/v1/clusters/prod');
+
+    // A fresh socket is opened against the cluster's ws endpoint.
+    expect(MockWebSocket.instances).toHaveLength(2);
+    expect(MockWebSocket.instances[1].url).toContain(
+      '/api/v1/clusters/prod/ws',
+    );
+
+    MockWebSocket.instances[1].simulateOpen();
+    expect(count(MockWebSocket.instances[1], 'subscribe')).toBe(1);
+
+    ws.disconnect();
+  });
+
+  it('setUrl is a no-op when the resolved url is unchanged', () => {
+    const ws = new NorthwatchWebSocket();
+    ws.connect();
+    MockWebSocket.instances[0].simulateOpen();
+
+    ws.setUrl(''); // default prefix — resolves to the current url
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    ws.disconnect();
+  });
+
+  it('sends client pings on an interval while connected', () => {
+    const ws = new NorthwatchWebSocket('ws://localhost/api/v1/ws');
+    ws.connect();
+    const mock = MockWebSocket.instances[0];
+    mock.simulateOpen();
+
+    expect(count(mock, 'ping')).toBe(0);
+
+    vi.advanceTimersByTime(30000);
+    expect(count(mock, 'ping')).toBe(1);
+
+    vi.advanceTimersByTime(30000);
+    expect(count(mock, 'ping')).toBe(2);
+
+    // No further pings after disconnect clears the interval.
+    ws.disconnect();
+    vi.advanceTimersByTime(60000);
+    expect(count(mock, 'ping')).toBe(2);
+  });
 });
