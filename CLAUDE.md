@@ -2,7 +2,7 @@
 
 ## What is this?
 
-Northwatch is a Go service that connects to OVN Northbound and Southbound OVSDB databases and provides a REST API for browsing, debugging, and monitoring OVN deployments.
+Northwatch is a Go service that connects to OVN Northbound and Southbound OVSDB databases and provides a REST API — plus an embedded Svelte web UI — for browsing, debugging, and monitoring OVN deployments. Most routes are read-only; an opt-in write API (`--write-enabled`) performs guarded mutations against OVN NB.
 
 ## Build & Test
 
@@ -31,21 +31,60 @@ make schema-download # Download pinned OVN schemas
 
 ## Project Layout
 
-- `cmd/northwatch/` — entry point
-- `internal/config/` — CLI flags + env var parsing
-- `internal/ovsdb/` — OVSDB client connection and model definitions
-- `internal/ovsdb/nb/` — generated Northbound models
-- `internal/ovsdb/sb/` — generated Southbound models
-- `internal/api/` — HTTP server, JSON response helpers
-- `internal/api/handler/` — route handlers
-- `internal/search/` — cross-database search engine
+`cmd/`:
+
+- `cmd/northwatch/` — server entry point (+ the `snapshot` subcommand)
+- `cmd/ovnsim/` — OVN load generator for the lab (seed/run/bind/unbind/clean)
+- `cmd/openapi-export/` — writes the OpenAPI spec to stdout
+
+`internal/`:
+
+- `config/` — CLI flags + env vars + JSON multi-cluster config file
+- `ovsdb/` — libovsdb client, connection & monitor management, per-chassis
+  OVS connection pool; `nb/`, `sb/`, `vs/` hold the generated models
+- `api/` — HTTP server + JSON response helpers; `api/handler/` — route
+  handlers (one file per feature area)
+- `cluster/` — multi-cluster registry
+- `search/` — cross-database search engine
+- `correlate/` — NB↔SB entity correlation
+- `inventory/` — aggregated SB chassis inventory + liveness
+- `enrich/` — enrichment providers (OpenStack, Kubernetes) + cache
+- `events/` — OVSDB-change event hub / bridge
+- `debug/` — connectivity, port diagnostics, ACL audit, stale detection
+- `gateway/` — gateway / HA-chassis health
+- `router/` — routing helpers (next-hop, static routes)
+- `impact/` — impact analysis for an entity
+- `flowdiff/` — real-time logical-flow diffing
+- `telemetry/` — Prometheus collector, propagation tracking
+- `alert/` — alert engine, rules, webhook notifier
+- `history/` — SQLite event log + periodic snapshots
+- `snapshot/` — snapshot capture / serve (offline mode)
+- `snapshotsession/` — load a stored snapshot as a runtime cluster
+- `write/` — write engine: plans, preview, audit, rate limit
+- `ovscorrelate/` — correlate live OVS state with OVN intent
+- `ovshealth/` — fleet-wide OVS health aggregation
+- `openapi/` — OpenAPI 3.1 spec builder
+- `ovnsim/` — OVN lab load-generator implementation
+- `testutil/` — shared test helpers
+- `ui/` — `embed.FS` for the built assets (`ui/frontend/` is the Svelte +
+  TypeScript SPA)
 
 ## API Routes
 
-All routes are read-only. Pattern: `GET /api/v1/{db}/{table}` for list, `GET /api/v1/{db}/{table}/{uuid}` for detail.
+Read routes follow `GET /api/v1/{db}/{table}` for list and
+`GET /api/v1/{db}/{table}/{uuid}` for detail. Mutating routes also exist: the
+write API under `/api/v1/write/*` (including failover/evacuate/restore),
+registered only with `--write-enabled`; and alert rule/silence mutations,
+history operations, and snapshot create/delete/import/load/unload, registered
+unconditionally.
 
 ## Testing
 
-- All tests: `go test -race ./...`
-- OVSDB integration tests use libovsdb's in-memory test server — no real OVN needed
-- Coverage target: 70% overall, 85%+ for core packages
+- All tests: `go test -race ./...` (also run in CI).
+- OVSDB integration tests use libovsdb's in-memory test server — no real OVN
+  needed.
+- Coverage: CI enforces a 70% overall gate (the generated
+  `internal/ovsdb/{nb,sb,vs}` packages are excluded from the coverage set);
+  no per-package threshold is enforced.
+- Frontend gates (in `ui/frontend`): `npm run lint`, `npm run format:check`,
+  `npm run check` (svelte-check), and `npm run test` (vitest).
