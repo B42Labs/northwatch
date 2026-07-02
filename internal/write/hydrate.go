@@ -43,10 +43,54 @@ func MapToModel(fields map[string]any, modelType reflect.Type) (any, error) {
 	return result, nil
 }
 
+// fieldPointersByTag returns the addresses of the struct fields identified by the
+// given ovsdb column tags, in the same order. model must be a pointer to a struct
+// (as returned by MapToModel). The returned pointers are used to select which
+// columns a libovsdb Update or Wait operation applies to.
+func fieldPointersByTag(model any, tags []string) ([]any, error) {
+	v := reflect.ValueOf(model)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	t := v.Type()
+
+	tagIndex := make(map[string]int)
+	for i := 0; i < t.NumField(); i++ {
+		tag := t.Field(i).Tag.Get("ovsdb")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		if idx := strings.Index(tag, ","); idx != -1 {
+			tag = tag[:idx]
+		}
+		tagIndex[tag] = i
+	}
+
+	ptrs := make([]any, 0, len(tags))
+	for _, tag := range tags {
+		i, ok := tagIndex[tag]
+		if !ok {
+			return nil, fmt.Errorf("unknown field %q", tag)
+		}
+		ptrs = append(ptrs, v.Field(i).Addr().Interface())
+	}
+	return ptrs, nil
+}
+
 // setField assigns rawVal to a reflect.Value, performing necessary type conversions.
 func setField(field reflect.Value, rawVal any) error {
 	if rawVal == nil {
 		return nil
+	}
+
+	// Dereference pointer inputs. api.ModelToMap emits raw field values, so a
+	// snapshot/current-state map keyed by ovsdb tag carries *string/*int/*bool
+	// for optional columns; unwrap them before matching against the target field.
+	if rv := reflect.ValueOf(rawVal); rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil
+		}
+		return setField(field, rv.Elem().Interface())
 	}
 
 	fieldType := field.Type()
