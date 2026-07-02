@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -21,6 +22,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// serveUnixSocket starts srv on a unix socket named sockName and returns the
+// socket path once the server is ready.
+//
+// The socket directory is created with os.MkdirTemp("", "nw") rather than
+// t.TempDir(): t.TempDir() derives its path from the test name, and a long test
+// name pushes the socket path past the macOS sun_path limit of 104 bytes, so
+// bind() fails. The Serve error is propagated through a channel and surfaced via
+// t.Fatalf — rather than discarded — so a future bind failure is diagnosable
+// instead of surfacing only as a Ready() timeout. Mirrors the runtime pattern in
+// internal/snapshot/snapshot.go.
+func serveUnixSocket(t *testing.T, srv *server.OvsdbServer, sockName string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "nw")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sockPath := filepath.Join(dir, sockName)
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Serve("unix", sockPath) }()
+	t.Cleanup(func() { srv.Close() })
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		select {
+		case err := <-errCh:
+			t.Fatalf("serving %s on %s: %v", sockName, sockPath, err)
+		default:
+		}
+		if srv.Ready() {
+			return sockPath
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s server on %s to become ready", sockName, sockPath)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // SetupNBTestClient creates an in-memory NB OVSDB test server and returns a connected client.
 func SetupNBTestClient(t *testing.T) client.Client {
 	t.Helper()
@@ -33,10 +72,7 @@ func SetupNBTestClient(t *testing.T) client.Client {
 	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
 	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
 	require.NoError(t, err)
-	sockPath := filepath.Join(t.TempDir(), "nb.sock")
-	go func() { _ = ovsdbServer.Serve("unix", sockPath) }()
-	require.Eventually(t, func() bool { return ovsdbServer.Ready() }, 5*time.Second, 10*time.Millisecond)
-	t.Cleanup(func() { ovsdbServer.Close() })
+	sockPath := serveUnixSocket(t, ovsdbServer, "nb.sock")
 	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
 	require.NoError(t, err)
 	require.NoError(t, c.Connect(context.Background()))
@@ -58,10 +94,7 @@ func SetupSBTestClient(t *testing.T) client.Client {
 	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
 	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
 	require.NoError(t, err)
-	sockPath := filepath.Join(t.TempDir(), "sb.sock")
-	go func() { _ = ovsdbServer.Serve("unix", sockPath) }()
-	require.Eventually(t, func() bool { return ovsdbServer.Ready() }, 5*time.Second, 10*time.Millisecond)
-	t.Cleanup(func() { ovsdbServer.Close() })
+	sockPath := serveUnixSocket(t, ovsdbServer, "sb.sock")
 	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
 	require.NoError(t, err)
 	require.NoError(t, c.Connect(context.Background()))
@@ -85,10 +118,7 @@ func SetupOVSTestServer(t *testing.T) (string, client.Client) {
 	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
 	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
 	require.NoError(t, err)
-	sockPath := filepath.Join(t.TempDir(), "ovs.sock")
-	go func() { _ = ovsdbServer.Serve("unix", sockPath) }()
-	require.Eventually(t, func() bool { return ovsdbServer.Ready() }, 5*time.Second, 10*time.Millisecond)
-	t.Cleanup(func() { ovsdbServer.Close() })
+	sockPath := serveUnixSocket(t, ovsdbServer, "ovs.sock")
 	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
 	require.NoError(t, err)
 	require.NoError(t, c.Connect(context.Background()))
@@ -322,10 +352,7 @@ func SetupServerMonitorTestClient(t *testing.T, rows ...serverdb.Database) clien
 	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
 	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
 	require.NoError(t, err)
-	sockPath := filepath.Join(t.TempDir(), "server.sock")
-	go func() { _ = ovsdbServer.Serve("unix", sockPath) }()
-	require.Eventually(t, func() bool { return ovsdbServer.Ready() }, 5*time.Second, 10*time.Millisecond)
-	t.Cleanup(func() { ovsdbServer.Close() })
+	sockPath := serveUnixSocket(t, ovsdbServer, "server.sock")
 	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
 	require.NoError(t, err)
 	require.NoError(t, c.Connect(context.Background()))
