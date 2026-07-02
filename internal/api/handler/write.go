@@ -104,6 +104,7 @@ type planView struct {
 	SnapshotID int64                  `json:"snapshot_id"`
 	Status     string                 `json:"status"`
 	Impact     []write.ImpactEntry    `json:"impact,omitempty"`
+	Warnings   []string               `json:"warnings,omitempty"`
 }
 
 func handleGetPlan(engine *write.Engine) http.HandlerFunc {
@@ -129,6 +130,7 @@ func handleGetPlan(engine *write.Engine) http.HandlerFunc {
 			SnapshotID: plan.SnapshotID,
 			Status:     plan.Status,
 			Impact:     plan.Impact,
+			Warnings:   plan.Warnings,
 		})
 	}
 }

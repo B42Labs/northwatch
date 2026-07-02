@@ -47,6 +47,7 @@ type Plan struct {
 	Status     string           `json:"status"` // "pending", "applied", "expired", "failed", "dry-run"
 	ApplyToken string           `json:"apply_token"`
 	Impact     []ImpactEntry    `json:"impact,omitempty"`
+	Warnings   []string         `json:"warnings,omitempty"` // rollback limitations (e.g. rows that cannot be recreated)
 }
 
 // ImpactEntry holds the impact analysis for a single delete operation within a plan.

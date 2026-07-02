@@ -3,9 +3,13 @@ package write
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/b42labs/northwatch/internal/api"
+	"github.com/b42labs/northwatch/internal/history"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/ovn-kubernetes/libovsdb/client"
@@ -13,6 +17,36 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// setupRollbackEngine builds an engine whose history collector captures
+// Logical_Switch rows from nbClient, so snapshots have real NB data to roll
+// back against.
+func setupRollbackEngine(t *testing.T, nbClient client.Client) *Engine {
+	t.Helper()
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	historyStore, err := history.NewStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = historyStore.Close() })
+
+	sources := []history.TableSource{{
+		Database: "nb",
+		Table:    "Logical_Switch",
+		ListFunc: func(ctx context.Context) ([]map[string]any, error) {
+			var switches []nb.LogicalSwitch
+			if err := nbClient.List(ctx, &switches); err != nil {
+				return nil, err
+			}
+			return api.ModelsToMaps(&switches), nil
+		},
+	}}
+	collector := history.NewCollector(historyStore, nil, sources, time.Hour, time.Hour)
+
+	auditStore, err := NewAuditStore(context.Background(), historyStore.DB())
+	require.NoError(t, err)
+	engine, err := NewEngine(nbClient, nil, DefaultRegistry(), collector, auditStore, 5*time.Minute, 0)
+	require.NoError(t, err)
+	return engine
+}
 
 // jsonFields builds an operation Fields map from a JSON literal so values arrive
 // as map[string]any/[]any/float64/string, exactly as they would after HTTP decoding.
@@ -225,6 +259,60 @@ func TestEngineApplyStaleState(t *testing.T) {
 
 		_, err = engine.Apply(context.Background(), plan.ID, plan.ApplyToken, "tester")
 		require.ErrorIs(t, err, ErrStaleState)
+	})
+}
+
+// TestEngineRollbackRestoresFields verifies rollback restores a changed field on
+// an existing row and reports (rather than recreates) rows deleted since the
+// snapshot.
+func TestEngineRollbackRestoresFields(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	engine := setupRollbackEngine(t, nbClient)
+	ctx := context.Background()
+
+	t.Run("restores a changed field", func(t *testing.T) {
+		uuid := testutil.InsertLogicalSwitch(t, nbClient, "ls-rollback")
+		setLSExternalIDs(t, nbClient, uuid, map[string]string{"state": "original"})
+
+		snap, err := engine.collector.TakeSnapshot(ctx, "test", "")
+		require.NoError(t, err)
+
+		// Diverge from the snapshot.
+		setLSExternalIDs(t, nbClient, uuid, map[string]string{"state": "changed"})
+
+		plan, err := engine.Rollback(ctx, snap.ID, "tester", "restore")
+		require.NoError(t, err)
+		require.Len(t, plan.Operations, 1, "exactly one field-restoring update expected")
+		assert.Equal(t, "update", plan.Operations[0].Action)
+
+		_, err = engine.Apply(ctx, plan.ID, plan.ApplyToken, "tester")
+		require.NoError(t, err)
+
+		ls := getLogicalSwitch(t, nbClient, uuid)
+		assert.Equal(t, map[string]string{"state": "original"}, ls.ExternalIDs)
+	})
+
+	t.Run("reports deleted rows instead of recreating", func(t *testing.T) {
+		uuid := testutil.InsertLogicalSwitch(t, nbClient, "ls-deleted")
+
+		snap, err := engine.collector.TakeSnapshot(ctx, "test", "")
+		require.NoError(t, err)
+
+		deleteLS(t, nbClient, uuid)
+
+		plan, err := engine.Rollback(ctx, snap.ID, "tester", "restore")
+		require.NoError(t, err)
+		require.NotEmpty(t, plan.Warnings)
+		var mentioned bool
+		for _, w := range plan.Warnings {
+			if strings.Contains(w, "recreation is not supported") {
+				mentioned = true
+			}
+		}
+		assert.True(t, mentioned, "expected a non-recreation warning, got %v", plan.Warnings)
+		for _, op := range plan.Operations {
+			assert.NotEqual(t, "create", op.Action, "deleted rows must not be recreated")
+		}
 	})
 }
 
