@@ -310,7 +310,7 @@ func HAFailover(sbClient client.Client) Rule {
 				prevChassis, existed := lastActive[groupUUID]
 				if existed && prevChassis != currentChassis {
 					// Failover detected
-					groupName := groupUUID[:8]
+					groupName := shortID(groupUUID)
 					for _, g := range groups {
 						if g.UUID == groupUUID {
 							groupName = g.Name
@@ -319,11 +319,11 @@ func HAFailover(sbClient client.Client) Rule {
 					}
 					prevName := chassisNames[prevChassis]
 					if prevName == "" {
-						prevName = prevChassis[:8]
+						prevName = shortID(prevChassis)
 					}
 					currentName := chassisNames[currentChassis]
 					if currentName == "" {
-						currentName = currentChassis[:8]
+						currentName = shortID(currentChassis)
 					}
 
 					alerts = append(alerts, Alert{
@@ -351,4 +351,14 @@ func portType(t string) string {
 		return "VIF"
 	}
 	return t
+}
+
+// shortID returns the first 8 runes of an identifier for display, guarding
+// against strings shorter than 8 (a raw s[:8] panics on those).
+func shortID(s string) string {
+	r := []rune(s)
+	if len(r) <= 8 {
+		return s
+	}
+	return string(r[:8])
 }

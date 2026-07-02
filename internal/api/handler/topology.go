@@ -273,7 +273,7 @@ func buildTopologyNodes(input topologyData, idx topologyIndex) []TopologyNode {
 	for _, s := range input.switches {
 		label := s.Name
 		if label == "" {
-			label = s.UUID[:8]
+			label = truncateLabel(s.UUID, 8)
 		}
 		nodes = append(nodes, TopologyNode{
 			ID:    s.UUID,
@@ -286,7 +286,7 @@ func buildTopologyNodes(input topologyData, idx topologyIndex) []TopologyNode {
 	for _, r := range input.routers {
 		label := r.Name
 		if label == "" {
-			label = r.UUID[:8]
+			label = truncateLabel(r.UUID, 8)
 		}
 		nodes = append(nodes, TopologyNode{
 			ID:    r.UUID,
@@ -306,7 +306,7 @@ func buildTopologyNodes(input topologyData, idx topologyIndex) []TopologyNode {
 			label = c.Hostname
 		}
 		if label == "" {
-			label = c.UUID[:8]
+			label = truncateLabel(c.UUID, 8)
 		}
 		var meta map[string]string
 		if idx.gatewayChassis[c.UUID] {
@@ -411,10 +411,7 @@ func addVMPorts(input topologyData, idx topologyIndex, nodes []TopologyNode, edg
 		}
 
 		// Label: prefer IP from neutron:cidrs, else short port name.
-		label := pb.LogicalPort
-		if len(label) > 8 {
-			label = label[:8]
-		}
+		label := truncateLabel(pb.LogicalPort, 8)
 		if cidrs, ok := pb.ExternalIDs["neutron:cidrs"]; ok && cidrs != "" {
 			label = cidrs
 		}
@@ -463,4 +460,15 @@ func edgeKey(a, b string) string {
 		return a + "|" + b
 	}
 	return b + "|" + a
+}
+
+// truncateLabel returns at most max runes of s. Operating on runes (not bytes)
+// keeps a multi-byte label from being split mid-rune, and the length guard makes
+// it safe on strings shorter than max (a raw s[:max] panics on those).
+func truncateLabel(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
 }

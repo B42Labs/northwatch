@@ -38,7 +38,7 @@ func TestAlerts_Rules(t *testing.T) {
 		Name:        "test_rule",
 		Description: "A test rule",
 		Severity:    alert.SeverityWarning,
-		Check:       func(ctx context.Context) []alert.Alert { return nil },
+		Check:       func(ctx context.Context) ([]alert.Alert, error) { return nil, nil },
 	})
 
 	mux := http.NewServeMux()
@@ -63,7 +63,7 @@ func TestAlerts_SetRuleEnabled(t *testing.T) {
 	engine.RegisterRule(alert.Rule{
 		Name:     "my_rule",
 		Severity: alert.SeverityWarning,
-		Check:    func(ctx context.Context) []alert.Alert { return nil },
+		Check:    func(ctx context.Context) ([]alert.Alert, error) { return nil, nil },
 	})
 
 	mux := http.NewServeMux()
@@ -108,7 +108,7 @@ func TestAlerts_SetRuleEnabled_NotFound(t *testing.T) {
 
 func TestAlerts_SetRuleEnabled_InvalidBody(t *testing.T) {
 	engine := alert.NewEngine(nil, 30*time.Second)
-	engine.RegisterRule(alert.Rule{Name: "r1", Check: func(ctx context.Context) []alert.Alert { return nil }})
+	engine.RegisterRule(alert.Rule{Name: "r1", Check: func(ctx context.Context) ([]alert.Alert, error) { return nil, nil }})
 
 	mux := http.NewServeMux()
 	RegisterAlerts(mux, engine)
