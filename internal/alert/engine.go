@@ -193,17 +193,31 @@ func (e *Engine) evaluate(ctx context.Context) {
 			// Hold the write lock for the entire check-and-insert so two
 			// concurrent evaluations cannot both insert the same alert.
 			e.mu.Lock()
-			_, exists := e.active[fp]
+			stored, exists := e.active[fp]
 			if !exists {
 				a.State = StateFiring
 				a.FiredAt = now
-				e.active[fp] = a
+				stored = a
+			}
+			silenced := e.isSilenced(a)
+
+			// A silenced alert is still tracked (so it resolves and shows in the
+			// UI) but must not page. Page once, on the first tick where the alert
+			// is firing and not silenced: an alert that first fires while a silence
+			// is active is tracked but stays unnotified, so it pages when the
+			// silence later lifts instead of being suppressed permanently.
+			notify := !stored.notified && !silenced
+			if notify {
+				stored.notified = true
+			}
+			if !exists || notify {
+				e.active[fp] = stored
 			}
 			e.mu.Unlock()
 
-			if !exists {
-				e.publishEvent(a, events.EventInsert)
-				notifications = append(notifications, a)
+			if notify {
+				e.publishEvent(stored, events.EventInsert)
+				notifications = append(notifications, stored)
 			}
 		}
 	}
@@ -218,8 +232,12 @@ func (e *Engine) evaluate(ctx context.Context) {
 			a.ResolvedAt = &resolved
 			e.active[fp] = a
 
-			e.publishEvent(a, events.EventUpdate)
-			notifications = append(notifications, a)
+			// Don't notify on the resolve of an alert that was silenced while
+			// firing — the operator never saw it fire.
+			if !e.isSilenced(a) {
+				e.publishEvent(a, events.EventUpdate)
+				notifications = append(notifications, a)
+			}
 		}
 	}
 
