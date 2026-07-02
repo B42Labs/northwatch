@@ -152,7 +152,7 @@ func Parse(args []string) (*Config, error) {
 	fs.StringVar(&cacheTTLStr, "enrichment-cache-ttl", envOrDefault("NORTHWATCH_ENRICHMENT_CACHE_TTL", "5m"), "Enrichment cache TTL (e.g. 5m, 1h)")
 
 	var chassisStaleStr string
-	fs.StringVar(&chassisStaleStr, "chassis-stale-threshold", envOrDefault("NORTHWATCH_CHASSIS_STALE_THRESHOLD", "60s"), "How long an out-of-sync chassis may lag the current nb_cfg generation before it is flagged stale in the chassis inventory (Go duration; does not affect alive/down)")
+	fs.StringVar(&chassisStaleStr, "chassis-stale-threshold", envOrDefault("NORTHWATCH_CHASSIS_STALE_THRESHOLD", "60s"), "How long an out-of-sync chassis may lag the current nb_cfg generation before it is flagged stale in the chassis inventory and treated as not alive for gateway HA-member election (Go duration)")
 
 	// Per-chassis OVS visibility flags (opt-in, disabled unless the mapping file
 	// is set). TLS material is required only for ssl: management addresses.

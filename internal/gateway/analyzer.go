@@ -22,9 +22,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
 
+	"github.com/b42labs/northwatch/internal/inventory"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 )
@@ -47,15 +49,16 @@ const (
 	StatusNoCandidate   = "no-viable-candidate"
 )
 
-const defaultStaleThreshold = 2
+const defaultStaleThreshold = 60 * time.Second
 
 // Analyzer cross-references NB intent with SB realization.
 type Analyzer struct {
 	NB client.Client
 	SB client.Client
-	// StaleThreshold is the nb_cfg lag beyond which a chassis is treated as not
-	// alive for gateway election. Zero falls back to defaultStaleThreshold.
-	StaleThreshold int
+	// StaleThreshold is how long a chassis may lag the current nb_cfg generation
+	// before it is treated as not alive for gateway election. Zero falls back to
+	// defaultStaleThreshold.
+	StaleThreshold time.Duration
 }
 
 // Check is a single diagnostic result for a gateway.
@@ -124,8 +127,11 @@ type index struct {
 	lrpByName    map[string]nb.LogicalRouterPort
 	routerByLRP  map[string]nb.LogicalRouter
 	natsByRouter map[string][]nb.NAT
-	nbCfgRef     int
-	nbCfgOK      bool
+	// sbNbCfg is the current nb_cfg generation from SB_Global; privates maps a
+	// Chassis_Private row by its (chassis) name. Together they drive liveness on
+	// OVN >= 20.06, where ovn-controller writes nb_cfg only to Chassis_Private.
+	sbNbCfg  int
+	privates map[string]sb.ChassisPrivate
 }
 
 // Analyze scans all chassisredirect port bindings and returns the health report.
@@ -381,13 +387,22 @@ func (a *Analyzer) chassisState(uuid string, idx *index) chState {
 		return chState{} // not present => not alive
 	}
 	st := chState{present: true, name: ch.Name, hostname: ch.Hostname, capable: gatewayCapable(ch)}
-	if idx.nbCfgOK && a.staleThreshold() > 0 && idx.nbCfgRef-ch.NbCfg > a.staleThreshold() {
-		st.stale = true
+
+	// Derive liveness from Chassis_Private.nb_cfg vs SB_Global.nb_cfg (the shared
+	// inventory helper). On OVN >= 20.06 ovn-controller writes nb_cfg only to
+	// Chassis_Private, so the old Chassis.nb_cfg comparison reported every chassis
+	// stale — a fleet-wide false no-viable-candidate. A chassis with no
+	// Chassis_Private row has no controller heartbeat and is treated as not alive.
+	var priv *sb.ChassisPrivate
+	if p, ok := idx.privates[ch.Name]; ok {
+		priv = &p
 	}
+	lv := inventory.ComputeLiveness(priv, idx.sbNbCfg, time.Now(), a.staleThreshold())
+	st.stale = priv == nil || lv.Stale
 	return st
 }
 
-func (a *Analyzer) staleThreshold() int {
+func (a *Analyzer) staleThreshold() time.Duration {
 	if a.StaleThreshold <= 0 {
 		return defaultStaleThreshold
 	}
@@ -403,6 +418,7 @@ func (a *Analyzer) buildIndex(ctx context.Context) (*index, error) {
 		lrpByName:    map[string]nb.LogicalRouterPort{},
 		routerByLRP:  map[string]nb.LogicalRouter{},
 		natsByRouter: map[string][]nb.NAT{},
+		privates:     map[string]sb.ChassisPrivate{},
 	}
 
 	var chassisList []sb.Chassis
@@ -469,10 +485,20 @@ func (a *Analyzer) buildIndex(ctx context.Context) (*index, error) {
 		}
 	}
 
-	var globals []nb.NBGlobal
-	if err := a.NB.List(ctx, &globals); err == nil && len(globals) > 0 {
-		idx.nbCfgRef = globals[0].NbCfg
-		idx.nbCfgOK = true
+	var sbGlobals []sb.SBGlobal
+	if err := a.SB.List(ctx, &sbGlobals); err != nil {
+		return nil, fmt.Errorf("listing sb_global: %w", err)
+	}
+	if len(sbGlobals) > 0 {
+		idx.sbNbCfg = sbGlobals[0].NbCfg
+	}
+
+	var privates []sb.ChassisPrivate
+	if err := a.SB.List(ctx, &privates); err != nil {
+		return nil, fmt.Errorf("listing chassis_private: %w", err)
+	}
+	for _, p := range privates {
+		idx.privates[p.Name] = p
 	}
 
 	return idx, nil
