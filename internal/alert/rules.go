@@ -23,16 +23,19 @@ func StaleChassis(sbClient client.Client, staleThreshold time.Duration) Rule {
 		Name:        "stale_chassis_config",
 		Description: "Chassis has not acknowledged the current nb_cfg generation",
 		Severity:    SeverityWarning,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			var sbGlobals []sb.SBGlobal
-			if err := sbClient.List(ctx, &sbGlobals); err != nil || len(sbGlobals) == 0 {
-				return nil
+			if err := sbClient.List(ctx, &sbGlobals); err != nil {
+				return nil, fmt.Errorf("listing sb_global: %w", err)
+			}
+			if len(sbGlobals) == 0 {
+				return nil, nil
 			}
 			sbNbCfg := sbGlobals[0].NbCfg
 
 			var privates []sb.ChassisPrivate
 			if err := sbClient.List(ctx, &privates); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing chassis_private: %w", err)
 			}
 			privByName := make(map[string]sb.ChassisPrivate, len(privates))
 			for _, p := range privates {
@@ -41,7 +44,7 @@ func StaleChassis(sbClient client.Client, staleThreshold time.Duration) Rule {
 
 			var chassisList []sb.Chassis
 			if err := sbClient.List(ctx, &chassisList); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing chassis: %w", err)
 			}
 
 			now := time.Now()
@@ -72,7 +75,7 @@ func StaleChassis(sbClient client.Client, staleThreshold time.Duration) Rule {
 					Labels:   map[string]string{"chassis": ch.Name, "hostname": ch.Hostname},
 				})
 			}
-			return alerts
+			return alerts, nil
 		},
 	}
 }
@@ -83,10 +86,10 @@ func PortDown(sbClient client.Client) Rule {
 		Name:        "port_down",
 		Description: "Non-virtual port binding is down",
 		Severity:    SeverityWarning,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			var ports []sb.PortBinding
 			if err := sbClient.List(ctx, &ports); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing port bindings: %w", err)
 			}
 
 			var alerts []Alert
@@ -103,7 +106,7 @@ func PortDown(sbClient client.Client) Rule {
 					})
 				}
 			}
-			return alerts
+			return alerts, nil
 		},
 	}
 }
@@ -114,10 +117,10 @@ func UnboundPort(sbClient client.Client) Rule {
 		Name:        "unbound_port",
 		Description: "VIF port binding has no chassis",
 		Severity:    SeverityWarning,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			var ports []sb.PortBinding
 			if err := sbClient.List(ctx, &ports); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing port bindings: %w", err)
 			}
 
 			var alerts []Alert
@@ -135,7 +138,7 @@ func UnboundPort(sbClient client.Client) Rule {
 					})
 				}
 			}
-			return alerts
+			return alerts, nil
 		},
 	}
 }
@@ -146,10 +149,10 @@ func BFDDown(sbClient client.Client) Rule {
 		Name:        "bfd_down",
 		Description: "BFD session is down",
 		Severity:    SeverityCritical,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			var sessions []sb.BFD
 			if err := sbClient.List(ctx, &sessions); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing bfd sessions: %w", err)
 			}
 
 			var alerts []Alert
@@ -163,7 +166,7 @@ func BFDDown(sbClient client.Client) Rule {
 					})
 				}
 			}
-			return alerts
+			return alerts, nil
 		},
 	}
 }
@@ -183,25 +186,33 @@ func FlowCountAnomaly(sbClient client.Client, thresholdPct float64) Rule {
 		Name:        "flow_count_anomaly",
 		Description: fmt.Sprintf("Logical flow count changed by more than %.0f%%", thresholdPct),
 		Severity:    SeverityWarning,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			var flows []sb.LogicalFlow
 			if err := sbClient.List(ctx, &flows); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing logical flows: %w", err)
 			}
 			count := len(flows)
 
 			mu.Lock()
 			defer mu.Unlock()
 
+			// A zero count is indistinguishable from a purged cache or a
+			// monitoring gap (e.g. Logical_Flow is skipped, or a snapshot session
+			// suspended live), so do not treat it as a 100% drop and do not update
+			// the baseline off it — otherwise repopulation would fire too.
+			if count == 0 {
+				return nil, nil
+			}
+
 			if firstRun {
 				lastCount = count
 				firstRun = false
-				return nil
+				return nil, nil
 			}
 
 			if lastCount == 0 {
 				lastCount = count
-				return nil
+				return nil, nil
 			}
 
 			pctChange := math.Abs(float64(count-lastCount)) / float64(lastCount) * 100
@@ -214,9 +225,9 @@ func FlowCountAnomaly(sbClient client.Client, thresholdPct float64) Rule {
 					Severity: SeverityWarning,
 					Message:  fmt.Sprintf("Logical flow count changed by %.1f%% (%d → %d)", pctChange, prev, count),
 					Labels:   map[string]string{},
-				}}
+				}}, nil
 			}
-			return nil
+			return nil, nil
 		},
 	}
 }
@@ -234,20 +245,20 @@ func HAFailover(sbClient client.Client) Rule {
 		Name:        "ha_failover",
 		Description: "HA chassis group active chassis changed (gateway failover)",
 		Severity:    SeverityCritical,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			var groups []sb.HAChassisGroup
 			if err := sbClient.List(ctx, &groups); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing ha_chassis_group: %w", err)
 			}
 
 			var haChassisList []sb.HAChassis
 			if err := sbClient.List(ctx, &haChassisList); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing ha_chassis: %w", err)
 			}
 
 			var chassisList []sb.Chassis
 			if err := sbClient.List(ctx, &chassisList); err != nil {
-				return nil
+				return nil, fmt.Errorf("listing chassis: %w", err)
 			}
 
 			// Build chassis name lookup
@@ -291,7 +302,7 @@ func HAFailover(sbClient client.Client) Rule {
 			if !initialized {
 				lastActive = currentActive
 				initialized = true
-				return nil
+				return nil, nil
 			}
 
 			var alerts []Alert
@@ -330,7 +341,7 @@ func HAFailover(sbClient client.Client) Rule {
 			}
 
 			lastActive = currentActive
-			return alerts
+			return alerts, nil
 		},
 	}
 }

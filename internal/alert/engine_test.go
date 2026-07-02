@@ -2,6 +2,7 @@ package alert
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ func TestEngine_RegisterAndListRules(t *testing.T) {
 		Name:        "test_rule",
 		Description: "A test rule",
 		Severity:    SeverityWarning,
-		Check:       func(ctx context.Context) []Alert { return nil },
+		Check:       func(ctx context.Context) ([]Alert, error) { return nil, nil },
 	})
 
 	rules := engine.Rules()
@@ -38,16 +39,16 @@ func TestEngine_EvaluateFiresAndResolves(t *testing.T) {
 		Name:        "test_alert",
 		Description: "Fires when flag is true",
 		Severity:    SeverityCritical,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			if firing.Load() {
 				return []Alert{{
 					Rule:     "test_alert",
 					Severity: SeverityCritical,
 					Message:  "something is wrong",
 					Labels:   map[string]string{},
-				}}
+				}}, nil
 			}
-			return nil
+			return nil, nil
 		},
 	})
 
@@ -96,9 +97,9 @@ func TestEngine_PausedSkipsEvaluation(t *testing.T) {
 	engine.RegisterRule(Rule{
 		Name:     "should_not_run",
 		Severity: SeverityCritical,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			checked.Store(true)
-			return []Alert{{Rule: "should_not_run", Severity: SeverityCritical, Labels: map[string]string{}}}
+			return []Alert{{Rule: "should_not_run", Severity: SeverityCritical, Labels: map[string]string{}}}, nil
 		},
 	})
 	engine.SetPauseCheck(func() bool { return true })
@@ -107,6 +108,41 @@ func TestEngine_PausedSkipsEvaluation(t *testing.T) {
 
 	assert.False(t, checked.Load(), "rules must not be checked while paused")
 	assert.Empty(t, engine.ActiveAlerts(), "no alerts should fire while paused")
+}
+
+func TestEngine_RuleErrorSkipsResolve(t *testing.T) {
+	engine := NewEngine(events.NewHub(), time.Hour)
+	var fire, errOut atomic.Bool
+	fire.Store(true)
+	engine.RegisterRule(Rule{
+		Name:     "flaky",
+		Severity: SeverityCritical,
+		Check: func(ctx context.Context) ([]Alert, error) {
+			if errOut.Load() {
+				return nil, errors.New("list failed")
+			}
+			if fire.Load() {
+				return []Alert{{Rule: "flaky", Severity: SeverityCritical, Labels: map[string]string{}}}, nil
+			}
+			return nil, nil
+		},
+	})
+
+	// First eval fires the alert.
+	engine.evaluate(context.Background())
+	require.Len(t, engine.ActiveAlerts(), 1)
+
+	// The rule now errors (e.g. an OVSDB reconnect blip): the active alert must
+	// NOT be resolved.
+	errOut.Store(true)
+	engine.evaluate(context.Background())
+	require.Len(t, engine.ActiveAlerts(), 1, "a rule read failure must not resolve its active alerts")
+
+	// The rule recovers and genuinely reports no alerts: now it resolves.
+	errOut.Store(false)
+	fire.Store(false)
+	engine.evaluate(context.Background())
+	assert.Empty(t, engine.ActiveAlerts())
 }
 
 func TestEngine_ActiveAlertsEmpty(t *testing.T) {

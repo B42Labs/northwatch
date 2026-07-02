@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -168,6 +169,7 @@ func (e *Engine) evaluate(ctx context.Context) {
 
 	now := time.Now()
 	seen := map[string]bool{}
+	failed := map[string]bool{}
 	var notifications []Alert
 
 	for _, rule := range rules {
@@ -175,7 +177,15 @@ func (e *Engine) evaluate(ctx context.Context) {
 			continue
 		}
 
-		alerts := rule.Check(ctx)
+		alerts, err := rule.Check(ctx)
+		if err != nil {
+			// A rule that cannot determine current state (e.g. an OVSDB reconnect
+			// blip) must not look like "no alerts": record it so the resolve pass
+			// below skips its active alerts, preventing resolve/re-fire flapping.
+			log.Printf("alert: rule %q check failed: %v", rule.Name, err)
+			failed[rule.Name] = true
+			continue
+		}
 		for _, a := range alerts {
 			fp := a.fingerprint()
 			seen[fp] = true
@@ -198,10 +208,11 @@ func (e *Engine) evaluate(ctx context.Context) {
 		}
 	}
 
-	// Resolve alerts that are no longer firing
+	// Resolve alerts that are no longer firing. Skip any alert whose rule failed
+	// this tick: its absence from `seen` reflects the read failure, not recovery.
 	e.mu.Lock()
 	for fp, a := range e.active {
-		if a.State == StateFiring && !seen[fp] {
+		if a.State == StateFiring && !seen[fp] && !failed[a.Rule] {
 			a.State = StateResolved
 			resolved := now
 			a.ResolvedAt = &resolved
