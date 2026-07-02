@@ -11,6 +11,7 @@ function chassis(overrides: Partial<OvsChassisHealth> = {}): OvsChassisHealth {
     interfaces: 0,
     down_interfaces: 0,
     error_interfaces: 0,
+    drop_interfaces: 0,
     ...overrides,
   };
 }
@@ -25,16 +26,23 @@ function fleet(overrides: Partial<OvsFleetHealth> = {}): OvsFleetHealth {
     interfaces: 0,
     down_interfaces: 0,
     error_interfaces: 0,
+    drop_interfaces: 0,
     members: [],
     ...overrides,
   };
 }
 
 describe('chassisProblems', () => {
-  it('sums down and erroring interfaces', () => {
+  it('sums down, erroring and dropping interfaces', () => {
     expect(
-      chassisProblems(chassis({ down_interfaces: 2, error_interfaces: 3 })),
-    ).toBe(5);
+      chassisProblems(
+        chassis({
+          down_interfaces: 2,
+          error_interfaces: 3,
+          drop_interfaces: 1,
+        }),
+      ),
+    ).toBe(6);
   });
 
   it('is zero when the chassis is healthy', () => {
@@ -43,7 +51,7 @@ describe('chassisProblems', () => {
 });
 
 describe('fleetTiles', () => {
-  it('lays out the eight tiles in order with the fleet values', () => {
+  it('lays out the nine tiles in order with the fleet values', () => {
     const tiles = fleetTiles(
       fleet({
         chassis: 3,
@@ -54,6 +62,7 @@ describe('fleetTiles', () => {
         interfaces: 8,
         down_interfaces: 1,
         error_interfaces: 2,
+        drop_interfaces: 5,
       }),
     );
 
@@ -66,13 +75,19 @@ describe('fleetTiles', () => {
       'Interfaces',
       'Down',
       'Errored',
+      'Dropping',
     ]);
-    expect(tiles.map((t) => t.value)).toEqual([3, 2, 1, 4, 6, 8, 1, 2]);
+    expect(tiles.map((t) => t.value)).toEqual([3, 2, 1, 4, 6, 8, 1, 2, 5]);
   });
 
-  it('escalates the unreachable, down and errored variants when non-zero', () => {
+  it('escalates the unreachable, down, errored and dropping variants when non-zero', () => {
     const tiles = fleetTiles(
-      fleet({ unreachable: 1, down_interfaces: 1, error_interfaces: 1 }),
+      fleet({
+        unreachable: 1,
+        down_interfaces: 1,
+        error_interfaces: 1,
+        drop_interfaces: 1,
+      }),
     );
     const byLabel = Object.fromEntries(tiles.map((t) => [t.label, t]));
 
@@ -80,6 +95,7 @@ describe('fleetTiles', () => {
     expect(byLabel.Unreachable.variant).toBe('warning');
     expect(byLabel.Down.variant).toBe('error');
     expect(byLabel.Errored.variant).toBe('error');
+    expect(byLabel.Dropping.variant).toBe('warning');
   });
 
   it('keeps the problem tiles neutral when the fleet is healthy', () => {
@@ -89,5 +105,6 @@ describe('fleetTiles', () => {
     expect(byLabel.Unreachable.variant).toBe('neutral');
     expect(byLabel.Down.variant).toBe('neutral');
     expect(byLabel.Errored.variant).toBe('neutral');
+    expect(byLabel.Dropping.variant).toBe('neutral');
   });
 });

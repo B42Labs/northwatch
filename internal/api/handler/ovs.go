@@ -135,21 +135,26 @@ const ovsHealthTTL = time.Second
 // The mutex is held across the recompute so a burst of concurrent requests
 // coalesces onto a single fan-out rather than each triggering its own.
 type healthCache struct {
-	mu  sync.Mutex
-	at  time.Time
-	val ovshealth.FleetHealth
+	mu      sync.Mutex
+	at      time.Time
+	val     ovshealth.FleetHealth
+	tracker *ovshealth.Tracker
 }
 
 // get returns the cached fleet health when it is younger than ovsHealthTTL,
 // otherwise it recomputes, stores and returns a fresh snapshot. now is passed in
-// so tests can drive the TTL deterministically.
+// so tests can drive the TTL deterministically. The tracker is created lazily so
+// the zero-value healthCache is usable, and is accessed under hc.mu.
 func (hc *healthCache) get(ctx context.Context, pool ovsPool, now time.Time) ovshealth.FleetHealth {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	if !hc.at.IsZero() && now.Sub(hc.at) < ovsHealthTTL {
 		return hc.val
 	}
-	hc.val = ovsFleetHealth(ctx, pool)
+	if hc.tracker == nil {
+		hc.tracker = ovshealth.NewTracker()
+	}
+	hc.val = ovsFleetHealth(ctx, pool, hc.tracker)
 	hc.at = now
 	return hc.val
 }
@@ -210,7 +215,7 @@ func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 // it is excluded from the totals rather than counted as healthy. A connected
 // chassis whose cache read fails is treated the same way — logged and excluded —
 // so one node's failure degrades that node rather than blanking the whole fleet.
-func ovsFleetHealth(ctx context.Context, pool ovsPool) ovshealth.FleetHealth {
+func ovsFleetHealth(ctx context.Context, pool ovsPool, tracker *ovshealth.Tracker) ovshealth.FleetHealth {
 	members := pool.Members()
 	caches := make([]ovshealth.ChassisCache, 0, len(members))
 	for _, m := range members {
@@ -231,7 +236,7 @@ func ovsFleetHealth(ctx context.Context, pool ovsPool) ovshealth.FleetHealth {
 		}
 		caches = append(caches, cc)
 	}
-	return ovshealth.Aggregate(caches)
+	return tracker.Aggregate(caches)
 }
 
 // listChassisCache reads a connected chassis's bridges, ports and interfaces

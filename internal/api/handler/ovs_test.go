@@ -15,6 +15,7 @@ import (
 
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/vs"
+	"github.com/b42labs/northwatch/internal/ovshealth"
 	"github.com/b42labs/northwatch/internal/testutil"
 )
 
@@ -180,10 +181,12 @@ func TestOVSFleetHealth(t *testing.T) {
 	assert.Equal(t, true, member["connected"])
 }
 
-func TestOVSFleetHealthDownErroring(t *testing.T) {
+func TestOVSFleetHealthDownAndDeltaBaseline(t *testing.T) {
 	sock, seed := testutil.SetupOVSTestServer(t)
-	// A single interface that is both down (link_state=down) and erroring
-	// (rx_errors > 0): it must be counted once under each of down and error.
+	// A single interface that is down (link_state=down) and carries a non-zero
+	// lifetime rx_errors counter. Down is a level signal (counted immediately);
+	// erroring is delta-based, so the first read is a baseline and does not flag
+	// the lifetime counter as erroring.
 	testutil.InsertOVSBridgeWithInterface(t, seed, "br-int", "vnet0", map[string]int{"rx_errors": 3}, "down")
 
 	mux := ovsMuxForSock(t, sock, func(c client.Client) bool {
@@ -202,7 +205,8 @@ func TestOVSFleetHealthDownErroring(t *testing.T) {
 	assert.EqualValues(t, 1, health["connected"])
 	assert.EqualValues(t, 1, health["interfaces"])
 	assert.EqualValues(t, 1, health["down_interfaces"])
-	assert.EqualValues(t, 1, health["error_interfaces"])
+	assert.EqualValues(t, 0, health["error_interfaces"], "a lifetime error counter must not flag on the first read")
+	assert.EqualValues(t, 0, health["drop_interfaces"])
 }
 
 func TestOVSFleetHealthUnreachable(t *testing.T) {
@@ -249,7 +253,7 @@ func TestOVSFleetHealthChassisListErrorExcluded(t *testing.T) {
 		},
 	}
 
-	fh := ovsFleetHealth(context.Background(), pool)
+	fh := ovsFleetHealth(context.Background(), pool, ovshealth.NewTracker())
 
 	assert.Equal(t, 1, fh.Chassis)
 	assert.Equal(t, 0, fh.Connected)
