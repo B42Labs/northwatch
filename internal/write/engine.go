@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"sort"
 	"strconv"
@@ -524,7 +525,9 @@ func fieldTags(fields map[string]any) []string {
 	return tags
 }
 
-// recordAudit persists an audit entry (best-effort).
+// recordAudit persists an audit entry. A failed insert is logged rather than
+// dropped silently: a mutation may have already been applied, so losing its
+// audit trail must at least leave a diagnosable log line.
 func (e *Engine) recordAudit(ctx context.Context, plan *Plan, actor string, snapshotID int64, result, errMsg string) *AuditEntry {
 	var reason string
 	for _, op := range plan.Operations {
@@ -543,7 +546,9 @@ func (e *Engine) recordAudit(ctx context.Context, plan *Plan, actor string, snap
 		Result:     result,
 		Error:      errMsg,
 	}
-	_ = e.auditStore.Insert(ctx, entry)
+	if err := e.auditStore.Insert(ctx, entry); err != nil {
+		log.Printf("write: recording audit entry for plan %s (result %q) failed: %v", plan.ID, result, err)
+	}
 	return &entry
 }
 
