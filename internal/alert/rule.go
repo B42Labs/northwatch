@@ -52,6 +52,12 @@ type Alert struct {
 	Labels     map[string]string `json:"labels,omitempty"`
 	FiredAt    time.Time         `json:"fired_at"`
 	ResolvedAt *time.Time        `json:"resolved_at,omitempty"`
+
+	// notified records whether this active alert has already produced a page
+	// (webhook + WS event). It stays false while the alert is suppressed by a
+	// silence, so the page fires on the first non-silenced tick even when the
+	// alert started firing earlier, while it was still silenced.
+	notified bool
 }
 
 // fingerprint returns a unique key for deduplication based on rule name and labels.

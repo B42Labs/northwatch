@@ -145,6 +145,75 @@ func TestEngine_RuleErrorSkipsResolve(t *testing.T) {
 	assert.Empty(t, engine.ActiveAlerts())
 }
 
+func TestEngine_SilencedAlertsDoNotNotify(t *testing.T) {
+	hub := events.NewHub()
+	sub := hub.Subscribe()
+	sub.AddFilter(events.Filter{Database: "alert", Tables: []string{"*"}})
+
+	var notified atomic.Int32
+	engine := NewEngine(hub, time.Hour)
+	engine.SetNotifier(func(ctx context.Context, alerts []Alert) { notified.Add(int32(len(alerts))) })
+
+	firingRule := func(name string) Rule {
+		return Rule{Name: name, Severity: SeverityWarning, Check: func(ctx context.Context) ([]Alert, error) {
+			return []Alert{{Rule: name, Severity: SeverityWarning, Labels: map[string]string{}}}, nil
+		}}
+	}
+	engine.RegisterRule(firingRule("silenced"))
+	engine.RegisterRule(firingRule("loud"))
+	engine.AddSilence(Silence{Rule: "silenced", ExpiresAt: time.Now().Add(time.Hour)})
+
+	engine.evaluate(context.Background())
+
+	// The silenced alert must neither page nor publish; the loud one must do both.
+	assert.Equal(t, int32(1), notified.Load(), "only the unsilenced alert may notify")
+
+	select {
+	case e := <-sub.C:
+		assert.Equal(t, events.EventInsert, e.Type)
+		assert.Equal(t, "loud", e.Table, "only the unsilenced alert may publish an event")
+	case <-time.After(time.Second):
+		t.Fatal("expected the unsilenced alert to publish a hub event")
+	}
+	select {
+	case e := <-sub.C:
+		t.Fatalf("silenced alert must not publish a hub event, got %+v", e)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestEngine_SilencedThenUnsilencedAlertPages(t *testing.T) {
+	// evaluate calls the notifier synchronously in this goroutine, so a plain
+	// slice needs no synchronization.
+	var notified []Alert
+	engine := NewEngine(events.NewHub(), time.Hour)
+	engine.SetNotifier(func(ctx context.Context, alerts []Alert) { notified = append(notified, alerts...) })
+
+	engine.RegisterRule(Rule{Name: "silenced_first", Severity: SeverityWarning,
+		Check: func(ctx context.Context) ([]Alert, error) {
+			return []Alert{{Rule: "silenced_first", Severity: SeverityWarning, Labels: map[string]string{}}}, nil
+		}})
+	silenceID := engine.AddSilence(Silence{Rule: "silenced_first", ExpiresAt: time.Now().Add(time.Hour)})
+
+	// First tick: the alert fires while silenced — tracked but not paged.
+	engine.evaluate(context.Background())
+	require.Empty(t, notified, "an alert that first fires while silenced must not page")
+
+	// Second tick, still silenced: still no page.
+	engine.evaluate(context.Background())
+	require.Empty(t, notified, "a silenced alert must stay unpaged while the silence holds")
+
+	// The silence is lifted while the alert is still firing: it must page now.
+	require.NoError(t, engine.RemoveSilence(silenceID))
+	engine.evaluate(context.Background())
+	require.Len(t, notified, 1, "an alert must page once its silence lifts, even though it fired earlier")
+	assert.Equal(t, "silenced_first", notified[0].Rule)
+
+	// A further tick must not re-page the already-paged alert.
+	engine.evaluate(context.Background())
+	require.Len(t, notified, 1, "an already-paged alert must not page again on subsequent ticks")
+}
+
 func TestEngine_ActiveAlertsEmpty(t *testing.T) {
 	engine := NewEngine(nil, 30*time.Second)
 	assert.Empty(t, engine.ActiveAlerts())
