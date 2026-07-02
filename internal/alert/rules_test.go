@@ -289,6 +289,13 @@ func TestHAFailover_NoChangeNoAlert(t *testing.T) {
 	assert.Empty(t, alerts)
 }
 
+func TestShortID(t *testing.T) {
+	assert.Equal(t, "abc", shortID("abc"), "a short id must not panic")
+	assert.Equal(t, "", shortID(""))
+	assert.Equal(t, "12345678", shortID("1234567890"))
+	assert.Equal(t, "αβγδεζηθ", shortID("αβγδεζηθικ"), "multi-byte truncates on rune boundary")
+}
+
 func TestHAFailover_EmptyGroups(t *testing.T) {
 	sbClient := testutil.SetupSBTestClient(t)
 

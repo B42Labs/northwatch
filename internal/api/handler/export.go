@@ -184,8 +184,8 @@ func renderTopologySVG(topo TopologyResponse) string {
 		b.WriteString("\n")
 
 		label := n.Label
-		if len(label) > 16 {
-			label = label[:16] + "..."
+		if len([]rune(label)) > 16 {
+			label = truncateLabel(label, 16) + "..."
 		}
 		fmt.Fprintf(&b, `<text x="%.0f" y="%.0f" class="label">%s</text>`,
 			pos.X+float64(nodeWidth)/2, pos.Y+float64(nodeHeight)/2, escapeXML(label))
