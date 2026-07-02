@@ -21,6 +21,7 @@ type Engine struct {
 	hub      *events.Hub
 	interval time.Duration
 	notifier NotifierFunc
+	paused   func() bool
 }
 
 // NewEngine creates a new alert engine.
@@ -39,6 +40,17 @@ func (e *Engine) SetNotifier(fn NotifierFunc) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.notifier = fn
+}
+
+// SetPauseCheck installs a predicate consulted at the start of every evaluation.
+// While it returns true (e.g. a snapshot session has suspended the live monitors
+// and purged the caches), evaluation is skipped entirely so active alerts are
+// preserved and no false fire/resolve — or webhook — is produced by the 100%
+// cache drop.
+func (e *Engine) SetPauseCheck(fn func() bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.paused = fn
 }
 
 // RegisterRule adds a rule to the engine.
@@ -142,6 +154,10 @@ func (e *Engine) Start(ctx context.Context) func() {
 
 func (e *Engine) evaluate(ctx context.Context) {
 	e.mu.RLock()
+	if e.paused != nil && e.paused() {
+		e.mu.RUnlock()
+		return
+	}
 	rules := make([]Rule, len(e.rules))
 	copy(rules, e.rules)
 	disabled := make(map[string]bool, len(e.disabled))

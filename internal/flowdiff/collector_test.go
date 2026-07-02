@@ -75,7 +75,7 @@ func TestStartCollector(t *testing.T) {
 	hub := events.NewHub()
 	store := NewStore(100, time.Hour)
 
-	cleanup := StartCollector(hub, store)
+	cleanup := StartCollector(hub, store, nil)
 	defer cleanup()
 
 	hub.Publish(events.Event{
@@ -95,4 +95,42 @@ func TestStartCollector(t *testing.T) {
 	changes := store.Query("", 0)
 	assert.Equal(t, "f1", changes[0].UUID)
 	assert.Equal(t, "dp1", changes[0].Datapath)
+}
+
+func TestStartCollector_PausedDropsEvents(t *testing.T) {
+	hub := events.NewHub()
+	store := NewStore(100, time.Hour)
+
+	paused := true
+	cleanup := StartCollector(hub, store, func() bool { return paused })
+	defer cleanup()
+
+	hub.Publish(events.Event{
+		Type:     events.EventInsert,
+		Database: "sb",
+		Table:    "Logical_Flow",
+		UUID:     "paused-flow",
+		Ts:       time.Now().UnixMilli(),
+		Row:      map[string]any{"logical_datapath": "dp1"},
+	})
+
+	// While paused the event must be dropped.
+	require.Never(t, func() bool {
+		return len(store.Query("", 0)) > 0
+	}, 200*time.Millisecond, 10*time.Millisecond)
+
+	// After resume, new events flow again.
+	paused = false
+	hub.Publish(events.Event{
+		Type:     events.EventInsert,
+		Database: "sb",
+		Table:    "Logical_Flow",
+		UUID:     "live-flow",
+		Ts:       time.Now().UnixMilli(),
+		Row:      map[string]any{"logical_datapath": "dp1"},
+	})
+	require.Eventually(t, func() bool {
+		return len(store.Query("", 0)) == 1
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, "live-flow", store.Query("", 0)[0].UUID)
 }

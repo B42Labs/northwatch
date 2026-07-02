@@ -90,6 +90,25 @@ func TestEngine_EvaluateFiresAndResolves(t *testing.T) {
 	assert.Empty(t, active)
 }
 
+func TestEngine_PausedSkipsEvaluation(t *testing.T) {
+	engine := NewEngine(events.NewHub(), time.Hour)
+	var checked atomic.Bool
+	engine.RegisterRule(Rule{
+		Name:     "should_not_run",
+		Severity: SeverityCritical,
+		Check: func(ctx context.Context) []Alert {
+			checked.Store(true)
+			return []Alert{{Rule: "should_not_run", Severity: SeverityCritical, Labels: map[string]string{}}}
+		},
+	})
+	engine.SetPauseCheck(func() bool { return true })
+
+	engine.evaluate(context.Background())
+
+	assert.False(t, checked.Load(), "rules must not be checked while paused")
+	assert.Empty(t, engine.ActiveAlerts(), "no alerts should fire while paused")
+}
+
 func TestEngine_ActiveAlertsEmpty(t *testing.T) {
 	engine := NewEngine(nil, 30*time.Second)
 	assert.Empty(t, engine.ActiveAlerts())
