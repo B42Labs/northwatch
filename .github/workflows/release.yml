@@ -77,7 +77,7 @@ jobs:
           IDENTITY="${APPLE_IDENTITY:--}"
           codesign --force --options runtime -s "$IDENTITY" \
             bin/northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
           # bin/*.deb matches nothing on darwin (benign "no files found" warning).

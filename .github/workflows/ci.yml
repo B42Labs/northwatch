@@ -103,7 +103,7 @@ jobs:
       - name: Ad-hoc sign macOS binary
         if: matrix.goos == 'darwin'
         run: codesign -s - bin/northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
           path: bin/northwatch-${{ matrix.goos }}-${{ matrix.goarch }}
