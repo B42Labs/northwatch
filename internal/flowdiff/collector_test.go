@@ -1,6 +1,7 @@
 package flowdiff
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -101,8 +102,9 @@ func TestStartCollector_PausedDropsEvents(t *testing.T) {
 	hub := events.NewHub()
 	store := NewStore(100, time.Hour)
 
-	paused := true
-	cleanup := StartCollector(hub, store, func() bool { return paused })
+	var paused atomic.Bool
+	paused.Store(true)
+	cleanup := StartCollector(hub, store, paused.Load)
 	defer cleanup()
 
 	hub.Publish(events.Event{
@@ -120,7 +122,7 @@ func TestStartCollector_PausedDropsEvents(t *testing.T) {
 	}, 200*time.Millisecond, 10*time.Millisecond)
 
 	// After resume, new events flow again.
-	paused = false
+	paused.Store(false)
 	hub.Publish(events.Event{
 		Type:     events.EventInsert,
 		Database: "sb",
