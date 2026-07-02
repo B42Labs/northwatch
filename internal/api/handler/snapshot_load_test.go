@@ -93,3 +93,56 @@ func TestSnapshotLoadEndpoints(t *testing.T) {
 	// Unloading again → 404.
 	assert.Equal(t, http.StatusNotFound, do(http.MethodPost, idPath+"/unload").Code)
 }
+
+func TestSnapshotLoad_TooManyReturns409(t *testing.T) {
+	ctx := context.Background()
+	store, err := history.NewStore(filepath.Join(t.TempDir(), "history.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	mkSnap := func(suffix string) int64 {
+		uuid := ("11111111-1111-4111-8111-000000000000")[:36-len(suffix)] + suffix
+		meta, cErr := store.CreateSnapshot(ctx, "manual", suffix, []history.SnapshotRow{
+			{Database: "nb", Table: "Logical_Switch", UUID: uuid, Data: map[string]any{
+				"_uuid": uuid, "name": "ls-" + suffix,
+				"external_ids": map[string]any{}, "other_config": map[string]any{}, "ports": []any{},
+			}},
+		})
+		require.NoError(t, cErr)
+		return meta.ID
+	}
+	id1, id2 := mkSnap("aaaa"), mkSnap("bbbb")
+
+	nbModel, _ := nb.FullDatabaseModel()
+	sbModel, _ := sb.FullDatabaseModel()
+	reg := cluster.NewRegistry()
+	mux := http.NewServeMux()
+	proxy := RegisterClusterProxy(mux, reg, func(*http.ServeMux, *cluster.Cluster) {})
+	mgr := snapshotsession.New(store, reg, nbModel, sbModel, nb.Schema(), sb.Schema(),
+		func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
+			m1, _ := nb.FullDatabaseModel()
+			m2, _ := sb.FullDatabaseModel()
+			dbs, cErr := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+			if cErr != nil {
+				return nil, nil, cErr
+			}
+			return &cluster.Cluster{Name: name, Label: label, DBs: dbs}, nil, nil
+		},
+		func(c *cluster.Cluster) { proxy.Add(c.Name, http.NewServeMux()) },
+		proxy.Remove,
+		nil,
+	)
+	defer mgr.Close()
+	mgr.SetMaxLoaded(1)
+	RegisterSnapshotLoad(mux, mgr)
+
+	do := func(id int64) int {
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/snapshots/"+strconv.FormatInt(id, 10)+"/load", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	require.Equal(t, http.StatusOK, do(id1))
+	assert.Equal(t, http.StatusConflict, do(id2), "second load beyond the cap must be 409")
+}
