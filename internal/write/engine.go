@@ -112,7 +112,7 @@ func (e *Engine) Schema() []TableSchema {
 // takes a snapshot, generates an HMAC token, and stores the plan in cache.
 func (e *Engine) Preview(ctx context.Context, ops []WriteOperation) (*Plan, error) {
 	if e.rateLimiter != nil && !e.rateLimiter.allow() {
-		return nil, fmt.Errorf("rate limit exceeded")
+		return nil, ErrRateLimited
 	}
 	if err := e.validateOps(ctx, ops); err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (e *Engine) Preview(ctx context.Context, ops []WriteOperation) (*Plan, erro
 // operations, transacts, and records an audit entry.
 func (e *Engine) Apply(ctx context.Context, planID, token, actor string) (*AuditEntry, error) {
 	if e.rateLimiter != nil && !e.rateLimiter.allow() {
-		return nil, fmt.Errorf("rate limit exceeded")
+		return nil, ErrRateLimited
 	}
 
 	e.mu.Lock()
@@ -197,6 +197,9 @@ func (e *Engine) Apply(ctx context.Context, planID, token, actor string) (*Audit
 // DryRun validates operations and computes diffs without taking a snapshot
 // or storing the plan in cache.
 func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error) {
+	if e.rateLimiter != nil && !e.rateLimiter.allow() {
+		return nil, ErrRateLimited
+	}
 	if err := e.validateOps(ctx, ops); err != nil {
 		return nil, err
 	}
@@ -227,7 +230,7 @@ func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error
 // Warnings so the operator knows the rollback is partial.
 func (e *Engine) Rollback(ctx context.Context, snapshotID int64, actor, reason string) (*Plan, error) {
 	if e.rateLimiter != nil && !e.rateLimiter.allow() {
-		return nil, fmt.Errorf("rate limit exceeded")
+		return nil, ErrRateLimited
 	}
 
 	if e.collector == nil {

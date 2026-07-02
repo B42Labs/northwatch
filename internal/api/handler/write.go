@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +10,48 @@ import (
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/write"
 )
+
+// writeEngineError maps a write.Engine error to an HTTP status: rate limiting to
+// 429, stale-state conflicts to 409, user input errors to 400, and everything
+// else (infrastructure failures) to 500.
+func writeEngineError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, write.ErrRateLimited):
+		api.WriteError(w, http.StatusTooManyRequests, err.Error())
+	case errors.Is(err, write.ErrStaleState):
+		api.WriteError(w, http.StatusConflict, err.Error())
+	case write.IsInputError(err):
+		api.WriteError(w, http.StatusBadRequest, err.Error())
+	default:
+		api.WriteError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+// applyEngineError maps an Apply error to an HTTP status. Apply differs from the
+// preview-time endpoints in two ways that this taxonomy captures: it returns an
+// audit entry (a non-nil entry means apply was reached and recorded a failure),
+// and a fresh input error means the plan validated clean at preview but the
+// referenced state changed since — a retryable conflict (409), not a bad
+// request (400).
+func applyEngineError(w http.ResponseWriter, entry *write.AuditEntry, err error) {
+	switch {
+	case errors.Is(err, write.ErrRateLimited):
+		api.WriteError(w, http.StatusTooManyRequests, err.Error())
+	case errors.Is(err, write.ErrStaleState):
+		api.WriteError(w, http.StatusConflict, err.Error())
+	case write.IsInputError(err):
+		// Re-validation at apply failed even though preview validated clean:
+		// the database changed since preview (e.g. a referenced row was
+		// deleted). This is a retryable conflict, not a malformed request.
+		api.WriteError(w, http.StatusConflict, err.Error())
+	case entry == nil:
+		// No audit entry means apply was never reached (bad/expired plan,
+		// invalid token): a client error.
+		api.WriteError(w, http.StatusBadRequest, err.Error())
+	default:
+		api.WriteError(w, http.StatusInternalServerError, err.Error())
+	}
+}
 
 // maxWriteBodySize limits the size of write request bodies to 1 MB.
 const maxWriteBodySize = 1 << 20
@@ -67,7 +110,7 @@ func handlePreview(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Preview(r.Context(), body.Operations)
 		if err != nil {
-			api.WriteError(w, http.StatusBadRequest, err.Error())
+			writeEngineError(w, err)
 			return
 		}
 
@@ -84,7 +127,7 @@ func handleDryRun(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.DryRun(r.Context(), body.Operations)
 		if err != nil {
-			api.WriteError(w, http.StatusBadRequest, err.Error())
+			writeEngineError(w, err)
 			return
 		}
 
@@ -160,11 +203,7 @@ func handleApply(engine *write.Engine) http.HandlerFunc {
 
 		entry, err := engine.Apply(r.Context(), id, body.ApplyToken, body.Actor)
 		if err != nil {
-			status := http.StatusInternalServerError
-			if entry == nil {
-				status = http.StatusBadRequest
-			}
-			api.WriteError(w, status, err.Error())
+			applyEngineError(w, entry, err)
 			return
 		}
 
@@ -207,7 +246,7 @@ func handleRollback(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Rollback(r.Context(), body.SnapshotID, body.Actor, body.Reason)
 		if err != nil {
-			api.WriteError(w, http.StatusBadRequest, err.Error())
+			writeEngineError(w, err)
 			return
 		}
 

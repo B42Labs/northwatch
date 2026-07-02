@@ -21,6 +21,10 @@ func (e *InputError) Error() string { return e.Message }
 // Handlers map it to 409 Conflict.
 var ErrStaleState = errors.New("plan preconditions no longer hold: the database changed since preview")
 
+// ErrRateLimited is returned when a write operation is rejected by the rate
+// limiter. Handlers map it to 429 Too Many Requests.
+var ErrRateLimited = errors.New("write rate limit exceeded")
+
 // IsInputError reports whether err (or any error in its chain) is an InputError.
 func IsInputError(err error) bool {
 	var ie *InputError

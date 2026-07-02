@@ -416,3 +416,26 @@ func TestEngineDryRunNoPlanStored(t *testing.T) {
 	_, ok := engine.GetPlan(plan.ID)
 	assert.False(t, ok, "dry-run must not store a plan")
 }
+
+// TestEngineDryRunRateLimited verifies DryRun is subject to the rate limiter and
+// reports ErrRateLimited when the budget is exhausted.
+func TestEngineDryRunRateLimited(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	historyStore, err := history.NewStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = historyStore.Close() })
+	auditStore, err := NewAuditStore(context.Background(), historyStore.DB())
+	require.NoError(t, err)
+	collector := history.NewCollector(historyStore, nil, nil, time.Hour, time.Hour)
+	engine, err := NewEngine(nbClient, nil, DefaultRegistry(), collector, auditStore, 5*time.Minute, 1)
+	require.NoError(t, err)
+
+	op := []WriteOperation{{Action: "create", Table: "Logical_Switch", Fields: jsonFields(t, `{"name":"ls-rl"}`)}}
+
+	_, err = engine.DryRun(context.Background(), op)
+	require.NoError(t, err)
+
+	_, err = engine.DryRun(context.Background(), op)
+	require.ErrorIs(t, err, ErrRateLimited)
+}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -148,10 +150,60 @@ func TestWriteRollback_NoCollector(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	// A missing history collector is a server-capability failure, not a bad
+	// request: it maps to 500 under the corrected status taxonomy.
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Contains(t, body["error"], "requires history collector")
+}
+
+func TestWriteEngineErrorTaxonomy(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"rate limited", write.ErrRateLimited, http.StatusTooManyRequests},
+		{"stale state", write.ErrStaleState, http.StatusConflict},
+		{"wrapped stale state", fmt.Errorf("transact: %w", write.ErrStaleState), http.StatusConflict},
+		{"input error", &write.InputError{Message: "bad field"}, http.StatusBadRequest},
+		{"infra error", errors.New("cache list failed"), http.StatusInternalServerError},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			writeEngineError(w, tc.err)
+			assert.Equal(t, tc.want, w.Code)
+		})
+	}
+}
+
+func TestApplyEngineErrorTaxonomy(t *testing.T) {
+	entry := &write.AuditEntry{}
+	tests := []struct {
+		name  string
+		entry *write.AuditEntry
+		err   error
+		want  int
+	}{
+		{"rate limited", nil, write.ErrRateLimited, http.StatusTooManyRequests},
+		{"stale state", entry, fmt.Errorf("transact: %w", write.ErrStaleState), http.StatusConflict},
+		// A fresh input error at apply (preview validated clean) means the
+		// referenced state changed since preview: a 409, never a 500.
+		{"stale reference at apply", entry,
+			fmt.Errorf("operation 0: %w", &write.InputError{Message: "referenced Load_Balancer does not exist"}),
+			http.StatusConflict},
+		{"bad plan (no entry)", nil, errors.New("plan \"x\" not found or expired"), http.StatusBadRequest},
+		{"infra failure", entry, errors.New("transact: connection refused"), http.StatusInternalServerError},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			applyEngineError(w, tc.entry, tc.err)
+			assert.Equal(t, tc.want, w.Code)
+		})
+	}
 }
 
 func TestWriteAuditLog_Empty(t *testing.T) {
