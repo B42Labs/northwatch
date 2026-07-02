@@ -88,9 +88,11 @@ func runSnapshot(args []string) error {
 	// is a live connection, so it shares the server's staged default.
 	defBatchDelay := config.DefaultMonitorBatchDelay
 	if v := os.Getenv("NORTHWATCH_MONITOR_BATCH_DELAY"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			defBatchDelay = d
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return fmt.Errorf("invalid NORTHWATCH_MONITOR_BATCH_DELAY %q: %w", v, err)
 		}
+		defBatchDelay = d
 	}
 	monitorBatchDelay := fs.Duration("monitor-batch-delay", defBatchDelay, "Delay between staged per-table monitor requests (e.g. 100ms, 1s); 0 loads all tables in a single request")
 	monitorSkipTables := fs.String("monitor-skip-tables", os.Getenv("NORTHWATCH_MONITOR_SKIP_TABLES"), "Comma-separated OVN table names to never capture (e.g. Logical_Flow,MAC_Binding,FDB)")
