@@ -1,11 +1,14 @@
 package write
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -196,9 +199,14 @@ func (e *Engine) DryRun(ctx context.Context, ops []WriteOperation) (*Plan, error
 	return plan, nil
 }
 
-// Rollback generates a preview plan that reverses changes between a snapshot
-// and the current live state. It compares snapshot rows to current NB state
-// and produces operations to restore the snapshot state.
+// Rollback generates a preview plan that restores changed fields on rows that
+// still exist, using a snapshot as the source of truth.
+//
+// It is deliberately scoped to "restore changed fields only": rows created
+// after the snapshot are left untouched, and rows deleted since the snapshot
+// are NOT recreated (recreation would assign new server-side UUIDs, dangling
+// every reference to the old UUID). Such rows are reported in the plan's
+// Warnings so the operator knows the rollback is partial.
 func (e *Engine) Rollback(ctx context.Context, snapshotID int64, actor, reason string) (*Plan, error) {
 	if e.rateLimiter != nil && !e.rateLimiter.allow() {
 		return nil, fmt.Errorf("rate limit exceeded")
@@ -229,6 +237,7 @@ func (e *Engine) Rollback(ctx context.Context, snapshotID int64, actor, reason s
 
 	// Build operations by comparing snapshot state to current live state
 	var ops []WriteOperation
+	var warnings []string
 
 	for table, uuidMap := range snapshotState {
 		// Only process writable tables
@@ -239,33 +248,24 @@ func (e *Engine) Rollback(ctx context.Context, snapshotID int64, actor, reason s
 		for uuid, snapData := range uuidMap {
 			current, err := e.readCurrentState(ctx, table, uuid)
 			if err != nil {
-				// Row doesn't exist anymore - recreate it
-				fields := make(map[string]any)
-				for k, v := range snapData {
-					if k == "_uuid" {
-						continue
-					}
-					fields[k] = v
+				if errors.Is(err, client.ErrNotFound) {
+					warnings = append(warnings, fmt.Sprintf(
+						"Rollback: %s/%s no longer exists; row recreation is not supported", table, uuid))
+					continue
 				}
-				if len(fields) > 0 {
-					ops = append(ops, WriteOperation{
-						Action: "create",
-						Table:  table,
-						Fields: fields,
-						Reason: fmt.Sprintf("Rollback: recreate %s/%s from snapshot %d", table, uuid, snapshotID),
-					})
-				}
-				continue
+				return nil, fmt.Errorf("reading current state for %s/%s: %w", table, uuid, err)
 			}
 
-			// Compare current to snapshot - generate update if different
+			// Compare current to snapshot - generate update if different.
+			// Snapshot data is JSON-typed (float64/[]any) while current is
+			// Go-typed, so compare by JSON encoding rather than DeepEqual.
 			var changed bool
 			fields := make(map[string]any)
 			for k, v := range snapData {
 				if k == "_uuid" {
 					continue
 				}
-				if !reflect.DeepEqual(v, current[k]) {
+				if !jsonEqual(v, current[k]) {
 					fields[k] = v
 					changed = true
 				}
@@ -287,11 +287,29 @@ func (e *Engine) Rollback(ctx context.Context, snapshotID int64, actor, reason s
 			ID:        generateID(),
 			CreatedAt: time.Now().UTC(),
 			Status:    "no-changes",
+			Warnings:  warnings,
 		}, nil
 	}
 
-	// Use Preview to get the full plan with diffs, snapshot, token
-	return e.Preview(ctx, ops)
+	// Use Preview to get the full plan with diffs, snapshot, token.
+	plan, err := e.Preview(ctx, ops)
+	if err != nil {
+		return nil, err
+	}
+	plan.Warnings = warnings
+	return plan, nil
+}
+
+// jsonEqual reports whether a and b encode to identical JSON. It is used to
+// compare snapshot values (decoded from SQLite as float64/[]any/map[string]any)
+// against live model values (Go-typed) without spurious differences.
+func jsonEqual(a, b any) bool {
+	ba, err1 := json.Marshal(a)
+	bb, err2 := json.Marshal(b)
+	if err1 != nil || err2 != nil {
+		return reflect.DeepEqual(a, b)
+	}
+	return bytes.Equal(ba, bb)
 }
 
 // GetPlan retrieves a cached plan by ID.
