@@ -4,6 +4,7 @@
     activeCluster,
     activeClusterInfo,
     multiClusterEnabled,
+    clustersError,
     loadClusters,
     firstLiveClusterName,
   } from '../../lib/clusterStore';
@@ -34,6 +35,15 @@
     }
   }
 </script>
+
+{#if $clustersError}
+  <span
+    class="badge badge-error badge-outline badge-xs gap-1 font-mono text-2xs uppercase tracking-wider"
+    title={$clustersError}
+  >
+    sources unavailable
+  </span>
+{/if}
 
 {#if $multiClusterEnabled}
   <label class="flex items-center gap-1.5">

@@ -20,6 +20,10 @@ export interface ClusterInfo {
 /** List of all available clusters, fetched from /api/v1/clusters. */
 export const clusters = writable<ClusterInfo[]>([]);
 
+/** Set to a human-readable message when the last loadClusters() call failed,
+ * cleared to null on success. Drives the cluster switcher's error indicator. */
+export const clustersError = writable<string | null>(null);
+
 /** The currently selected cluster name, or empty string for the default. */
 export const activeCluster = writable<string>('');
 
@@ -82,17 +86,25 @@ export function clusterPath(path: string): string {
 export async function loadClusters(): Promise<void> {
   try {
     const res = await fetch('/api/v1/clusters');
-    if (!res.ok) return;
+    if (!res.ok) {
+      clustersError.set(
+        `Failed to load data sources: ${res.status} ${res.statusText}`,
+      );
+      return;
+    }
     const data = await res.json();
     const list: ClusterInfo[] = data.clusters || [];
     clusters.set(list);
+    clustersError.set(null);
 
     // If no cluster is selected and we have clusters, select the first one
     const current = get(activeCluster);
     if (current === '' && list.length > 0) {
       activeCluster.set(list[0].name);
     }
-  } catch {
-    // Silently ignore fetch errors during startup
+  } catch (e) {
+    clustersError.set(
+      e instanceof Error ? e.message : 'Failed to load data sources',
+    );
   }
 }
