@@ -147,6 +147,12 @@ func (e *Engine) Apply(ctx context.Context, planID, token, actor string) (*Audit
 		return nil, fmt.Errorf("invalid apply token")
 	}
 
+	// Re-validate against the live database: the plan may have been previewed
+	// up to the TTL ago and referenced rows could have changed since.
+	if err := e.validateOps(ctx, plan.Operations); err != nil {
+		return e.failPlan(ctx, plan, actor, 0, err)
+	}
+
 	// Take a fresh snapshot before applying
 	snap, err := e.collector.TakeSnapshot(ctx, "write-apply", "")
 	if err != nil {
@@ -158,7 +164,7 @@ func (e *Engine) Apply(ctx context.Context, planID, token, actor string) (*Audit
 	if err != nil {
 		return e.failPlan(ctx, plan, actor, snap.ID, err)
 	}
-	if err := e.transactOps(ctx, c, plan.Operations); err != nil {
+	if err := e.transactOps(ctx, c, plan); err != nil {
 		return e.failPlan(ctx, plan, actor, snap.ID, err)
 	}
 
@@ -572,20 +578,99 @@ func (e *Engine) clientForOps(ops []WriteOperation) (client.Client, error) {
 	return e.clientForTable(ops[0].Table)
 }
 
-// transactOps builds OVSDB operations from WriteOperations and transacts them on the given client.
-func (e *Engine) transactOps(ctx context.Context, c client.Client, ops []WriteOperation) error {
-	ovsdbOps, err := e.buildOVSDBOps(c, ops)
+// transactOps transacts a plan's operations, prefixed with RFC 7047 wait
+// operations that assert each target row still holds the values captured at
+// preview time. If a wait fails, the whole transaction aborts and Apply reports
+// ErrStaleState instead of silently no-op-ing an update against a changed row.
+func (e *Engine) transactOps(ctx context.Context, c client.Client, plan *Plan) error {
+	waitOps, err := e.buildWaitOps(c, plan)
+	if err != nil {
+		return fmt.Errorf("building wait operations: %w", err)
+	}
+	mutationOps, err := e.buildOVSDBOps(c, plan.Operations)
 	if err != nil {
 		return fmt.Errorf("building OVSDB operations: %w", err)
 	}
-	reply, err := c.Transact(ctx, ovsdbOps...)
+
+	allOps := append(waitOps, mutationOps...)
+	reply, err := c.Transact(ctx, allOps...)
 	if err != nil {
 		return fmt.Errorf("transact: %w", err)
 	}
-	if _, err = ovsdb.CheckOperationResults(reply, ovsdbOps); err != nil {
+	// A failed wait op (results are 1:1 with ops) means a targeted row changed
+	// or was deleted since preview.
+	for i := 0; i < len(waitOps) && i < len(reply); i++ {
+		if reply[i].Error != "" {
+			return fmt.Errorf("%w: %s", ErrStaleState, reply[i].Error)
+		}
+	}
+	if _, err = ovsdb.CheckOperationResults(reply, allOps); err != nil {
 		return fmt.Errorf("operation failed: %w", err)
 	}
 	return nil
+}
+
+// buildWaitOps returns the wait operations that assert each update/delete
+// target still matches the values captured in the plan's diffs. Create
+// operations have no precondition. Diffs are 1:1 with Operations by
+// construction in computeDiffs.
+func (e *Engine) buildWaitOps(c client.Client, plan *Plan) ([]ovsdb.Operation, error) {
+	timeout0 := 0
+	var waitOps []ovsdb.Operation
+
+	for i, op := range plan.Operations {
+		spec, err := e.registry.Get(op.Table)
+		if err != nil {
+			return nil, err
+		}
+
+		var before map[string]any
+		if i < len(plan.Diffs) {
+			before = plan.Diffs[i].Before
+		}
+
+		switch op.Action {
+		case "update":
+			// Assert the columns being changed still hold their pre-apply values.
+			subset := map[string]any{"_uuid": op.UUID}
+			tags := make([]string, 0, len(op.Fields))
+			for k := range op.Fields {
+				subset[k] = before[k]
+				tags = append(tags, k)
+			}
+			m, err := MapToModel(subset, spec.ModelType)
+			if err != nil {
+				return nil, fmt.Errorf("hydrating wait row for %s/%s: %w", op.Table, op.UUID, err)
+			}
+			ptrs, err := fieldPointersByTag(m, tags)
+			if err != nil {
+				return nil, err
+			}
+			ops, err := c.Where(m).Wait(ovsdb.WaitConditionEqual, &timeout0, m, ptrs...)
+			if err != nil {
+				return nil, fmt.Errorf("building wait op for %s/%s: %w", op.Table, op.UUID, err)
+			}
+			waitOps = append(waitOps, ops...)
+
+		case "delete":
+			// Assert the row still exists (matches its own _uuid).
+			m, err := hydrateWithUUID(nil, op.UUID, spec.ModelType)
+			if err != nil {
+				return nil, fmt.Errorf("hydrating wait row for %s/%s: %w", op.Table, op.UUID, err)
+			}
+			ptrs, err := fieldPointersByTag(m, []string{"_uuid"})
+			if err != nil {
+				return nil, err
+			}
+			ops, err := c.Where(m).Wait(ovsdb.WaitConditionEqual, &timeout0, m, ptrs...)
+			if err != nil {
+				return nil, fmt.Errorf("building wait op for %s/%s: %w", op.Table, op.UUID, err)
+			}
+			waitOps = append(waitOps, ops...)
+		}
+	}
+
+	return waitOps, nil
 }
 
 // computeImpact runs impact analysis for delete operations if a resolver is configured.
