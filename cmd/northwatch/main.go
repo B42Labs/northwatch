@@ -225,6 +225,9 @@ func run() error {
 	if cfg.EventMaxCount > 0 {
 		historyCollector.SetEventMaxCount(cfg.EventMaxCount)
 	}
+	// Pause auto-snapshots and event persistence while a snapshot session has
+	// suspended the default cluster's live monitors (which purges its caches).
+	historyCollector.SetPauseCheck(def.DBs.Suspended)
 	stopHistory := historyCollector.Start(context.Background())
 	defer stopHistory()
 
@@ -453,8 +456,13 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 		fmt.Printf("Cluster %q: alert webhook notifications enabled (%d endpoints)\n", cc.Name, len(urls))
 	}
 
+	// Pause alert evaluation and flowdiff collection while this cluster's live
+	// monitors are suspended by a snapshot session, so the 100% cache drop does
+	// not fire false alerts/webhooks or flood the flow-diff store.
+	alertEngine.SetPauseCheck(dbs.Suspended)
+
 	stopFuncs := []func(){
-		flowdiff.StartCollector(eventHub, flowDiffStore),
+		flowdiff.StartCollector(eventHub, flowDiffStore, dbs.Suspended),
 		propTracker.Start(context.Background()),
 		alertEngine.Start(context.Background()),
 	}

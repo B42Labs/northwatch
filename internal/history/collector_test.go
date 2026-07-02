@@ -52,6 +52,60 @@ func TestCollector_TakeSnapshot(t *testing.T) {
 	assert.Len(t, rows, 2)
 }
 
+func TestCollector_PausedSkipsAutoSnapshot(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	sources := []TableSource{{
+		Database: "nb",
+		Table:    "Logical_Switch",
+		ListFunc: func(ctx context.Context) ([]map[string]any, error) {
+			return []map[string]any{{"_uuid": "uuid-1", "name": "sw1"}}, nil
+		},
+	}}
+	collector := NewCollector(store, events.NewHub(), sources, 5*time.Minute, 24*time.Hour)
+
+	paused := true
+	collector.SetPauseCheck(func() bool { return paused })
+
+	meta, err := collector.TakeSnapshotIfChanged(ctx, "auto", "")
+	require.NoError(t, err)
+	assert.Nil(t, meta, "no snapshot should be taken while paused")
+
+	paused = false
+	meta, err = collector.TakeSnapshotIfChanged(ctx, "auto", "")
+	require.NoError(t, err)
+	require.NotNil(t, meta, "snapshot should be taken once unpaused")
+	assert.Equal(t, 1, meta.RowCounts["nb.Logical_Switch"])
+}
+
+func TestCollector_PausedDropsEvents(t *testing.T) {
+	store := newTestStore(t)
+	hub := events.NewHub()
+	ctx := context.Background()
+
+	collector := NewCollector(store, hub, nil, 1*time.Hour, 24*time.Hour)
+	paused := true
+	collector.SetPauseCheck(func() bool { return paused })
+	stop := collector.Start(ctx)
+	defer stop()
+
+	hub.Publish(events.Event{
+		Type:     events.EventInsert,
+		Database: "nb",
+		Table:    "Logical_Switch",
+		UUID:     "dropped",
+		Row:      map[string]any{"name": "sw1"},
+		Ts:       time.Now().UnixMilli(),
+	})
+
+	// While paused the event must not be persisted.
+	require.Never(t, func() bool {
+		got, err := store.QueryEvents(ctx, EventQueryOpts{})
+		return err == nil && len(got) > 0
+	}, 300*time.Millisecond, 20*time.Millisecond)
+}
+
 func TestCollector_EventPersistence(t *testing.T) {
 	store := newTestStore(t)
 	hub := events.NewHub()

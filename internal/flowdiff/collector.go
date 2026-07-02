@@ -8,7 +8,13 @@ import (
 
 // StartCollector subscribes to the event hub for LogicalFlow changes and
 // records them in the store. Returns a cleanup function.
-func StartCollector(hub *events.Hub, store *Store) func() {
+//
+// paused (may be nil) is consulted per event: while it returns true — e.g. a
+// snapshot session has suspended the live monitors and purged the caches —
+// incoming changes are dropped so the store is not flooded with the OnDelete
+// purge and OnAdd re-population events, which would otherwise register as a
+// 100% flow drop followed by a full re-add.
+func StartCollector(hub *events.Hub, store *Store, paused func() bool) func() {
 	sub := hub.Subscribe()
 	sub.AddFilter(events.Filter{
 		Database: "sb",
@@ -22,6 +28,9 @@ func StartCollector(hub *events.Hub, store *Store) func() {
 			case evt, ok := <-sub.C:
 				if !ok {
 					return
+				}
+				if paused != nil && paused() {
+					continue
 				}
 				change := eventToFlowChange(evt)
 				store.Add(change)

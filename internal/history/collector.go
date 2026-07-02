@@ -23,6 +23,7 @@ type Collector struct {
 	interval      time.Duration
 	retention     time.Duration
 	eventMaxCount int64
+	paused        func() bool
 }
 
 // NewCollector creates a new history collector.
@@ -38,6 +39,18 @@ func NewCollector(store *Store, hub *events.Hub, sources []TableSource, interval
 
 // Store returns the underlying history store.
 func (c *Collector) Store() *Store { return c.store }
+
+// SetPauseCheck installs a predicate consulted before auto-snapshots and event
+// persistence. While it returns true (e.g. a snapshot session has suspended the
+// live monitors and purged the caches), the collector skips auto-snapshots and
+// drops incoming events, so it neither records empty "auto" snapshots nor floods
+// history with the re-population events emitted when monitors resume.
+func (c *Collector) SetPauseCheck(fn func() bool) { c.paused = fn }
+
+// isPaused reports whether the collector is currently paused.
+func (c *Collector) isPaused() bool {
+	return c.paused != nil && c.paused()
+}
 
 // SetEventMaxCount sets the maximum number of events to retain.
 // If maxCount is 0, no count-based pruning is performed.
@@ -70,6 +83,13 @@ func (c *Collector) TakeSnapshot(ctx context.Context, trigger, label string) (*S
 // TakeSnapshotIfChanged captures a snapshot only if data has changed since
 // the last snapshot. Returns nil without error if no changes are detected.
 func (c *Collector) TakeSnapshotIfChanged(ctx context.Context, trigger, label string) (*SnapshotMeta, error) {
+	// While paused (a snapshot session has suspended the live monitors and
+	// purged the caches), the sources would read as empty and record a bogus
+	// 100%-drop "auto" snapshot. Skip instead.
+	if c.isPaused() {
+		return nil, nil
+	}
+
 	var rows []SnapshotRow
 	rowCounts := make(map[string]int)
 
@@ -154,6 +174,12 @@ func (c *Collector) Start(ctx context.Context) func() {
 				if !ok {
 					flush()
 					return
+				}
+				// Drop events while paused: during a snapshot session the cache
+				// purge and later re-population emit a flood of OnDelete/OnAdd
+				// events that do not reflect real changes.
+				if c.isPaused() {
+					continue
 				}
 				batch = append(batch, EventRecord{
 					Timestamp: time.UnixMilli(evt.Ts),
