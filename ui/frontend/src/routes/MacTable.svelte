@@ -7,6 +7,7 @@
   import StatTiles from '../components/ui/StatTiles.svelte';
   import type { Variant } from '../lib/status';
   import { SvelteMap } from 'svelte/reactivity';
+  import { get } from '../lib/api';
 
   interface MacBinding {
     _uuid: string;
@@ -39,19 +40,13 @@
 
   let globalSearch = $state('');
 
-  async function fetchJson<T>(path: string): Promise<T> {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-
   async function load() {
     loading = true;
     error = '';
     try {
       const [bindings, dps] = await Promise.all([
-        fetchJson<MacBinding[]>('/api/v1/sb/mac-bindings'),
-        fetchJson<DatapathBinding[]>('/api/v1/sb/datapath-bindings'),
+        get<MacBinding[]>('/api/v1/sb/mac-bindings'),
+        get<DatapathBinding[]>('/api/v1/sb/datapath-bindings'),
       ]);
       macBindings = bindings;
       datapaths = dps;

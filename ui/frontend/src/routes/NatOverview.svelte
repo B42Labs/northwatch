@@ -7,6 +7,7 @@
   import StatTiles from '../components/ui/StatTiles.svelte';
   import type { Variant } from '../lib/status';
   import { link } from '../lib/router';
+  import { get } from '../lib/api';
 
   interface NatRule {
     _uuid: string;
@@ -48,20 +49,14 @@
   let routers: LogicalRouter[] = $state([]);
   let staticRoutes: StaticRoute[] = $state([]);
 
-  async function fetchJson<T>(path: string): Promise<T> {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-
   async function load() {
     loading = true;
     error = '';
     try {
       const [nats, rts, routes] = await Promise.all([
-        fetchJson<NatRule[]>('/api/v1/nb/nats'),
-        fetchJson<LogicalRouter[]>('/api/v1/nb/logical-routers'),
-        fetchJson<StaticRoute[]>('/api/v1/nb/logical-router-static-routes'),
+        get<NatRule[]>('/api/v1/nb/nats'),
+        get<LogicalRouter[]>('/api/v1/nb/logical-routers'),
+        get<StaticRoute[]>('/api/v1/nb/logical-router-static-routes'),
       ]);
       natRules = nats;
       routers = rts;
