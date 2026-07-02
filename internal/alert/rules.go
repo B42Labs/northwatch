@@ -5,43 +5,72 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
 
-	"github.com/b42labs/northwatch/internal/ovsdb/nb"
+	"github.com/b42labs/northwatch/internal/inventory"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 )
 
-// StaleChassis returns a rule that fires when a chassis NbCfg lags behind NB_Global.NbCfg
-// by more than threshold generations.
-func StaleChassis(nbClient, sbClient client.Client, threshold int) Rule {
+// StaleChassis returns a rule that fires when a chassis has not acknowledged the
+// current nb_cfg generation within staleThreshold, deriving liveness from
+// Chassis_Private.nb_cfg vs SB_Global.nb_cfg. Reading the deprecated
+// Chassis.nb_cfg (as before) fired permanently-false warnings on OVN >= 20.06,
+// where ovn-controller writes nb_cfg only to Chassis_Private.
+func StaleChassis(sbClient client.Client, staleThreshold time.Duration) Rule {
 	return Rule{
 		Name:        "stale_chassis_config",
-		Description: fmt.Sprintf("Chassis NbCfg lags behind NB_Global by more than %d", threshold),
+		Description: "Chassis has not acknowledged the current nb_cfg generation",
 		Severity:    SeverityWarning,
 		Check: func(ctx context.Context) []Alert {
-			var nbGlobals []nb.NBGlobal
-			if err := nbClient.List(ctx, &nbGlobals); err != nil || len(nbGlobals) == 0 {
+			var sbGlobals []sb.SBGlobal
+			if err := sbClient.List(ctx, &sbGlobals); err != nil || len(sbGlobals) == 0 {
 				return nil
 			}
-			nbCfg := nbGlobals[0].NbCfg
+			sbNbCfg := sbGlobals[0].NbCfg
+
+			var privates []sb.ChassisPrivate
+			if err := sbClient.List(ctx, &privates); err != nil {
+				return nil
+			}
+			privByName := make(map[string]sb.ChassisPrivate, len(privates))
+			for _, p := range privates {
+				privByName[p.Name] = p
+			}
 
 			var chassisList []sb.Chassis
 			if err := sbClient.List(ctx, &chassisList); err != nil {
 				return nil
 			}
 
+			now := time.Now()
 			var alerts []Alert
 			for _, ch := range chassisList {
-				lag := nbCfg - ch.NbCfg
-				if lag > threshold {
-					alerts = append(alerts, Alert{
-						Rule:     "stale_chassis_config",
-						Severity: SeverityWarning,
-						Message:  fmt.Sprintf("Chassis %s (%s) is %d generations behind (nb_cfg=%d, chassis_nb_cfg=%d)", ch.Name, ch.Hostname, lag, nbCfg, ch.NbCfg),
-						Labels:   map[string]string{"chassis": ch.Name, "hostname": ch.Hostname},
-					})
+				var priv *sb.ChassisPrivate
+				if p, ok := privByName[ch.Name]; ok {
+					priv = &p
 				}
+				lv := inventory.ComputeLiveness(priv, sbNbCfg, now, staleThreshold)
+				// A missing Chassis_Private row means no ovn-controller heartbeat;
+				// only flag it as stale when there is a generation to acknowledge.
+				missing := priv == nil && sbNbCfg > 0
+				if !lv.Stale && !missing {
+					continue
+				}
+
+				var msg string
+				if missing {
+					msg = fmt.Sprintf("Chassis %s (%s) has no Chassis_Private row (no ovn-controller heartbeat)", ch.Name, ch.Hostname)
+				} else {
+					msg = fmt.Sprintf("Chassis %s (%s) is stale: acknowledged nb_cfg=%d, current=%d", ch.Name, ch.Hostname, lv.NbCfg, sbNbCfg)
+				}
+				alerts = append(alerts, Alert{
+					Rule:     "stale_chassis_config",
+					Severity: SeverityWarning,
+					Message:  msg,
+					Labels:   map[string]string{"chassis": ch.Name, "hostname": ch.Hostname},
+				})
 			}
 			return alerts
 		},

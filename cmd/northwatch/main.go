@@ -443,7 +443,7 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 	propTracker := telemetry.NewPropagationTracker(eventHub, propStore, dbs.NB, dbs.SB)
 
 	alertEngine := alert.NewEngine(eventHub, 30*time.Second)
-	alertEngine.RegisterRule(alert.StaleChassis(dbs.NB, dbs.SB, 2))
+	alertEngine.RegisterRule(alert.StaleChassis(dbs.SB, cfg.ChassisStaleThreshold))
 	alertEngine.RegisterRule(alert.PortDown(dbs.SB))
 	alertEngine.RegisterRule(alert.UnboundPort(dbs.SB))
 	alertEngine.RegisterRule(alert.BFDDown(dbs.SB))
