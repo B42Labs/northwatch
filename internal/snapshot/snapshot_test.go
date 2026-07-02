@@ -3,6 +3,7 @@ package snapshot_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
@@ -99,6 +100,49 @@ func TestRoundTrip(t *testing.T) {
 	assert.Equal(t, "lsp0", bindings[0].LogicalPort)
 	require.NotNil(t, bindings[0].Chassis)
 	assert.Equal(t, chUUID, *bindings[0].Chassis, "port binding must still reference the chassis")
+}
+
+// TestServePrunesDanglingReferences verifies a captured file whose row
+// references a UUID not present in the dump (a churning-DB artifact) still loads
+// via Serve, with the dangling reference pruned rather than hard-failing.
+func TestServePrunesDanglingReferences(t *testing.T) {
+	nbModel, err := nb.FullDatabaseModel()
+	require.NoError(t, err)
+	sbModel, err := sb.FullDatabaseModel()
+	require.NoError(t, err)
+
+	const lsUUID = "11111111-1111-4111-8111-111111111111"
+	const missingLSP = "22222222-2222-4222-8222-222222222222"
+
+	// Record.Model decodes into the generated model by Go field names.
+	lsModel, err := json.Marshal(map[string]any{
+		"Name":  "ls-dangling",
+		"Ports": []string{missingLSP}, // references a Logical_Switch_Port not in the dump
+	})
+	require.NoError(t, err)
+
+	file := &snapshot.File{
+		Version: snapshot.Version,
+		NB: snapshot.Dump{Schema: nb.Schema().Name, Tables: map[string][]snapshot.Record{
+			"Logical_Switch": {{UUID: lsUUID, Model: lsModel}},
+		}},
+		SB: snapshot.Dump{Schema: sb.Schema().Name, Tables: map[string][]snapshot.Record{}},
+	}
+
+	servers, err := snapshot.Serve(file, nbModel, sbModel, nb.Schema(), sb.Schema())
+	require.NoError(t, err, "a dangling reference must be pruned, not fail the whole load")
+	defer servers.Close()
+
+	ctx := context.Background()
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	require.NoError(t, err)
+	defer dbs.Close()
+
+	var switches []nb.LogicalSwitch
+	require.NoError(t, dbs.NB.List(ctx, &switches))
+	require.Len(t, switches, 1)
+	assert.Equal(t, "ls-dangling", switches[0].Name)
+	assert.Empty(t, switches[0].Ports, "dangling port reference must be pruned")
 }
 
 // TestLoadRejectsWrongVersion ensures the loader guards the format version.
