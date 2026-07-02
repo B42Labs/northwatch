@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Go modules (repo root go.mod / go.sum).
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  # Frontend npm dependencies.
+  - package-ecosystem: npm
+    directory: "/ui/frontend"
+    schedule:
+      interval: weekly
+
+  # GitHub Actions used by the workflows in .github/workflows.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
