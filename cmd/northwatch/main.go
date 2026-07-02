@@ -253,6 +253,10 @@ func run() error {
 			return fmt.Errorf("creating write engine: %w", err)
 		}
 		writeEngine.SetResolver(impactResolver)
+		// Skip cache-based reference validation when the live NB cache is not
+		// authoritative (reconnecting, or a snapshot session has suspended the
+		// monitors) so valid writes are not rejected with a false 400.
+		writeEngine.SetReadyFunc(def.DBs.Ready)
 		stopWriteEngine := writeEngine.Start(context.Background())
 		stopFuncs = append(stopFuncs, stopWriteEngine)
 		handler.RegisterWrite(mux, writeEngine)

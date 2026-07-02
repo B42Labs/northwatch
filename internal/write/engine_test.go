@@ -316,6 +316,89 @@ func TestEngineRollbackRestoresFields(t *testing.T) {
 	})
 }
 
+// TestEngineReferenceValidation covers the schema-derived UUID reference check:
+// an update referencing a nonexistent row is rejected as an InputError, while a
+// reference to an existing row passes.
+func TestEngineReferenceValidation(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	engine := setupTestEngine(t, nbClient)
+	ctx := context.Background()
+
+	lsUUID := testutil.InsertLogicalSwitch(t, nbClient, "ls-refcheck")
+
+	t.Run("nonexistent reference is rejected", func(t *testing.T) {
+		_, err := engine.Preview(ctx, []WriteOperation{{
+			Action: "update", Table: "Logical_Switch", UUID: lsUUID,
+			Fields: jsonFields(t, `{"load_balancer":["00000000-0000-0000-0000-000000000000"]}`),
+		}})
+		require.Error(t, err)
+		assert.True(t, IsInputError(err), "missing reference must be a client (400) error: %v", err)
+		assert.Contains(t, err.Error(), "does not exist")
+	})
+
+	t.Run("existing reference passes", func(t *testing.T) {
+		lbUUID := seedLoadBalancer(t, nbClient, "lb-refcheck")
+		_, err := engine.Preview(ctx, []WriteOperation{{
+			Action: "update", Table: "Logical_Switch", UUID: lsUUID,
+			Fields: jsonFields(t, `{"load_balancer":["`+lbUUID+`"]}`),
+		}})
+		require.NoError(t, err)
+	})
+}
+
+// TestEngineReferenceValidationSkippedWhenCacheNotAuthoritative verifies that the
+// schema-derived UUID reference check is skipped when the NB cache is not
+// authoritative (e.g. a snapshot session has suspended the live monitors and
+// purged the cache). In that window the cache reports every row as absent, so
+// trusting it would reject a valid write with a false 400; existence is instead
+// left to OVSDB's server-side referential integrity.
+func TestEngineReferenceValidationSkippedWhenCacheNotAuthoritative(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	engine := setupTestEngine(t, nbClient)
+	engine.SetReadyFunc(func() bool { return false })
+	ctx := context.Background()
+
+	lsUUID := testutil.InsertLogicalSwitch(t, nbClient, "ls-notready")
+
+	// The referenced load_balancer UUID does not exist in the cache, but because
+	// the cache is not authoritative the check is deferred rather than rejected.
+	_, err := engine.Preview(ctx, []WriteOperation{{
+		Action: "update", Table: "Logical_Switch", UUID: lsUUID,
+		Fields: jsonFields(t, `{"load_balancer":["00000000-0000-0000-0000-000000000000"]}`),
+	}})
+	require.NoError(t, err)
+}
+
+// TestEngineLSPRouterPortCheckGatedOnCacheAuthority verifies the name-based
+// Logical_Switch_Port router-port existence check (which consults the cache) is
+// only enforced while the NB cache is authoritative. When the cache is frozen (a
+// snapshot session suspended the live monitors) it reports every router port as
+// absent, so running the check would reject a valid write with a false 400;
+// existence is left to OVSDB's server-side referential integrity instead.
+func TestEngineLSPRouterPortCheckGatedOnCacheAuthority(t *testing.T) {
+	ctx := context.Background()
+	// A create that references a router port absent from the cache.
+	op := []WriteOperation{{
+		Action: "create", Table: "Logical_Switch_Port",
+		Fields: jsonFields(t, `{"name":"lsp-rp","options":{"router-port":"nonexistent-lrp"}}`),
+	}}
+
+	t.Run("authoritative cache rejects the missing router-port", func(t *testing.T) {
+		engine := setupTestEngine(t, testutil.SetupNBTestClient(t))
+		_, err := engine.Preview(ctx, op)
+		require.Error(t, err)
+		assert.True(t, IsInputError(err), "missing router-port must be a client (400) error: %v", err)
+		assert.Contains(t, err.Error(), "router-port")
+	})
+
+	t.Run("non-authoritative cache defers the check", func(t *testing.T) {
+		engine := setupTestEngine(t, testutil.SetupNBTestClient(t))
+		engine.SetReadyFunc(func() bool { return false })
+		_, err := engine.Preview(ctx, op)
+		require.NoError(t, err)
+	})
+}
+
 // TestEngineDryRunNoPlanStored verifies DryRun computes diffs without persisting a
 // plan or a snapshot.
 func TestEngineDryRunNoPlanStored(t *testing.T) {
