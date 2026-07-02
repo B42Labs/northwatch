@@ -81,4 +81,3 @@ func TestBuildFlowTableGroups_StageNameOverridesFallback(t *testing.T) {
 	require.Len(t, groups, 1)
 	assert.Equal(t, "ls_in_check_port_sec", groups[0].TableName)
 }
-

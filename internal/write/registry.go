@@ -13,7 +13,7 @@ import (
 // TableSpec describes a writable table.
 type TableSpec struct {
 	Table          string
-	Database       string          // "nb" or "sb"
+	Database       string // "nb" or "sb"
 	ModelType      reflect.Type
 	ReadOnlyFields map[string]bool // fields users cannot set
 	DeleteOnly     bool            // if true, only delete operations are allowed

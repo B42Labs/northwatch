@@ -19,10 +19,10 @@ const boundChassisKey = "nw-bound-chassis"
 
 // SimConfig configures the continuous simulator.
 type SimConfig struct {
-	Options  Options          // topology shape used when creating switches/routers
-	Target   int              // homeostasis anchor: desired number of owned switches
-	RandSeed int64            // PRNG seed for reproducible action sequences
-	Binder   *Binder          // optional; enables real port binding onto chassis
+	Options  Options // topology shape used when creating switches/routers
+	Target   int     // homeostasis anchor: desired number of owned switches
+	RandSeed int64   // PRNG seed for reproducible action sequences
+	Binder   *Binder // optional; enables real port binding onto chassis
 	Logf     func(string, ...any)
 }
 

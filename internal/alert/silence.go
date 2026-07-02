@@ -8,8 +8,8 @@ type Silence struct {
 	ID        string            `json:"id"`
 	CreatedAt time.Time         `json:"created_at"`
 	ExpiresAt time.Time         `json:"expires_at"`
-	Rule      string            `json:"rule,omitempty"`       // if set, only silence alerts from this rule
-	Matchers  map[string]string `json:"matchers,omitempty"`   // if set, all must match alert labels
+	Rule      string            `json:"rule,omitempty"`     // if set, only silence alerts from this rule
+	Matchers  map[string]string `json:"matchers,omitempty"` // if set, all must match alert labels
 	Comment   string            `json:"comment,omitempty"`
 }
 

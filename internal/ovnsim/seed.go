@@ -63,10 +63,10 @@ func lrpName(r, s int) string           { return fmt.Sprintf("%slrp-%03d-%03d", 
 func switchRouterPortName(s int) string { return fmt.Sprintf("%sls-%03d-lr", NamePrefix, s) }
 func vifName(s, p int) string           { return fmt.Sprintf("%sls-%03d-vif-%03d", NamePrefix, s, p) }
 func haGroupName(r int) string          { return fmt.Sprintf("%shagrp-lr-%03d", NamePrefix, r) }
-func gwLrpName(r int) string             { return fmt.Sprintf("%slr-%03d-gw", NamePrefix, r) }
-func pubSwitchName(r int) string         { return fmt.Sprintf("%slr-%03d-pub", NamePrefix, r) }
-func pubLocalnetName(r int) string       { return fmt.Sprintf("%slr-%03d-pub-ln", NamePrefix, r) }
-func pubRouterLspName(r int) string      { return fmt.Sprintf("%slr-%03d-pub-lr", NamePrefix, r) }
+func gwLrpName(r int) string            { return fmt.Sprintf("%slr-%03d-gw", NamePrefix, r) }
+func pubSwitchName(r int) string        { return fmt.Sprintf("%slr-%03d-pub", NamePrefix, r) }
+func pubLocalnetName(r int) string      { return fmt.Sprintf("%slr-%03d-pub-ln", NamePrefix, r) }
+func pubRouterLspName(r int) string     { return fmt.Sprintf("%slr-%03d-pub-lr", NamePrefix, r) }
 
 // octet maps a 1-based switch index to a stable second IPv4 octet in 10.X.0.0/24.
 func octet(s int) int { return ((s - 1) % 200) + 10 }

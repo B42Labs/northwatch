@@ -66,10 +66,10 @@ func handleListSilences(engine *alert.Engine) http.HandlerFunc {
 func handleCreateSilence(engine *alert.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Rule      string            `json:"rule"`
-			Matchers  map[string]string `json:"matchers"`
-			Duration  string            `json:"duration"`
-			Comment   string            `json:"comment"`
+			Rule     string            `json:"rule"`
+			Matchers map[string]string `json:"matchers"`
+			Duration string            `json:"duration"`
+			Comment  string            `json:"comment"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")

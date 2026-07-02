@@ -139,8 +139,8 @@ func TestBuildTraceStages(t *testing.T) {
 	assert.Equal(t, 0, stages[0].Flows[1].Priority)
 
 	// Check hints
-	assert.Equal(t, "likely", stages[0].Flows[0].Hint)   // has port name
-	assert.Equal(t, "default", stages[0].Flows[1].Hint)   // priority 0
+	assert.Equal(t, "likely", stages[0].Flows[0].Hint)  // has port name
+	assert.Equal(t, "default", stages[0].Flows[1].Hint) // priority 0
 
 	// Check selection — "likely" flow should be selected
 	assert.True(t, stages[0].Flows[0].Selected)

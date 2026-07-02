@@ -15,8 +15,8 @@ const resolvedAlertTTL = 5 * time.Minute
 type Engine struct {
 	mu       sync.RWMutex
 	rules    []Rule
-	disabled map[string]bool   // rule names that are disabled
-	active   map[string]Alert  // keyed by fingerprint
+	disabled map[string]bool    // rule names that are disabled
+	active   map[string]Alert   // keyed by fingerprint
 	silences map[string]Silence // keyed by ID
 	hub      *events.Hub
 	interval time.Duration

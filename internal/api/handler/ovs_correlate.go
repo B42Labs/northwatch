@@ -6,9 +6,9 @@ import (
 	"github.com/ovn-kubernetes/libovsdb/client"
 
 	"github.com/b42labs/northwatch/internal/api"
+	"github.com/b42labs/northwatch/internal/ovscorrelate"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/vs"
-	"github.com/b42labs/northwatch/internal/ovscorrelate"
 )
 
 // RegisterOVSCorrelation registers the per-chassis OVS↔OVN correlation endpoint.
