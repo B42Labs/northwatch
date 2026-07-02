@@ -117,16 +117,16 @@ func TestEngine_SilencedAlertsNotReturned(t *testing.T) {
 	engine.RegisterRule(Rule{
 		Name:     "silenced_rule",
 		Severity: SeverityWarning,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			if firing.Load() {
 				return []Alert{{
 					Rule:     "silenced_rule",
 					Severity: SeverityWarning,
 					Message:  "test",
 					Labels:   map[string]string{},
-				}}
+				}}, nil
 			}
-			return nil
+			return nil, nil
 		},
 	})
 
@@ -172,7 +172,7 @@ func TestEngine_SetRuleEnabled(t *testing.T) {
 		Name:        "test_rule",
 		Description: "A test rule",
 		Severity:    SeverityWarning,
-		Check:       func(ctx context.Context) []Alert { return nil },
+		Check:       func(ctx context.Context) ([]Alert, error) { return nil, nil },
 	})
 
 	// Initially enabled
@@ -207,14 +207,14 @@ func TestEngine_DisabledRuleNotEvaluated(t *testing.T) {
 	engine.RegisterRule(Rule{
 		Name:     "disabled_rule",
 		Severity: SeverityWarning,
-		Check: func(ctx context.Context) []Alert {
+		Check: func(ctx context.Context) ([]Alert, error) {
 			callCount.Add(1)
 			return []Alert{{
 				Rule:     "disabled_rule",
 				Severity: SeverityWarning,
 				Message:  "should not fire",
 				Labels:   map[string]string{},
-			}}
+			}}, nil
 		},
 	})
 

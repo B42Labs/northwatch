@@ -24,12 +24,15 @@ const (
 	StateResolved AlertState = "resolved"
 )
 
-// Rule defines a check that produces alerts.
+// Rule defines a check that produces alerts. Check returns an error when it
+// cannot determine the current state (e.g. an OVSDB list failed), which is
+// distinct from "no alerts": the engine skips the resolve pass for a rule that
+// errors so a transient read failure does not resolve then re-fire everything.
 type Rule struct {
 	Name        string
 	Description string
 	Severity    Severity
-	Check       func(ctx context.Context) []Alert
+	Check       func(ctx context.Context) ([]Alert, error)
 }
 
 // RuleSummary is the JSON representation of a rule (without the Check function).
