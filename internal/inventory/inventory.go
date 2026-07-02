@@ -247,38 +247,15 @@ func (b *Builder) summarize(ch sb.Chassis, c *caches) ChassisSummary {
 	return s
 }
 
-// computeLiveness derives in-sync, alive and stale from the nb_cfg generation. A
-// missing Chassis_Private row yields a zero-value Liveness (not in-sync, not
-// alive), except SBNbCfg, which is always populated for context.
+// computeLiveness derives liveness for a chassis from the caches, delegating to
+// the shared ComputeLiveness helper so the inventory builder and gateway
+// analyzer agree on liveness semantics.
 func (b *Builder) computeLiveness(ch sb.Chassis, c *caches) Liveness {
-	l := Liveness{SBNbCfg: c.sbNbCfg}
-	priv, found := c.privates[ch.Name]
-	if !found {
-		return l
+	var priv *sb.ChassisPrivate
+	if p, found := c.privates[ch.Name]; found {
+		priv = &p
 	}
-	l.NbCfg = priv.NbCfg
-	l.NbCfgTimestamp = int64(priv.NbCfgTimestamp)
-	l.InSync = priv.NbCfg == c.sbNbCfg
-	// A present-and-in-sync chassis is alive. We do NOT key alive off the age of
-	// nb_cfg_timestamp: that timestamp only advances when nb_cfg itself changes
-	// (see ovn-sb(5), Chassis_Private:nb_cfg_timestamp), so on a steady-state
-	// cluster with no config churn it freezes and an age check would mark every
-	// healthy chassis down once the staleness window elapses.
-	l.Alive = l.InSync
-	if priv.NbCfgTimestamp > 0 {
-		// AgeMs is informational only. nb_cfg_timestamp is written by the
-		// chassis's own ovn-controller clock, foreign relative to b.now(); a
-		// future timestamp (age < 0) means clock skew and is clamped to 0 rather
-		// than leaking a negative age into the response.
-		if age := b.now().UnixMilli() - int64(priv.NbCfgTimestamp); age > 0 {
-			l.AgeMs = age
-		}
-		// Stale is the age-based signal, scoped to an out-of-sync chassis: it has
-		// received a newer nb_cfg generation but has not acknowledged it within
-		// StaleThreshold, i.e. it is lagging/stuck rather than merely mid-update.
-		l.Stale = !l.InSync && l.AgeMs > b.StaleThreshold.Milliseconds()
-	}
-	return l
+	return ComputeLiveness(priv, c.sbNbCfg, b.now(), b.StaleThreshold)
 }
 
 // loadCaches gathers the SB lookups used to compute liveness and port summaries.
