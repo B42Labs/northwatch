@@ -35,10 +35,10 @@ func TestSeedCreatesBaseline(t *testing.T) {
 	require.NoError(t, err)
 
 	// Result counts reflect what was created.
-	assert.Equal(t, 6, res.Created["Logical_Switch"])           // 4 tenant + 2 external (one per router)
-	assert.Equal(t, 2, res.Created["Logical_Router"])           //
-	assert.Equal(t, 20, res.Created["Logical_Switch_Port"])     // (3 vif + 1 uplink)*4 tenant + (localnet + uplink)*2 external
-	assert.Equal(t, 6, res.Created["Logical_Router_Port"])      // 4 tenant + 2 gateway ports
+	assert.Equal(t, 6, res.Created["Logical_Switch"])       // 4 tenant + 2 external (one per router)
+	assert.Equal(t, 2, res.Created["Logical_Router"])       //
+	assert.Equal(t, 20, res.Created["Logical_Switch_Port"]) // (3 vif + 1 uplink)*4 tenant + (localnet + uplink)*2 external
+	assert.Equal(t, 6, res.Created["Logical_Router_Port"])  // 4 tenant + 2 gateway ports
 	assert.Equal(t, 4, res.Created["NAT"])
 	assert.Equal(t, 4, res.Created["DHCP_Options"])
 	// Each router has exactly one distributed gateway port: odd router (1) uses a

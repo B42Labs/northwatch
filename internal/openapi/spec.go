@@ -2,11 +2,11 @@ package openapi
 
 // Document is a minimal OpenAPI 3.1.0 document.
 type Document struct {
-	OpenAPI    string                `json:"openapi"`
-	Info       Info                  `json:"info"`
-	Servers    []Server              `json:"servers,omitempty"`
-	Paths      map[string]*PathItem  `json:"paths"`
-	Components *Components           `json:"components,omitempty"`
+	OpenAPI    string               `json:"openapi"`
+	Info       Info                 `json:"info"`
+	Servers    []Server             `json:"servers,omitempty"`
+	Paths      map[string]*PathItem `json:"paths"`
+	Components *Components          `json:"components,omitempty"`
 }
 
 type Info struct {

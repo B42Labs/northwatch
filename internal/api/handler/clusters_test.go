@@ -75,4 +75,3 @@ func TestClusters_WithClusters(t *testing.T) {
 	assert.Equal(t, "staging", c1["name"])
 	assert.Equal(t, "Staging", c1["label"])
 }
-

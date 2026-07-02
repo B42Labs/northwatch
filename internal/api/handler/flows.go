@@ -28,10 +28,10 @@ type FlowTableGroup struct {
 
 // FlowPipelineResponse is the JSON response for GET /api/v1/flows.
 type FlowPipelineResponse struct {
-	DatapathUUID string            `json:"datapath_uuid"`
-	DatapathName string            `json:"datapath_name"`
-	Ingress      []FlowTableGroup  `json:"ingress"`
-	Egress       []FlowTableGroup  `json:"egress"`
+	DatapathUUID string           `json:"datapath_uuid"`
+	DatapathName string           `json:"datapath_name"`
+	Ingress      []FlowTableGroup `json:"ingress"`
+	Egress       []FlowTableGroup `json:"egress"`
 }
 
 // RegisterFlows registers the flow pipeline endpoint.

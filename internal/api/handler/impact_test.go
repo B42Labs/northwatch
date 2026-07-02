@@ -72,4 +72,3 @@ func TestHandleImpact_MissingEntity(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
-

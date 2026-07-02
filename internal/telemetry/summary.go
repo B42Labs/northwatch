@@ -53,7 +53,7 @@ func (q *Querier) Summary(ctx context.Context) (*SummaryResult, error) {
 			"nb": q.NB.Connected(),
 			"sb": q.SB.Connected(),
 		},
-		Counts:  make(map[string]int),
+		Counts:    make(map[string]int),
 		BFDStatus: make(map[string]int),
 	}
 

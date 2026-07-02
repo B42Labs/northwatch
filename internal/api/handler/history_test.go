@@ -45,7 +45,7 @@ func newTestHistorySetup(t *testing.T) (*history.Store, *history.Collector, *htt
 func TestHistory_ListSnapshots_Empty(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -59,7 +59,7 @@ func TestHistory_CreateAndListSnapshots(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
 	// Create snapshot
-	req := httptest.NewRequestWithContext(context.Background(),"POST", "/api/v1/snapshots", strings.NewReader(`{"label":"test"}`))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/snapshots", strings.NewReader(`{"label":"test"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -72,7 +72,7 @@ func TestHistory_CreateAndListSnapshots(t *testing.T) {
 	assert.Equal(t, 1, created.RowCounts["nb.Logical_Switch"])
 
 	// List
-	req = httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots", nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -92,7 +92,7 @@ func TestHistory_GetSnapshot(t *testing.T) {
 	meta, err := store.CreateSnapshot(ctx, "manual", "test", rows)
 	require.NoError(t, err)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/1", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -105,7 +105,7 @@ func TestHistory_GetSnapshot(t *testing.T) {
 func TestHistory_GetSnapshot_NotFound(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/999", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/999", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -124,7 +124,7 @@ func TestHistory_GetSnapshotRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// All rows
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/1/rows", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/1/rows", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -134,7 +134,7 @@ func TestHistory_GetSnapshotRows(t *testing.T) {
 	assert.Len(t, got, 2)
 
 	// Filtered
-	req = httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/1/rows?database=nb", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/1/rows?database=nb", nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -150,14 +150,14 @@ func TestHistory_DeleteSnapshot(t *testing.T) {
 	_, err := store.CreateSnapshot(ctx, "manual", "", nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequestWithContext(context.Background(),"DELETE", "/api/v1/snapshots/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/snapshots/1", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	// Verify gone
-	req = httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/1", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/1", nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -166,7 +166,7 @@ func TestHistory_DeleteSnapshot(t *testing.T) {
 func TestHistory_DeleteSnapshot_NotFound(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"DELETE", "/api/v1/snapshots/999", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/snapshots/999", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -188,7 +188,7 @@ func TestHistory_DiffSnapshots(t *testing.T) {
 	_, err = store.CreateSnapshot(ctx, "manual", "", rows2)
 	require.NoError(t, err)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/diff?from=1&to=2", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/diff?from=1&to=2", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -202,7 +202,7 @@ func TestHistory_DiffSnapshots(t *testing.T) {
 func TestHistory_DiffSnapshots_MissingParams(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/diff", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/diff", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -223,7 +223,7 @@ func TestHistory_QueryEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/events", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/events", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -243,7 +243,7 @@ func TestHistory_QueryEvents_WithFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/events?database=nb&type=insert", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/events?database=nb&type=insert", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -257,7 +257,7 @@ func TestHistory_QueryEvents_WithFilters(t *testing.T) {
 func TestHistory_InvalidSnapshotID(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/abc", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -267,7 +267,7 @@ func TestHistory_InvalidSnapshotID(t *testing.T) {
 func TestHistory_CreateSnapshot_NoBody(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"POST", "/api/v1/snapshots", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/snapshots", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -281,7 +281,7 @@ func TestHistory_CreateSnapshot_NoBody(t *testing.T) {
 func TestHistory_DiffSnapshots_InvalidFrom(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/snapshots/diff?from=abc&to=2", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/snapshots/diff?from=abc&to=2", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -291,7 +291,7 @@ func TestHistory_DiffSnapshots_InvalidFrom(t *testing.T) {
 func TestHistory_QueryEvents_InvalidLimit(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/events?limit=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/events?limit=abc", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -301,7 +301,7 @@ func TestHistory_QueryEvents_InvalidLimit(t *testing.T) {
 func TestHistory_QueryEvents_InvalidSince(t *testing.T) {
 	_, _, mux := newTestHistorySetup(t)
 
-	req := httptest.NewRequestWithContext(context.Background(),"GET", "/api/v1/events?since=not-a-date", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/events?since=not-a-date", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

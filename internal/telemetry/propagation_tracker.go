@@ -22,9 +22,9 @@ type PropagationTracker struct {
 	sb    client.Client
 
 	mu             sync.Mutex
-	currentGen     int              // latest NB_Global.nb_cfg
-	currentNbTsMs  int64            // latest NB_Global.nb_cfg_timestamp
-	chassisLastGen map[string]int   // per-chassis: last recorded generation
+	currentGen     int               // latest NB_Global.nb_cfg
+	currentNbTsMs  int64             // latest NB_Global.nb_cfg_timestamp
+	chassisLastGen map[string]int    // per-chassis: last recorded generation
 	hostnames      map[string]string // chassis name -> hostname
 }
 

@@ -52,8 +52,8 @@ type PortInfo struct {
 // ConnectivityResult is the full result of a connectivity check.
 type ConnectivityResult struct {
 	Source      PortInfo            `json:"source"`
-	Destination PortInfo           `json:"destination"`
-	Overall     CheckStatus        `json:"overall"`
+	Destination PortInfo            `json:"destination"`
+	Overall     CheckStatus         `json:"overall"`
 	Checks      []ConnectivityCheck `json:"checks"`
 }
 
