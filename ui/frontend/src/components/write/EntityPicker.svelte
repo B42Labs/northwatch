@@ -64,7 +64,7 @@
   {#if manualMode}
     <input
       type="text"
-      class="input input-sm input-bordered w-full font-mono"
+      class="input w-full font-mono input-sm"
       placeholder="Enter UUID..."
       {value}
       oninput={(e) => onSelect(e.currentTarget.value)}
@@ -79,7 +79,7 @@
       <span class="font-mono text-xs text-base-content/50">Loading...</span>
     {:else}
       <select
-        class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
+        class="select w-full bg-base-200/60 font-mono select-sm"
         {value}
         onchange={(e) => onSelect(e.currentTarget.value)}
       >

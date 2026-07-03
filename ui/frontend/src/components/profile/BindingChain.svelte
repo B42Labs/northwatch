@@ -50,14 +50,14 @@
       {#if lsp._uuid}
         <a
           href={link(`/correlated/logical-switch-ports/${lsp._uuid}`)}
-          class="link link-primary font-mono text-xs">{lsp._uuid}</a
+          class="link font-mono text-xs link-primary">{lsp._uuid}</a
         >
       {/if}
       {#if parentSwitch}
         <div class="mt-1 font-mono text-xs text-base-content/55">
           switch: <a
             href={link(`/correlated/logical-switches/${parentSwitch._uuid}`)}
-            class="link-hover link">{parentSwitch.name || parentSwitch._uuid}</a
+            class="link link-hover">{parentSwitch.name || parentSwitch._uuid}</a
           >
         </div>
       {/if}
@@ -80,14 +80,14 @@
       {#if lrp._uuid}
         <a
           href={link(`/correlated/logical-router-ports/${lrp._uuid}`)}
-          class="link link-primary font-mono text-xs">{lrp._uuid}</a
+          class="link font-mono text-xs link-primary">{lrp._uuid}</a
         >
       {/if}
       {#if parentRouter}
         <div class="mt-1 font-mono text-xs text-base-content/55">
           router: <a
             href={link(`/correlated/logical-routers/${parentRouter._uuid}`)}
-            class="link-hover link">{parentRouter.name || parentRouter._uuid}</a
+            class="link link-hover">{parentRouter.name || parentRouter._uuid}</a
           >
         </div>
       {/if}
@@ -133,7 +133,7 @@
         <span class="font-mono text-sm font-semibold">Chassis</span>
         <a
           href={link(`/correlated/chassis/${chassis._uuid}`)}
-          class="link-hover link font-mono text-sm"
+          class="link font-mono text-sm link-hover"
           >{chassis.name || chassis.hostname || chassis._uuid}</a
         >
       </div>

@@ -30,11 +30,11 @@
     {#if enrichment}
       <EnrichmentBadge data={enrichment} />
     {/if}
-    <span class="break-all font-mono text-xs text-base-content/50">{uuid}</span>
+    <span class="font-mono text-xs break-all text-base-content/50">{uuid}</span>
   {/snippet}
   {#snippet actions()}
     {#if rawHref}
-      <a href={link(rawHref)} class="btn btn-ghost btn-xs border-base-300"
+      <a href={link(rawHref)} class="btn border-base-300 btn-ghost btn-xs"
         >Raw</a
       >
     {/if}

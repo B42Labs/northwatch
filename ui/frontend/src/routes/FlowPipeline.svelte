@@ -219,7 +219,7 @@
         />
         {#if searchQuery}
           <button
-            class="btn btn-ghost btn-xs border-base-300 font-mono normal-case"
+            class="btn border-base-300 btn-ghost font-mono normal-case btn-xs"
             onclick={() => (searchQuery = '')}>Clear</button
           >
         {/if}
@@ -255,7 +255,7 @@
         {#if visibleIngress.length > 0}
           <div>
             <h3
-              class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-info"
+              class="mb-2 font-mono text-xs font-semibold tracking-wider text-info uppercase"
             >
               Ingress Pipeline
             </h3>
@@ -276,7 +276,7 @@
         {#if visibleEgress.length > 0}
           <div>
             <h3
-              class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warning"
+              class="mb-2 font-mono text-xs font-semibold tracking-wider text-warning uppercase"
             >
               Egress Pipeline
             </h3>

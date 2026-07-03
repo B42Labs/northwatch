@@ -650,11 +650,11 @@
         <!-- Header -->
         <div class="mb-1.5 flex items-center gap-2">
           <span
-            class="inline-block h-2.5 w-2.5 rounded-sm"
+            class="inline-block h-2.5 w-2.5 rounded-xs"
             style="background: {hdrColor};"
           ></span>
           <span
-            class="text-xs font-semibold uppercase tracking-wide"
+            class="text-xs font-semibold tracking-wide uppercase"
             style="color: {hdrColor};"
           >
             {hdrLabel}
@@ -671,7 +671,7 @@
           <tbody>
             {#each infoRows(hoveredNode) as row, i (row.key)}
               <tr class={i % 2 === 0 ? 'bg-slate-700/40' : 'bg-slate-800'}>
-                <td class="whitespace-nowrap px-2 py-1 align-top text-slate-400"
+                <td class="px-2 py-1 align-top whitespace-nowrap text-slate-400"
                   >{row.key}</td
                 >
                 <td class="px-2 py-1 font-mono text-slate-200">{row.value}</td>

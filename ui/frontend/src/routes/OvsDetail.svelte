@@ -137,7 +137,7 @@
     {#if signals.length > 0}
       <div class="mb-4 flex flex-col gap-1.5">
         <span
-          class="font-mono text-2xs uppercase tracking-wider text-base-content/45"
+          class="font-mono text-2xs tracking-wider text-base-content/45 uppercase"
           >Interface signals</span
         >
         <StatTiles tiles={signals} />

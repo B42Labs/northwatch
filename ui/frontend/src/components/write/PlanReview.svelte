@@ -64,7 +64,7 @@
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap items-center gap-3">
         <h3
-          class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+          class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
         >
           Plan
         </h3>
@@ -90,7 +90,7 @@
   <!-- Diffs -->
   <div>
     <h3
-      class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
     >
       Changes Preview
     </h3>
@@ -106,23 +106,23 @@
             <input
               id="apply-actor"
               type="text"
-              class="input input-sm input-bordered w-60 font-mono"
+              class="input w-60 font-mono input-sm"
               placeholder="your-name"
               bind:value={actor}
             />
           </FormField>
           <button
-            class="btn btn-primary btn-sm font-mono"
+            class="btn font-mono btn-primary btn-sm"
             disabled={expired || applying}
             onclick={() => onApply(actor)}
           >
             {#if applying}
-              <span class="loading loading-spinner loading-xs"></span>
+              <span class="loading loading-xs loading-spinner"></span>
             {/if}
             Apply Changes
           </button>
           <button
-            class="btn btn-ghost btn-sm border-base-300 font-mono"
+            class="btn border-base-300 btn-ghost font-mono btn-sm"
             disabled={applying}
             onclick={onCancel}
           >

@@ -58,7 +58,7 @@
     </div>
 
     <button
-      class="btn btn-ghost btn-xs mt-1 w-fit border-base-300 font-mono"
+      class="btn mt-1 w-fit border-base-300 btn-ghost font-mono btn-xs"
       onclick={() => (showTree = !showTree)}
     >
       {showTree ? 'Hide' : 'Show'} dependency tree

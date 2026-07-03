@@ -183,7 +183,7 @@
   description="Live per-chassis Open vSwitch state, read directly from each node's OVSDB management connection. Pick a chassis and a table to browse its local interfaces, bridges, ports, and controllers."
 >
   {#snippet actions()}
-    <button class="btn btn-ghost btn-xs border-base-300" onclick={refresh}>
+    <button class="btn border-base-300 btn-ghost btn-xs" onclick={refresh}>
       Refresh
     </button>
   {/snippet}
@@ -202,7 +202,7 @@
   <div class="mb-4 flex flex-col gap-1.5">
     <div class="flex items-center gap-2">
       <span
-        class="font-mono text-2xs uppercase tracking-wider text-base-content/45"
+        class="font-mono text-2xs tracking-wider text-base-content/45 uppercase"
         >Chassis</span
       >
       {#if selectedChassis}
@@ -246,7 +246,7 @@
   <!-- Table selector -->
   <div class="mb-4 flex flex-wrap items-center gap-3">
     <span
-      class="font-mono text-2xs uppercase tracking-wider text-base-content/45"
+      class="font-mono text-2xs tracking-wider text-base-content/45 uppercase"
       >Table</span
     >
     <SegmentedControl

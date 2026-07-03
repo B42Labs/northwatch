@@ -88,7 +88,7 @@
   >
     <div class="flex items-center gap-2">
       <span
-        class="select-none text-primary transition-transform {collapsed
+        class="text-primary transition-transform select-none {collapsed
           ? ''
           : 'rotate-90'}"
         aria-hidden="true">&#9654;</span
@@ -126,15 +126,15 @@
           {/if}
         </div>
       {:else}
-        <table class="table table-xs w-full font-mono">
+        <table class="table w-full table-xs font-mono">
           <thead>
             <tr>
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Pri</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Match / Actions</th
               >
             </tr>
@@ -151,7 +151,7 @@
                 <td class="text-xs">
                   <!-- Flow summary row -->
                   <div
-                    class="break-all font-mono leading-relaxed text-base-content/80"
+                    class="font-mono leading-relaxed break-all text-base-content/80"
                   >
                     {flow.match || '1 (any)'}
                   </div>
@@ -170,31 +170,31 @@
                     >
                       <div>
                         <div
-                          class="mb-0.5 font-mono text-2xs uppercase tracking-wider text-base-content/55"
+                          class="mb-0.5 font-mono text-2xs tracking-wider text-base-content/55 uppercase"
                         >
                           Match
                         </div>
-                        <div class="break-all font-mono leading-relaxed">
+                        <div class="font-mono leading-relaxed break-all">
                           {flow.match || '1 (any)'}
                         </div>
                       </div>
                       <div>
                         <div
-                          class="mb-0.5 flex items-center gap-2 font-mono text-2xs uppercase tracking-wider text-base-content/55"
+                          class="mb-0.5 flex items-center gap-2 font-mono text-2xs tracking-wider text-base-content/55 uppercase"
                         >
                           Actions
                           {#each actionBadges(flow.actions) as badge, i (i)}
                             <Badge text={badge.label} variant={badge.variant} />
                           {/each}
                         </div>
-                        <div class="break-all font-mono leading-relaxed">
+                        <div class="font-mono leading-relaxed break-all">
                           {flow.actions}
                         </div>
                       </div>
                       {#if flow.external_ids && Object.keys(flow.external_ids).length > 0}
                         <div>
                           <div
-                            class="mb-0.5 font-mono text-2xs uppercase tracking-wider text-base-content/55"
+                            class="mb-0.5 font-mono text-2xs tracking-wider text-base-content/55 uppercase"
                           >
                             External IDs
                           </div>
@@ -203,7 +203,7 @@
                               {#if key === 'source' && /^[0-9a-f-]{36}$/i.test(value)}
                                 <a
                                   href={link(`/nb/acls/${value}`)}
-                                  class="badge badge-primary badge-outline badge-sm gap-1"
+                                  class="badge gap-1 badge-outline badge-sm badge-primary"
                                   onclick={(e) => e.stopPropagation()}
                                 >
                                   {key}: {value.slice(0, 8)}...

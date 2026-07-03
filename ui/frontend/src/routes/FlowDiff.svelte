@@ -159,7 +159,7 @@
   <div class="mb-4 flex flex-wrap items-center gap-3">
     <select
       bind:value={selectedDatapath}
-      class="select select-bordered select-sm w-64 bg-base-200/60 font-mono"
+      class="select w-64 bg-base-200/60 font-mono select-sm"
     >
       <option value="">All datapaths</option>
       {#each datapathOptions as dp (dp.uuid)}
@@ -176,7 +176,7 @@
 
     <label class="label cursor-pointer gap-2">
       <span
-        class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
         >Auto-refresh</span
       >
       <input
@@ -186,7 +186,7 @@
       />
     </label>
 
-    <button class="btn btn-ghost btn-xs border-base-300" onclick={loadDiff}
+    <button class="btn border-base-300 btn-ghost btn-xs" onclick={loadDiff}
       >Refresh</button
     >
   </div>
@@ -241,7 +241,7 @@
               <div class="mt-2 grid grid-cols-2 gap-2 font-mono text-xs">
                 <div>
                   <div
-                    class="mb-0.5 font-semibold uppercase tracking-wider text-base-content/50"
+                    class="mb-0.5 font-semibold tracking-wider text-base-content/50 uppercase"
                   >
                     Before
                   </div>
@@ -260,7 +260,7 @@
                 </div>
                 <div>
                   <div
-                    class="mb-0.5 font-semibold uppercase tracking-wider text-base-content/50"
+                    class="mb-0.5 font-semibold tracking-wider text-base-content/50 uppercase"
                   >
                     After
                   </div>

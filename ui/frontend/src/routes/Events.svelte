@@ -128,7 +128,7 @@
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <select
         bind:value={filterDb}
-        class="select select-bordered select-sm bg-base-200/60 font-mono"
+        class="select bg-base-200/60 font-mono select-sm"
       >
         <option value="">All databases</option>
         <option value="nb">nb</option>
@@ -143,7 +143,7 @@
 
       <select
         bind:value={filterType}
-        class="select select-bordered select-sm bg-base-200/60 font-mono"
+        class="select bg-base-200/60 font-mono select-sm"
       >
         <option value="">All types</option>
         <option value="insert">insert</option>
@@ -158,7 +158,7 @@
       />
 
       <label
-        class="ml-2 flex cursor-pointer select-none items-center gap-2 font-mono text-sm"
+        class="ml-2 flex cursor-pointer items-center gap-2 font-mono text-sm select-none"
       >
         <input
           type="checkbox"
@@ -172,7 +172,7 @@
       </label>
 
       <button
-        class="btn btn-ghost btn-xs ml-auto border-base-300"
+        class="btn ml-auto border-base-300 btn-ghost btn-xs"
         onclick={loadEvents}>Refresh</button
       >
     </div>
@@ -188,27 +188,27 @@
         {events.length} events
       </div>
       <div class="flex-1 overflow-auto rounded border border-base-300">
-        <table class="table table-pin-rows table-xs font-mono">
+        <table class="table-pin-rows table table-xs font-mono">
           <thead>
             <tr>
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Time</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Type</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Database</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Table</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >UUID</th
               >
             </tr>
@@ -223,7 +223,7 @@
                 onclick={() =>
                   (selectedEvent = selectedEvent?.id === evt.id ? null : evt)}
               >
-                <td class="whitespace-nowrap text-xs text-base-content/60">
+                <td class="text-xs whitespace-nowrap text-base-content/60">
                   {new Date(evt.timestamp).toLocaleTimeString()}
                 </td>
                 <td>
@@ -256,7 +256,11 @@
 <style>
   @keyframes fade-in {
     from {
-      background-color: oklch(var(--s) / 0.2);
+      background-color: color-mix(
+        in oklab,
+        var(--color-secondary) 20%,
+        transparent
+      );
     }
     to {
       background-color: transparent;

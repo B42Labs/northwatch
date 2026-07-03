@@ -15,7 +15,7 @@
 </script>
 
 <span
-  class="badge badge-sm gap-1 whitespace-nowrap font-mono text-2xs {badgeClass[
+  class="badge gap-1 font-mono text-2xs badge-sm whitespace-nowrap {badgeClass[
     variant
   ]} {outline ? 'badge-outline' : ''}"
 >

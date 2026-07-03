@@ -268,7 +268,7 @@
             onclick={() => toggleGroup(pg.uuid)}
           >
             <span
-              class="select-none text-base-content/50 transition-transform duration-200"
+              class="text-base-content/50 transition-transform duration-200 select-none"
               class:rotate-90={expandedGroups.has(pg.uuid)}
             >
               &#9654;
@@ -285,7 +285,7 @@
                 </p>
               {/if}
             </div>
-            <div class="flex flex-shrink-0 items-center gap-1.5">
+            <div class="flex shrink-0 items-center gap-1.5">
               <Badge
                 text="{pg.ports.length} port{pg.ports.length !== 1 ? 's' : ''}"
                 variant="ghost"
@@ -304,7 +304,7 @@
               {#if pg.ports.length > 0}
                 <div class="mb-3">
                   <h3
-                    class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
+                    class="mb-1 font-mono text-2xs font-semibold tracking-wider text-base-content/55 uppercase"
                   >
                     Member Ports
                   </h3>
@@ -320,28 +320,28 @@
               {#if pg.acls.length > 0}
                 <div>
                   <h3
-                    class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
+                    class="mb-1 font-mono text-2xs font-semibold tracking-wider text-base-content/55 uppercase"
                   >
                     ACL Rules
                   </h3>
                   <div class="overflow-x-auto rounded border border-base-300">
-                    <table class="table table-xs w-full font-mono">
+                    <table class="table w-full table-xs font-mono">
                       <thead>
                         <tr>
                           <th
-                            class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            class="w-20 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                             >Priority</th
                           >
                           <th
-                            class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            class="w-24 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                             >Direction</th
                           >
                           <th
-                            class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            class="w-28 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                             >Action</th
                           >
                           <th
-                            class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                            class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                             >Match</th
                           >
                         </tr>
@@ -362,7 +362,7 @@
                                 variant={aclActionVariant(acl.action)}
                               />
                             </td>
-                            <td class="break-all text-xs">{acl.match}</td>
+                            <td class="text-xs break-all">{acl.match}</td>
                           </tr>
                         {/each}
                       </tbody>
@@ -389,7 +389,7 @@
   {#if filteredStandaloneACLs.length > 0}
     <div class="mt-6">
       <h2
-        class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="mb-1 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         Standalone ACLs
       </h2>
@@ -397,23 +397,23 @@
         ACL rules not assigned to any port group
       </p>
       <div class="overflow-x-auto rounded border border-base-300">
-        <table class="table table-xs w-full font-mono">
+        <table class="table w-full table-xs font-mono">
           <thead>
             <tr>
               <th
-                class="w-20 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="w-20 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Priority</th
               >
               <th
-                class="w-24 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="w-24 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Direction</th
               >
               <th
-                class="w-28 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="w-28 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Action</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Match</th
               >
             </tr>
@@ -434,7 +434,7 @@
                     variant={aclActionVariant(acl.action)}
                   />
                 </td>
-                <td class="break-all text-xs">{acl.match}</td>
+                <td class="text-xs break-all">{acl.match}</td>
               </tr>
             {/each}
           </tbody>

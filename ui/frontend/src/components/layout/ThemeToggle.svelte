@@ -12,7 +12,7 @@
 
 <button
   type="button"
-  class="btn btn-square btn-ghost btn-sm font-mono text-base"
+  class="btn btn-square btn-ghost font-mono text-base btn-sm"
   onclick={toggle}
   title={isDark ? 'Switch to light' : 'Switch to dark'}
   aria-label="Toggle theme"

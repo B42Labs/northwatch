@@ -68,7 +68,7 @@
 <div class="rounded border border-base-300 bg-base-100 p-4">
   <div class="mb-3 flex items-center justify-between">
     <h3
-      class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+      class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
     >
       Diff: Snapshot #{diff.from_id} → #{diff.to_id}
     </h3>
@@ -127,7 +127,7 @@
             {#if tableDiff.added?.length}
               <div class="mb-2">
                 <div
-                  class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-success"
+                  class="mb-1 font-mono text-xs font-semibold tracking-wider text-success uppercase"
                 >
                   Added
                 </div>
@@ -150,7 +150,7 @@
             {#if tableDiff.removed?.length}
               <div class="mb-2">
                 <div
-                  class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-error"
+                  class="mb-1 font-mono text-xs font-semibold tracking-wider text-error uppercase"
                 >
                   Removed
                 </div>
@@ -173,7 +173,7 @@
             {#if tableDiff.modified?.length}
               <div>
                 <div
-                  class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-warning"
+                  class="mb-1 font-mono text-xs font-semibold tracking-wider text-warning uppercase"
                 >
                   Modified
                 </div>
@@ -206,19 +206,19 @@
                       >
                     </div>
                     {#if expandedModified === mod.uuid}
-                      <table class="table table-xs mt-2 font-mono">
+                      <table class="table mt-2 table-xs font-mono">
                         <thead>
                           <tr>
                             <th
-                              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                               >Field</th
                             >
                             <th
-                              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                               >Old</th
                             >
                             <th
-                              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                               >New</th
                             >
                           </tr>

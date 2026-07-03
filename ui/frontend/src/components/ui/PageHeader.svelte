@@ -30,7 +30,7 @@
   <div class="min-w-0">
     {#if breadcrumbs.length > 0}
       <nav
-        class="mb-1 flex flex-wrap items-center gap-1 font-mono text-2xs uppercase tracking-wider text-base-content/45"
+        class="mb-1 flex flex-wrap items-center gap-1 font-mono text-2xs tracking-wider text-base-content/45 uppercase"
       >
         {#each breadcrumbs as crumb, i (crumb.label)}
           {#if i > 0}<span class="text-base-content/25">/</span>{/if}
@@ -46,18 +46,18 @@
       </nav>
     {:else if eyebrow}
       <div
-        class="mb-1 font-mono text-2xs uppercase tracking-widest text-base-content/45"
+        class="mb-1 font-mono text-2xs tracking-widest text-base-content/45 uppercase"
       >
         {eyebrow}
       </div>
     {/if}
 
     <h1
-      class="flex items-baseline gap-2 text-xl font-semibold leading-tight text-base-content {mono
-        ? 'break-all font-mono'
+      class="flex items-baseline gap-2 text-xl leading-tight font-semibold text-base-content {mono
+        ? 'font-mono break-all'
         : ''}"
     >
-      <span class="nw-glow select-none text-primary" aria-hidden="true"
+      <span class="nw-glow text-primary select-none" aria-hidden="true"
         >&gt;</span
       >
       <span class="min-w-0">{title}</span>
@@ -77,7 +77,7 @@
   </div>
 
   {#if actions}
-    <div class="flex flex-shrink-0 flex-wrap items-center gap-2">
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
       {@render actions()}
     </div>
   {/if}

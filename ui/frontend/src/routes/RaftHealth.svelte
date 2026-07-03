@@ -105,7 +105,7 @@
 
           <!-- Raft cluster membership aggregated from per-endpoint _Server rows -->
           <div
-            class="mb-1.5 text-2xs uppercase tracking-wider text-base-content/45"
+            class="mb-1.5 text-2xs tracking-wider text-base-content/45 uppercase"
           >
             Cluster
           </div>
@@ -147,7 +147,7 @@
                     <tr>
                       {#each ['Endpoint', 'Server', 'Role', 'Contact', 'Index'] as h (h)}
                         <th
-                          class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                          class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                           >{h}</th
                         >
                       {/each}
@@ -219,7 +219,7 @@
 
           <!-- Configured connection listeners (OVSDB Connection table) -->
           <div
-            class="mb-1.5 mt-3 text-2xs uppercase tracking-wider text-base-content/45"
+            class="mt-3 mb-1.5 text-2xs tracking-wider text-base-content/45 uppercase"
           >
             Listeners
           </div>
@@ -230,7 +230,7 @@
                   <tr>
                     {#each ['Target', 'Status', 'is_connected'] as h (h)}
                       <th
-                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                         >{h}</th
                       >
                     {/each}

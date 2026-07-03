@@ -69,7 +69,7 @@
   <div class="mb-3 flex flex-wrap items-center gap-2">
     <select
       bind:value={filterDb}
-      class="select select-bordered select-sm bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-sm"
     >
       <option value="">All databases</option>
       <option value="nb">nb</option>
@@ -84,7 +84,7 @@
 
     <select
       bind:value={filterType}
-      class="select select-bordered select-sm bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-sm"
     >
       <option value="">All types</option>
       <option value="insert">insert</option>
@@ -98,7 +98,7 @@
       size="xs"
     />
 
-    <button class="btn btn-ghost btn-xs border-base-300" onclick={loadEvents}
+    <button class="btn border-base-300 btn-ghost btn-xs" onclick={loadEvents}
       >Refresh</button
     >
   </div>
@@ -113,27 +113,27 @@
       {events.length} events
     </div>
     <div class="max-h-[600px] overflow-auto rounded border border-base-300">
-      <table class="table table-pin-rows table-xs font-mono">
+      <table class="table-pin-rows table table-xs font-mono">
         <thead>
           <tr>
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Time</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Type</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Database</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Table</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >UUID</th
             >
           </tr>
@@ -145,7 +145,7 @@
               onclick={() =>
                 (expandedId = expandedId === evt.id ? null : evt.id)}
             >
-              <td class="whitespace-nowrap text-xs text-base-content/60">
+              <td class="text-xs whitespace-nowrap text-base-content/60">
                 {new Date(evt.timestamp).toLocaleTimeString()}
               </td>
               <td>
@@ -165,7 +165,7 @@
                   {#if evt.old_row}
                     <div class="mb-2">
                       <div
-                        class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                        class="mb-1 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
                       >
                         Old Row
                       </div>
@@ -180,7 +180,7 @@
                   {#if evt.row}
                     <div>
                       <div
-                        class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                        class="mb-1 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
                       >
                         Row
                       </div>

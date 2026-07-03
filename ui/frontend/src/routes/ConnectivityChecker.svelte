@@ -127,11 +127,11 @@
         type="text"
         bind:value={srcFilter}
         placeholder="Filter ports..."
-        class="input input-sm input-bordered mb-1 w-full font-mono"
+        class="input mb-1 w-full font-mono input-sm"
       />
       <select
         bind:value={srcUuid}
-        class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
+        class="select w-full bg-base-200/60 font-mono select-sm"
       >
         <option value="">Select source port...</option>
         {#each filteredSrcPorts as p (p.uuid)}
@@ -145,11 +145,11 @@
         type="text"
         bind:value={dstFilter}
         placeholder="Filter ports..."
-        class="input input-sm input-bordered mb-1 w-full font-mono"
+        class="input mb-1 w-full font-mono input-sm"
       />
       <select
         bind:value={dstUuid}
-        class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
+        class="select w-full bg-base-200/60 font-mono select-sm"
       >
         <option value="">Select destination port...</option>
         {#each filteredDstPorts as p (p.uuid)}
@@ -160,12 +160,12 @@
   </div>
 
   <button
-    class="btn btn-primary btn-sm mb-6"
+    class="btn mb-6 btn-primary btn-sm"
     disabled={!srcUuid || !dstUuid || checking}
     onclick={runCheck}
   >
     {#if checking}
-      <span class="loading loading-spinner loading-xs"></span>
+      <span class="loading loading-xs loading-spinner"></span>
     {/if}
     Check Connectivity
   </button>
@@ -173,7 +173,7 @@
   {#if result}
     <!-- Overall status -->
     <div
-      class="alert mb-4 {result.overall === 'pass'
+      class="mb-4 alert {result.overall === 'pass'
         ? 'alert-success'
         : result.overall === 'fail'
           ? 'alert-error'
@@ -188,7 +188,7 @@
     <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
       <div class="rounded border border-base-300 bg-base-100 p-3">
         <div
-          class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
+          class="mb-1 font-mono text-2xs font-semibold tracking-wider text-base-content/55 uppercase"
         >
           Source
         </div>
@@ -206,7 +206,7 @@
       </div>
       <div class="rounded border border-base-300 bg-base-100 p-3">
         <div
-          class="mb-1 font-mono text-2xs font-semibold uppercase tracking-wider text-base-content/55"
+          class="mb-1 font-mono text-2xs font-semibold tracking-wider text-base-content/55 uppercase"
         >
           Destination
         </div>

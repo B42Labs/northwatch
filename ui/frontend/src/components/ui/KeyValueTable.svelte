@@ -8,7 +8,7 @@
 </script>
 
 {#if entries.length === 0}
-  <span class="font-mono text-xs italic text-base-content/45">empty</span>
+  <span class="font-mono text-xs text-base-content/45 italic">empty</span>
 {:else}
   <table
     class="table table-xs font-mono {compact
@@ -19,10 +19,10 @@
       {#each entries as [key, value] (key)}
         <tr class="border-base-300/60">
           <td
-            class="whitespace-nowrap align-top text-xs font-medium text-base-content/55"
+            class="align-top text-xs font-medium whitespace-nowrap text-base-content/55"
             >{key}</td
           >
-          <td class="break-all text-xs">{value}</td>
+          <td class="text-xs break-all">{value}</td>
         </tr>
       {/each}
     </tbody>

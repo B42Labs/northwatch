@@ -120,7 +120,7 @@
   <ul class="steps steps-horizontal mb-6 w-full">
     {#each stepLabels as label, i (i)}
       <li
-        class="step font-mono text-2xs uppercase tracking-wider"
+        class="step font-mono text-2xs tracking-wider uppercase"
         class:step-primary={i <= stepIndex}
       >
         {label}
@@ -146,7 +146,7 @@
 
       <div>
         <h2
-          class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+          class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
         >
           Batch ({operations.length} operation{operations.length !== 1
             ? 's'
@@ -162,19 +162,19 @@
               <input
                 id="batch-reason"
                 type="text"
-                class="input input-sm input-bordered w-full font-mono"
+                class="input w-full font-mono input-sm"
                 placeholder="Overall reason for this batch"
                 bind:value={reason}
               />
             </FormField>
           </div>
           <button
-            class="btn btn-primary btn-sm font-mono"
+            class="btn font-mono btn-primary btn-sm"
             disabled={loading}
             onclick={handlePreview}
           >
             {#if loading}
-              <span class="loading loading-spinner loading-xs"></span>
+              <span class="loading loading-xs loading-spinner"></span>
             {/if}
             Preview Changes
           </button>
@@ -209,7 +209,7 @@
         {#if applyResult.auditId}
           <a
             href={link(`/write/audit/${applyResult.auditId}`)}
-            class="btn btn-outline btn-sm mt-3 border-base-300 font-mono"
+            class="btn mt-3 border-base-300 btn-outline font-mono btn-sm"
           >
             View Audit Entry
           </a>
@@ -222,7 +222,7 @@
         </p>
       {/if}
       <button
-        class="btn btn-primary btn-sm mt-4 font-mono"
+        class="btn mt-4 font-mono btn-primary btn-sm"
         onclick={handleReset}
       >
         New Operation

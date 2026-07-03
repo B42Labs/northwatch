@@ -41,13 +41,13 @@
             </span>
           {/if}
           {#if op.reason}
-            <span class="font-mono text-xs italic text-base-content/40">
+            <span class="font-mono text-xs text-base-content/40 italic">
               {op.reason}
             </span>
           {/if}
         </div>
         <button
-          class="btn btn-ghost btn-xs border-base-300 font-mono text-error"
+          class="btn border-base-300 btn-ghost font-mono text-error btn-xs"
           onclick={() => onRemove(i)}
         >
           Remove

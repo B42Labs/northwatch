@@ -49,15 +49,15 @@
                 <thead>
                   <tr>
                     <th
-                      class="w-40 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="w-40 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >Field</th
                     >
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >Before</th
                     >
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >After</th
                     >
                   </tr>

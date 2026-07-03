@@ -248,7 +248,7 @@
           <h2 class="mb-2 font-mono text-sm font-semibold">
             <a
               href={link(`/correlated/logical-routers/${group.router._uuid}`)}
-              class="link-hover link-primary"
+              class="link-primary link-hover"
             >
               {group.router.name || group.router._uuid.slice(0, 8)}
             </a>
@@ -261,27 +261,27 @@
                 <thead>
                   <tr>
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >Type</th
                     >
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >External IP</th
                     >
                     <th
-                      class="bg-base-200 text-center text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-center text-2xs tracking-wider text-base-content/55 uppercase"
                       >Dir</th
                     >
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >Logical IP</th
                     >
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >Logical Port</th
                     >
                     <th
-                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                       >Gateway Port</th
                     >
                   </tr>
@@ -317,7 +317,7 @@
           {#if group.routes.length > 0}
             <div class="mt-3">
               <h3
-                class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                class="mb-1 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
               >
                 Static Routes ({group.routes.length})
               </h3>
@@ -326,15 +326,15 @@
                   <thead>
                     <tr>
                       <th
-                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                         >Prefix</th
                       >
                       <th
-                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                         >Nexthop</th
                       >
                       <th
-                        class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                        class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                         >Output Port</th
                       >
                     </tr>

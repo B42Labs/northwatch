@@ -63,7 +63,7 @@
 
       <div>
         <h2
-          class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+          class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
         >
           Binding Chain
         </h2>

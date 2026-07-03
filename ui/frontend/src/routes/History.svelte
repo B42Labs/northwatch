@@ -188,7 +188,7 @@
   {#if viewingSnapshot}
     <div class="mb-3">
       <button
-        class="btn btn-ghost btn-sm border-base-300"
+        class="btn border-base-300 btn-ghost btn-sm"
         onclick={() => (viewingSnapshot = null)}
       >
         &larr; Back to snapshots
@@ -201,7 +201,7 @@
   {:else if diff}
     <div class="mb-3">
       <button
-        class="btn btn-ghost btn-sm border-base-300"
+        class="btn border-base-300 btn-ghost btn-sm"
         onclick={() => (diff = null)}
       >
         &larr; Back to snapshots
@@ -211,7 +211,7 @@
   {:else}
     <div class="mb-3 flex items-center gap-2">
       <button
-        class="btn btn-primary btn-sm font-mono"
+        class="btn font-mono btn-primary btn-sm"
         onclick={handleCreate}
         disabled={creating}
       >
@@ -220,7 +220,7 @@
 
       {#if selectedIds.size === 2}
         <button
-          class="btn btn-outline btn-sm font-mono"
+          class="btn btn-outline font-mono btn-sm"
           onclick={handleCompare}
           disabled={diffLoading}
         >
@@ -233,7 +233,7 @@
       {/if}
 
       <button
-        class="btn btn-ghost btn-xs ml-auto border-base-300"
+        class="btn ml-auto border-base-300 btn-ghost btn-xs"
         onclick={loadSnapshots}
       >
         Refresh

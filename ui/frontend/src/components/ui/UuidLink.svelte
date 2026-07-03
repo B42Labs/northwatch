@@ -19,6 +19,6 @@
   let resolvedHref = $derived(href ? link(href) : link(`/search?q=${uuid}`));
 </script>
 
-<a href={resolvedHref} class="link link-primary font-mono text-sm" title={uuid}>
+<a href={resolvedHref} class="link font-mono text-sm link-primary" title={uuid}>
   {displayText}
 </a>

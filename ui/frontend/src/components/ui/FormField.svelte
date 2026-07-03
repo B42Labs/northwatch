@@ -17,7 +17,7 @@
 
 <div class="flex flex-col gap-1">
   <label
-    class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+    class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
     for={forId}>{label}</label
   >
   {@render children()}

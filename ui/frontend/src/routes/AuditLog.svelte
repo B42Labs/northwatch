@@ -74,7 +74,7 @@
     />
 
     <select
-      class="select select-bordered select-xs bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-xs"
       bind:value={limit}
       onchange={load}
     >
@@ -85,7 +85,7 @@
     </select>
 
     <button
-      class="btn btn-ghost btn-xs border-base-300 font-mono"
+      class="btn border-base-300 btn-ghost font-mono btn-xs"
       onclick={load}>&#x21bb; Refresh</button
     >
   </Toolbar>
@@ -126,7 +126,7 @@
                 {entry.operations.length} op(s)
               </span>
               {#if entry.reason}
-                <span class="font-mono text-xs italic text-base-content/40">
+                <span class="font-mono text-xs text-base-content/40 italic">
                   {entry.reason}
                 </span>
               {/if}

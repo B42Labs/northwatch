@@ -40,7 +40,7 @@
       <span class="h-2.5 w-2.5 rounded-full bg-warning/70"></span>
       <span class="h-2.5 w-2.5 rounded-full bg-success/70"></span>
       <span
-        class="ml-2 font-mono text-2xs uppercase tracking-widest text-base-content/40"
+        class="ml-2 font-mono text-2xs tracking-widest text-base-content/40 uppercase"
         >northwatch — console</span
       >
     </div>
@@ -80,7 +80,7 @@
   <!-- Module launcher, driven by the shared nav config. -->
   <div class="mb-3 flex items-center gap-2">
     <span
-      class="font-mono text-2xs uppercase tracking-widest text-base-content/40"
+      class="font-mono text-2xs tracking-widest text-base-content/40 uppercase"
       >modules</span
     >
     <span class="h-px flex-1 bg-base-300"></span>
@@ -105,7 +105,7 @@
                 class="group flex items-center gap-1.5 rounded px-2.5 py-1.5 font-mono text-sm text-base-content/75 transition-colors hover:bg-base-300/50 hover:text-primary"
               >
                 <span
-                  class="select-none text-transparent group-hover:text-primary"
+                  class="text-transparent select-none group-hover:text-primary"
                   >&gt;</span
                 >
                 <span class="truncate">{l.label}</span>
