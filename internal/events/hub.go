@@ -1,11 +1,17 @@
 package events
 
 import (
-	"log"
+	"log/slog"
 	"sync"
+	"time"
 )
 
 const subscriberBufferSize = 256
+
+// dropLogInterval bounds how often a slow subscriber's dropped-event summary is
+// logged, so one stuck WebSocket client cannot flood the log with a line per
+// dropped event (thousands per second on a busy cluster).
+const dropLogInterval = 10 * time.Second
 
 // Subscriber represents a connected WebSocket client that receives events.
 type Subscriber struct {
@@ -13,6 +19,27 @@ type Subscriber struct {
 	id      uint64
 	mu      sync.RWMutex
 	filters []Filter
+	// dropped counts events discarded because the buffer was full since the last
+	// summary; lastDropLog is when that summary was last emitted. Both are
+	// guarded by mu.
+	dropped     uint64
+	lastDropLog time.Time
+}
+
+// recordDrop accounts for one dropped event and reports whether a summary should
+// be logged now (at most once per dropLogInterval). When it returns true the
+// accumulated count is returned and reset to zero.
+func (s *Subscriber) recordDrop(now time.Time) (uint64, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dropped++
+	if s.lastDropLog.IsZero() || now.Sub(s.lastDropLog) >= dropLogInterval {
+		n := s.dropped
+		s.dropped = 0
+		s.lastDropLog = now
+		return n, true
+	}
+	return 0, false
 }
 
 // AddFilter adds a subscription filter.
@@ -119,14 +146,25 @@ func (h *Hub) Publish(e Event) {
 		select {
 		case s.C <- e:
 		default:
-			log.Printf("events: dropping event for slow subscriber %d", s.id)
+			if n, ok := s.recordDrop(time.Now()); ok {
+				slog.Warn("events: dropping events for slow subscriber",
+					"subscriber", s.id, "dropped_since_last_report", n)
+			}
 		}
 	}
 }
 
-// SubscriberCount returns the current number of subscribers.
-func (h *Hub) SubscriberCount() int {
+// HasSubscriberFor reports whether any subscriber's filters would accept an
+// event for the given database and table. The bridge uses it to skip the
+// per-row reflection conversion when nobody is listening for a table.
+func (h *Hub) HasSubscriberFor(database, table string) bool {
+	probe := Event{Database: database, Table: table}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return len(h.subscribers)
+	for _, s := range h.subscribers {
+		if s.matches(probe) {
+			return true
+		}
+	}
+	return false
 }

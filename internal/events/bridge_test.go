@@ -35,6 +35,25 @@ func TestBridge_OnAdd(t *testing.T) {
 	}
 }
 
+func TestBridge_OnAdd_NoMatchingSubscriberSkips(t *testing.T) {
+	hub := NewHub()
+	s := hub.Subscribe()
+	defer hub.Unsubscribe(s)
+	// Subscribed to a different table: this add must be dropped before any
+	// conversion, and nothing should arrive on the channel.
+	s.AddFilter(Filter{Database: "nb", Tables: []string{"ACL"}})
+
+	bridge := NewBridge(hub, "nb")
+	bridge.OnAdd("Logical_Switch", &testModel{UUID: "uuid-1", Name: "ls1"})
+
+	select {
+	case e := <-s.C:
+		t.Fatalf("expected no event, got %+v", e)
+	case <-time.After(50 * time.Millisecond):
+		// no event: correct
+	}
+}
+
 func TestBridge_OnUpdate(t *testing.T) {
 	hub := NewHub()
 	s := hub.Subscribe()
