@@ -15,39 +15,67 @@ type FlowChange struct {
 	Datapath  string         `json:"datapath,omitempty"`
 }
 
-// Store is a bounded ring buffer for flow changes with time-based pruning.
+// Store is a fixed-capacity circular buffer for flow changes with time-based
+// pruning. Logical_Flow is OVN's highest-churn table, so the backing array is
+// preallocated once and Add overwrites the oldest entry in place at capacity —
+// avoiding the two O(maxSize) copies the previous slice implementation paid on
+// every insert.
 type Store struct {
 	mu      sync.RWMutex
-	changes []FlowChange
+	buf     []FlowChange // fixed capacity == maxSize
+	start   int          // index of the oldest change
+	count   int          // number of valid changes, 0 <= count <= maxSize
 	maxSize int
 	maxAge  time.Duration
 }
 
-// NewStore creates a Store with the given capacity and max age.
+// NewStore creates a Store with the given capacity and max age. maxSize is
+// clamped to a minimum of 1 so the ring buffer is always valid.
 func NewStore(maxSize int, maxAge time.Duration) *Store {
+	if maxSize < 1 {
+		maxSize = 1
+	}
 	return &Store{
-		changes: make([]FlowChange, 0, maxSize),
+		buf:     make([]FlowChange, maxSize),
 		maxSize: maxSize,
 		maxAge:  maxAge,
 	}
 }
 
-// Add appends a change and prunes old entries.
+// Add stores a change, overwriting the oldest entry when at capacity, and prunes
+// entries past maxAge from the front.
 func (s *Store) Add(change FlowChange) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.changes = append(s.changes, change)
-	s.pruneLocked()
+	s.buf[(s.start+s.count)%s.maxSize] = change
+	if s.count < s.maxSize {
+		s.count++
+	} else {
+		s.start = (s.start + 1) % s.maxSize
+	}
+	s.pruneAgeLocked()
 }
 
-// Query returns changes matching the optional datapath filter and since timestamp.
+// Query returns changes matching the optional datapath filter and since
+// timestamp, in oldest-to-newest order. Entries older than maxAge are filtered
+// out here too, so a stale change never surfaces just because no Add has pruned
+// it yet.
 func (s *Store) Query(datapath string, since int64) []FlowChange {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	var ageCutoff int64
+	if s.maxAge > 0 {
+		ageCutoff = time.Now().UnixMilli() - s.maxAge.Milliseconds()
+	}
+
 	var result []FlowChange
-	for _, c := range s.changes {
+	for i := 0; i < s.count; i++ {
+		c := s.buf[(s.start+i)%s.maxSize]
+		if c.Timestamp < ageCutoff {
+			continue
+		}
 		if since > 0 && c.Timestamp < since {
 			continue
 		}
@@ -59,27 +87,15 @@ func (s *Store) Query(datapath string, since int64) []FlowChange {
 	return result
 }
 
-func (s *Store) pruneLocked() {
-	start := 0
-
-	// Prune by age
-	if s.maxAge > 0 {
-		cutoff := time.Now().UnixMilli() - s.maxAge.Milliseconds()
-		for start < len(s.changes) && s.changes[start].Timestamp < cutoff {
-			start++
-		}
+// pruneAgeLocked drops changes older than maxAge from the front of the ring.
+// Size pruning is inherent to the fixed-capacity buffer.
+func (s *Store) pruneAgeLocked() {
+	if s.maxAge <= 0 {
+		return
 	}
-
-	// Prune by size
-	remaining := len(s.changes) - start
-	if s.maxSize > 0 && remaining > s.maxSize {
-		start = len(s.changes) - s.maxSize
-	}
-
-	// Copy to a new slice to release the old backing array
-	if start > 0 {
-		pruned := make([]FlowChange, len(s.changes)-start)
-		copy(pruned, s.changes[start:])
-		s.changes = pruned
+	cutoff := time.Now().UnixMilli() - s.maxAge.Milliseconds()
+	for s.count > 0 && s.buf[s.start].Timestamp < cutoff {
+		s.start = (s.start + 1) % s.maxSize
+		s.count--
 	}
 }

@@ -138,3 +138,46 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	all := store.Query("", 0)
 	assert.NotNil(t, all)
 }
+
+func TestStore_Wraparound(t *testing.T) {
+	const cap = 4
+	store := NewStore(cap, time.Hour)
+
+	now := time.Now().UnixMilli()
+	for i := 0; i < 50; i++ {
+		store.Add(FlowChange{Timestamp: now + int64(i), UUID: string(rune('a' + i%26)), Datapath: "dp", Type: "insert"})
+	}
+
+	all := store.Query("", 0)
+	require.Len(t, all, cap)
+	// Oldest-to-newest window of the last cap inserts.
+	for i := 1; i < len(all); i++ {
+		assert.LessOrEqual(t, all[i-1].Timestamp, all[i].Timestamp)
+	}
+	assert.Equal(t, now+49, all[cap-1].Timestamp)
+}
+
+func TestStore_QueryFiltersStaleByAge(t *testing.T) {
+	// A stale entry must not surface from Query even before an Add prunes it:
+	// Query applies the maxAge cutoff itself.
+	store := NewStore(100, 100*time.Millisecond)
+	store.Add(FlowChange{
+		Timestamp: time.Now().Add(-500 * time.Millisecond).UnixMilli(),
+		Type:      "insert", UUID: "stale", Datapath: "dp",
+	})
+
+	all := store.Query("", 0)
+	assert.Empty(t, all, "entry older than maxAge must be filtered by Query even with no subsequent Add")
+}
+
+func BenchmarkStoreAddAtCapacity(b *testing.B) {
+	store := NewStore(10000, 0)
+	now := time.Now().UnixMilli()
+	for i := 0; i < 10000; i++ {
+		store.Add(FlowChange{Timestamp: now + int64(i), UUID: "f", Datapath: "dp", Type: "insert"})
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		store.Add(FlowChange{Timestamp: now + int64(10000+i), UUID: "f", Datapath: "dp", Type: "insert"})
+	}
+}
