@@ -41,7 +41,15 @@ type ACLAuditResult struct {
 	Total    int               `json:"total_acls"`
 	Findings []ACLAuditFinding `json:"findings"`
 	Summary  ACLAuditSummary   `json:"summary"`
+	// Truncated is set when the audit hit maxACLFindings and stopped early, so
+	// the reported findings are a prefix rather than the complete set.
+	Truncated bool `json:"truncated,omitempty"`
 }
+
+// maxACLFindings caps how many findings a single audit reports. On a very large
+// or pathological ACL set the pairwise comparison can produce an unbounded
+// number of findings; past this cap the audit stops and sets Truncated.
+const maxACLFindings = 500
 
 // ACLAuditSummary counts findings by type.
 type ACLAuditSummary struct {
@@ -55,11 +63,21 @@ type ACLAuditor struct {
 	NB client.Client
 }
 
-// Audit runs the full ACL audit across all ACLs.
+// Audit runs the ACL audit, comparing rules only within the same attachment
+// scope (owning Logical_Switch or Port_Group). Comparing every ACL against every
+// other ACL globally was O(n²) across the whole database and produced false
+// shadow/conflict positives for identical rules on unrelated switches — two
+// switches with the same default-deny ACL are not shadowing each other. ACLs not
+// attached to any switch or port group constrain nothing and are never compared.
 func (a *ACLAuditor) Audit(ctx context.Context) (*ACLAuditResult, error) {
 	var acls []nb.ACL
 	if err := a.NB.List(ctx, &acls); err != nil {
 		return nil, fmt.Errorf("listing ACLs: %w", err)
+	}
+
+	var switches []nb.LogicalSwitch
+	if err := a.NB.List(ctx, &switches); err != nil {
+		return nil, fmt.Errorf("listing logical switches: %w", err)
 	}
 
 	var portGroups []nb.PortGroup
@@ -67,32 +85,63 @@ func (a *ACLAuditor) Audit(ctx context.Context) (*ACLAuditResult, error) {
 		return nil, fmt.Errorf("listing port groups: %w", err)
 	}
 
-	aclContext := buildACLContextMap(portGroups)
+	aclByUUID := make(map[string]nb.ACL, len(acls))
+	for _, acl := range acls {
+		aclByUUID[acl.UUID] = acl
+	}
+	aclContext := buildACLContextMap(switches, portGroups)
 
 	result := &ACLAuditResult{
 		Total:    len(acls),
 		Findings: []ACLAuditFinding{},
 	}
 
+	// Bucket ACLs by (attachment scope, direction, tier). Only ACLs sharing all
+	// three are candidates for shadowing/conflict, since they are evaluated
+	// against the same traffic on the same switch/port group.
 	type groupKey struct {
+		Scope     string
 		Direction string
 		Tier      int
 	}
 	groups := make(map[groupKey][]nb.ACL)
-	for _, acl := range acls {
-		key := groupKey{Direction: acl.Direction, Tier: acl.Tier}
-		groups[key] = append(groups[key], acl)
+	add := func(scope string, aclUUIDs []string) {
+		for _, uuid := range aclUUIDs {
+			acl, ok := aclByUUID[uuid]
+			if !ok {
+				continue
+			}
+			key := groupKey{Scope: scope, Direction: acl.Direction, Tier: acl.Tier}
+			groups[key] = append(groups[key], acl)
+		}
+	}
+	for _, ls := range switches {
+		add("ls:"+ls.UUID, ls.ACLs)
+	}
+	for _, pg := range portGroups {
+		add("pg:"+pg.UUID, pg.ACLs)
 	}
 
 	for _, group := range groups {
+		// The pairwise loop can be large on a pathological ACL set; make the
+		// audit cancelable per group.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		sort.Slice(group, func(i, j int) bool {
 			return group[i].Priority > group[j].Priority
 		})
 
-		for i := 0; i < len(group); i++ {
+		for i := 0; i < len(group) && !result.Truncated; i++ {
 			for j := i + 1; j < len(group); j++ {
 				findings := compareACLs(group[i], group[j], aclContext)
 				result.Findings = append(result.Findings, findings...)
+				if len(result.Findings) >= maxACLFindings {
+					result.Findings = result.Findings[:maxACLFindings]
+					result.Truncated = true
+					break
+				}
 			}
 		}
 	}
@@ -113,10 +162,6 @@ func (a *ACLAuditor) Audit(ctx context.Context) (*ACLAuditResult, error) {
 
 func compareACLs(higher, lower nb.ACL, aclContext map[string]string) []ACLAuditFinding {
 	var findings []ACLAuditFinding
-
-	if higher.Direction != lower.Direction {
-		return nil
-	}
 
 	relation := matchRelation(higher.Match, lower.Match)
 
@@ -282,8 +327,15 @@ func countCommonConjuncts(a, b []string) int {
 	return count
 }
 
-func buildACLContextMap(portGroups []nb.PortGroup) map[string]string {
+// buildACLContextMap maps each attached ACL UUID to a human-readable owner name
+// (the Logical_Switch or Port_Group it belongs to) for finding context.
+func buildACLContextMap(switches []nb.LogicalSwitch, portGroups []nb.PortGroup) map[string]string {
 	result := make(map[string]string)
+	for _, ls := range switches {
+		for _, aclUUID := range ls.ACLs {
+			result[aclUUID] = ls.Name
+		}
+	}
 	for _, pg := range portGroups {
 		for _, aclUUID := range pg.ACLs {
 			result[aclUUID] = pg.Name
