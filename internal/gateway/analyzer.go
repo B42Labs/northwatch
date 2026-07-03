@@ -28,6 +28,7 @@ import (
 	"github.com/ovn-kubernetes/libovsdb/client"
 
 	"github.com/b42labs/northwatch/internal/inventory"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/b42labs/northwatch/internal/severity"
@@ -246,7 +247,7 @@ func (a *Analyzer) analyzeGateway(pb sb.PortBinding, idx *index) Gateway {
 	members := a.buildMembers(pb, idx, &gw)
 	gw.Members = members
 
-	actualUUID := derefStr(pb.Chassis)
+	actualUUID := ovndb.DerefStr(pb.Chassis)
 	desiredUUID := ""
 	for i := range members {
 		if members[i].ChassisUUID == actualUUID && actualUUID != "" {
@@ -283,14 +284,14 @@ func (a *Analyzer) buildMembers(pb sb.PortBinding, idx *index, gw *Gateway) []Me
 			gw.HAGroupName = grp.Name
 			for _, hacUUID := range grp.HaChassis {
 				if hac, ok := idx.haChassis[hacUUID]; ok {
-					cands = append(cands, cand{derefStr(hac.Chassis), hac.Priority})
+					cands = append(cands, cand{ovndb.DerefStr(hac.Chassis), hac.Priority})
 				}
 			}
 		}
 	case len(pb.GatewayChassis) > 0:
 		for _, gcUUID := range pb.GatewayChassis {
 			if gc, ok := idx.gwChassis[gcUUID]; ok {
-				cands = append(cands, cand{derefStr(gc.Chassis), gc.Priority})
+				cands = append(cands, cand{ovndb.DerefStr(gc.Chassis), gc.Priority})
 			}
 		}
 	}
@@ -606,13 +607,6 @@ func severityOrder(s string) int {
 	default:
 		return 2
 	}
-}
-
-func derefStr(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
 }
 
 // ipOnly strips a CIDR mask, returning just the address part.
