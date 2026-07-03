@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/history"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/ovn-kubernetes/libovsdb/client"
@@ -36,7 +36,7 @@ func setupRollbackEngine(t *testing.T, nbClient client.Client) *Engine {
 			if err := nbClient.List(ctx, &switches); err != nil {
 				return nil, err
 			}
-			return api.ModelsToMaps(&switches), nil
+			return ovndb.ModelsToMaps(&switches), nil
 		},
 	}}
 	collector := history.NewCollector(historyStore, nil, sources, time.Hour, time.Hour)

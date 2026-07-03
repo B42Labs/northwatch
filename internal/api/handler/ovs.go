@@ -32,7 +32,7 @@ func ovsAccess[T any]() ovsTableAccess {
 			if err := c.List(ctx, &results); err != nil {
 				return nil, err
 			}
-			return api.ModelsToMaps(results), nil
+			return ovndb.ModelsToMaps(results), nil
 		},
 		get: func(ctx context.Context, c client.Client, uuid string) (map[string]any, bool, error) {
 			var results []T
@@ -44,7 +44,7 @@ func ovsAccess[T any]() ovsTableAccess {
 			if len(results) == 0 {
 				return nil, false, nil
 			}
-			return api.ModelToMap(results[0]), true, nil
+			return ovndb.ModelToMap(results[0]), true, nil
 		},
 	}
 }

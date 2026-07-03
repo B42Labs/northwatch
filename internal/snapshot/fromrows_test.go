@@ -14,7 +14,7 @@ import (
 )
 
 // TestBuildFromRows verifies that history-style rows (column values keyed by
-// OVSDB tag, the form api.ModelToMap emits and the history store keeps) are
+// OVSDB tag, the form ovsdb.ModelToMap emits and the history store keeps) are
 // reassembled into a snapshot that Serve can replay — in particular that
 // multi-word columns like "external_ids" survive the tag→field remapping.
 func TestBuildFromRows(t *testing.T) {

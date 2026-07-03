@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
@@ -56,7 +57,7 @@ func handleList[T any](c client.Client) http.HandlerFunc {
 			api.WriteError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
-		api.WriteJSON(w, http.StatusOK, api.ModelsToMaps(results))
+		api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))
 	}
 }
 
@@ -80,6 +81,6 @@ func handleGet[T any](c client.Client) http.HandlerFunc {
 			api.WriteError(w, http.StatusNotFound, "not found")
 			return
 		}
-		api.WriteJSON(w, http.StatusOK, api.ModelToMap(results[0]))
+		api.WriteJSON(w, http.StatusOK, ovndb.ModelToMap(results[0]))
 	}
 }

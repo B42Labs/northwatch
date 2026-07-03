@@ -7,7 +7,7 @@ import (
 
 // SchemaFromModel generates an OpenAPI Schema from an OVSDB model struct
 // by walking its ovsdb struct tags, mirroring the same reflection pattern
-// used by api.ModelToMap.
+// used by ovsdb.ModelToMap.
 func SchemaFromModel(model any) *Schema {
 	t := reflect.TypeOf(model)
 	if t.Kind() == reflect.Pointer {
