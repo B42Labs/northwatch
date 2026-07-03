@@ -11,17 +11,59 @@ import (
 
 func TestHub_SubscribeUnsubscribe(t *testing.T) {
 	hub := NewHub()
-	assert.Equal(t, 0, hub.SubscriberCount())
+	assert.False(t, hub.HasSubscriberFor("nb", "Logical_Switch"))
 
 	s := hub.Subscribe()
-	assert.Equal(t, 1, hub.SubscriberCount())
+	s.AddFilter(Filter{Database: "*", Tables: []string{"*"}})
+	assert.True(t, hub.HasSubscriberFor("nb", "Logical_Switch"))
 
 	hub.Unsubscribe(s)
-	assert.Equal(t, 0, hub.SubscriberCount())
+	assert.False(t, hub.HasSubscriberFor("nb", "Logical_Switch"))
+	// The subscriber channel is closed on unsubscribe.
+	_, ok := <-s.C
+	assert.False(t, ok, "channel should be closed after unsubscribe")
 
-	// Double unsubscribe should be safe
+	// Double unsubscribe is safe (no panic) and leaves no subscriber.
 	hub.Unsubscribe(s)
-	assert.Equal(t, 0, hub.SubscriberCount())
+	assert.False(t, hub.HasSubscriberFor("nb", "Logical_Switch"))
+}
+
+func TestHub_HasSubscriberFor(t *testing.T) {
+	hub := NewHub()
+	s := hub.Subscribe()
+	defer hub.Unsubscribe(s)
+	s.AddFilter(Filter{Database: "nb", Tables: []string{"Logical_Switch", "ACL"}})
+
+	assert.True(t, hub.HasSubscriberFor("nb", "Logical_Switch"))
+	assert.True(t, hub.HasSubscriberFor("nb", "ACL"))
+	assert.False(t, hub.HasSubscriberFor("nb", "Port_Group"), "table not in filter")
+	assert.False(t, hub.HasSubscriberFor("sb", "Logical_Switch"), "database mismatch")
+
+	// A subscriber with no filters matches nothing.
+	empty := hub.Subscribe()
+	defer hub.Unsubscribe(empty)
+	assert.False(t, hub.HasSubscriberFor("nb", "NAT"))
+}
+
+func TestSubscriber_RecordDropRateLimited(t *testing.T) {
+	s := &Subscriber{}
+	t0 := time.Unix(1_700_000_000, 0)
+
+	// First drop logs immediately (starting the window).
+	n, ok := s.recordDrop(t0)
+	assert.True(t, ok)
+	assert.Equal(t, uint64(1), n)
+
+	// Further drops within the interval are suppressed but counted.
+	_, ok = s.recordDrop(t0.Add(1 * time.Second))
+	assert.False(t, ok)
+	_, ok = s.recordDrop(t0.Add(2 * time.Second))
+	assert.False(t, ok)
+
+	// Past the interval, one summary reports the accumulated count.
+	n, ok = s.recordDrop(t0.Add(dropLogInterval + time.Second))
+	assert.True(t, ok)
+	assert.Equal(t, uint64(3), n, "the two suppressed drops plus this one")
 }
 
 func TestHub_PublishToMatchingSubscriber(t *testing.T) {

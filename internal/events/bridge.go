@@ -19,6 +19,9 @@ func NewBridge(hub *Hub, database string) *Bridge {
 
 // OnAdd is called when a row is inserted into the cache.
 func (b *Bridge) OnAdd(table string, m model.Model) {
+	if !b.hub.HasSubscriberFor(b.database, table) {
+		return
+	}
 	row := ovndb.ModelToMap(m)
 	uuid := extractUUID(row)
 	b.hub.Publish(NewEvent(EventInsert, b.database, table, uuid, row, nil))
@@ -26,6 +29,9 @@ func (b *Bridge) OnAdd(table string, m model.Model) {
 
 // OnUpdate is called when a row is updated in the cache.
 func (b *Bridge) OnUpdate(table string, old model.Model, new model.Model) {
+	if !b.hub.HasSubscriberFor(b.database, table) {
+		return
+	}
 	row := ovndb.ModelToMap(new)
 	oldRow := ovndb.ModelToMap(old)
 	uuid := extractUUID(row)
@@ -34,6 +40,9 @@ func (b *Bridge) OnUpdate(table string, old model.Model, new model.Model) {
 
 // OnDelete is called when a row is deleted from the cache.
 func (b *Bridge) OnDelete(table string, m model.Model) {
+	if !b.hub.HasSubscriberFor(b.database, table) {
+		return
+	}
 	row := ovndb.ModelToMap(m)
 	uuid := extractUUID(row)
 	b.hub.Publish(NewEvent(EventDelete, b.database, table, uuid, row, nil))
