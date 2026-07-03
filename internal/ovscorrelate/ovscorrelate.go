@@ -15,6 +15,7 @@ import (
 
 	"github.com/ovn-kubernetes/libovsdb/client"
 
+	"github.com/b42labs/northwatch/internal/inventory"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 )
 
@@ -104,8 +105,8 @@ func (c *Correlator) resolveChassis(ctx context.Context, pb *sb.PortBinding, sys
 	if pb.Chassis == nil || *pb.Chassis == "" {
 		return
 	}
-	ch := &sb.Chassis{UUID: *pb.Chassis}
-	if err := c.SB.Get(ctx, ch); err != nil {
+	ch, ok := inventory.ChassisByUUID(ctx, c.SB, *pb.Chassis)
+	if !ok {
 		return
 	}
 	binding.Chassis = ch.Name

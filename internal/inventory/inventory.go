@@ -142,12 +142,17 @@ type Builder struct {
 	// time.Now.
 	Now func() time.Time
 
-	// mu guards the short-TTL result cache below. List holds it across the whole
+	// mu guards the short-TTL result caches below. List holds it across the whole
 	// recompute so concurrent callers collapse onto a single scan (single-flight)
 	// and reuse the cached snapshot instead of each deep-copying the SB tables.
 	mu       sync.Mutex
 	cachedAt time.Time
 	cached   []ChassisSummary
+	// cachedCaches is the SB-lookup snapshot shared by List and Detail, recomputed
+	// at most once per listCacheTTL so Detail no longer materializes all port
+	// bindings on every call.
+	cachedCachesAt time.Time
+	cachedCaches   *caches
 }
 
 // listCacheTTL bounds how long List reuses a previously computed inventory
@@ -182,7 +187,7 @@ func (b *Builder) List(ctx context.Context) ([]ChassisSummary, error) {
 		return nil, fmt.Errorf("listing chassis: %w", err)
 	}
 
-	c, err := b.loadCaches(ctx)
+	c, err := b.loadCachesCached(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +217,9 @@ func (b *Builder) Detail(ctx context.Context, name string) (*ChassisDetail, erro
 	}
 	ch := matches[0]
 
-	c, err := b.loadCaches(ctx)
+	b.mu.Lock()
+	c, err := b.loadCachesCached(ctx)
+	b.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -256,6 +263,22 @@ func (b *Builder) computeLiveness(ch sb.Chassis, c *caches) Liveness {
 		priv = &p
 	}
 	return ComputeLiveness(priv, c.sbNbCfg, b.now(), b.StaleThreshold)
+}
+
+// loadCachesCached returns the shared SB caches, recomputing at most once per
+// listCacheTTL so a burst of List/Detail calls collapses onto a single scan of
+// the large SB tables. Callers must hold b.mu.
+func (b *Builder) loadCachesCached(ctx context.Context) (*caches, error) {
+	if b.cachedCaches != nil && b.now().Sub(b.cachedCachesAt) < listCacheTTL {
+		return b.cachedCaches, nil
+	}
+	c, err := b.loadCaches(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b.cachedCaches = c
+	b.cachedCachesAt = b.now()
+	return c, nil
 }
 
 // loadCaches gathers the SB lookups used to compute liveness and port summaries.
