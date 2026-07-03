@@ -145,6 +145,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `internal/search`, and `internal/api`.
 
 ### Fixed
+- ACL audit (`GET /api/v1/debug/acl-audit`) now compares ACLs only within the
+  same attachment scope (owning `Logical_Switch` or `Port_Group`), eliminating
+  false shadow/conflict findings for identical rules on unrelated switches. The
+  audit is cancelable (honors request cancellation) and caps findings, setting
+  `truncated: true` when the cap is reached — bounding what was previously an
+  O(n²) scan across every ACL in the database.
 - OpenAPI spec now conforms to the 3.1.0 version it declares: nullable schema
   fields emit `"type": ["T", "null"]` instead of the 3.0-only `nullable`
   keyword, `Builder.AddOperation` panics on an unknown HTTP method instead of
