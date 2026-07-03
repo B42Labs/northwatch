@@ -2,7 +2,9 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
@@ -335,6 +337,50 @@ func TestAnalyze_NoGateways(t *testing.T) {
 	assert.Equal(t, 0, rep.Total)
 	assert.Empty(t, rep.Gateways)
 	assert.Empty(t, rep.Conflicts)
+
+	// Gateways must marshal as a non-nil JSON array (it has no omitempty), so an
+	// empty report is "gateways":[] and never null.
+	raw, err := json.Marshal(rep)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"gateways":[]`)
+}
+
+func TestAnalyze_Memoized(t *testing.T) {
+	nbc := testutil.SetupNBTestClient(t)
+	sbc := testutil.SetupSBTestClient(t)
+
+	ch1 := testutil.InsertChassis(t, sbc, "netnode-1", "host-1", "10.0.0.1")
+	testutil.InsertSBGlobal(t, sbc, liveGen)
+	seedAlive(t, sbc, "netnode-1", ch1)
+	seedGateway(t, nbc, sbc, "lrp-ext", "10.10.141.1/24", "", &ch1, []testutil.HAChassisEntry{
+		{ChassisUUID: ch1, Priority: 30},
+	})
+
+	base := time.Unix(1_700_000_000, 0)
+	now := base
+	a := &Analyzer{NB: nbc, SB: sbc, Now: func() time.Time { return now }}
+
+	first, err := a.Analyze(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, first.Total)
+
+	// Add a second gateway; within the TTL window the cached report is returned
+	// unchanged (same pointer, same snapshot) even though the DB now differs.
+	seedGateway(t, nbc, sbc, "lrp-ext2", "10.10.142.1/24", "", &ch1, []testutil.HAChassisEntry{
+		{ChassisUUID: ch1, Priority: 30},
+	})
+	now = base.Add(analyzeCacheTTL - time.Millisecond)
+	second, err := a.Analyze(context.Background())
+	require.NoError(t, err)
+	assert.Same(t, first, second, "within the TTL the cached report pointer is reused")
+	assert.Equal(t, 1, second.Total, "cached snapshot must not reflect the new gateway")
+
+	// Advance past the TTL: the report is recomputed and now sees both gateways.
+	now = base.Add(analyzeCacheTTL + time.Millisecond)
+	third, err := a.Analyze(context.Background())
+	require.NoError(t, err)
+	assert.NotSame(t, first, third, "past the TTL a fresh report is computed")
+	assert.Equal(t, 2, third.Total)
 }
 
 // --- local helpers for the legacy gateway_chassis path ---

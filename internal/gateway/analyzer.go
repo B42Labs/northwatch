@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
@@ -51,7 +52,16 @@ const (
 
 const defaultStaleThreshold = 60 * time.Second
 
+// analyzeCacheTTL bounds how long Analyze reuses a previously computed report
+// before recomputing. It is intentionally short: just long enough to collapse a
+// burst of requests (e.g. a polling dashboard) onto one scan+index of the large
+// SB/NB tables while keeping the view close to live.
+const analyzeCacheTTL = 2 * time.Second
+
 // Analyzer cross-references NB intent with SB realization.
+//
+// Analyzer holds a short-TTL cache of the last computed report and therefore
+// must be used as a pointer (never copied) and may be shared across requests.
 type Analyzer struct {
 	NB client.Client
 	SB client.Client
@@ -59,6 +69,17 @@ type Analyzer struct {
 	// before it is treated as not alive for gateway election. Zero falls back to
 	// defaultStaleThreshold.
 	StaleThreshold time.Duration
+	// Now returns the current time; it is a seam for tests. nil falls back to
+	// time.Now.
+	Now func() time.Time
+
+	// mu guards the short-TTL result cache below. Analyze holds it across the
+	// whole recompute so concurrent callers collapse onto a single scan
+	// (single-flight) and reuse the cached snapshot instead of each re-scanning
+	// and re-indexing the SB/NB tables.
+	mu       sync.Mutex
+	cachedAt time.Time
+	cached   *Report
 }
 
 // Check is a single diagnostic result for a gateway.
@@ -135,7 +156,17 @@ type index struct {
 }
 
 // Analyze scans all chassisredirect port bindings and returns the health report.
+// Results are served from a short-TTL cache (analyzeCacheTTL): within the window
+// the previously computed report is returned unchanged, so the view is
+// best-effort and eventually consistent rather than instantaneous. The returned
+// *Report is shared with the cache and must not be mutated by callers.
 func (a *Analyzer) Analyze(ctx context.Context) (*Report, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cached != nil && a.now().Sub(a.cachedAt) < analyzeCacheTTL {
+		return a.cached, nil
+	}
+
 	var bindings []sb.PortBinding
 	if err := a.SB.List(ctx, &bindings); err != nil {
 		return nil, fmt.Errorf("listing port bindings: %w", err)
@@ -146,7 +177,9 @@ func (a *Analyzer) Analyze(ctx context.Context) (*Report, error) {
 		return nil, err
 	}
 
-	report := &Report{}
+	// Gateways is pinned non-nil so an empty report marshals as "gateways":[]
+	// rather than JSON null (the field has no omitempty).
+	report := &Report{Gateways: make([]Gateway, 0)}
 	for _, pb := range bindings {
 		if pb.Type != "chassisredirect" {
 			continue
@@ -170,7 +203,17 @@ func (a *Analyzer) Analyze(ctx context.Context) (*Report, error) {
 	sort.SliceStable(report.Gateways, func(i, j int) bool {
 		return severityOrder(report.Gateways[i].Overall) < severityOrder(report.Gateways[j].Overall)
 	})
+
+	a.cached = report
+	a.cachedAt = a.now()
 	return report, nil
+}
+
+func (a *Analyzer) now() time.Time {
+	if a.Now != nil {
+		return a.Now()
+	}
+	return time.Now()
 }
 
 func (a *Analyzer) analyzeGateway(pb sb.PortBinding, idx *index) Gateway {
