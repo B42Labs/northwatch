@@ -39,7 +39,7 @@
       <div class="flex min-w-0 items-baseline gap-2">
         {#if title}
           <h2
-            class="truncate font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+            class="truncate font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
           >
             {title}
           </h2>
@@ -51,7 +51,7 @@
         {/if}
       </div>
       {#if actions}
-        <div class="flex flex-shrink-0 items-center gap-1">
+        <div class="flex shrink-0 items-center gap-1">
           {@render actions()}
         </div>
       {/if}

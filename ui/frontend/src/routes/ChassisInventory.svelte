@@ -158,7 +158,7 @@
   description="Aggregated Southbound view of every chassis: tunnel encapsulation, nb_cfg-derived liveness, and the logical-port workload bound to each node."
 >
   {#snippet actions()}
-    <button class="btn btn-ghost btn-xs border-base-300" onclick={refresh}>
+    <button class="btn border-base-300 btn-ghost btn-xs" onclick={refresh}>
       Refresh
     </button>
   {/snippet}
@@ -198,7 +198,7 @@
           <tr>
             {#each ['Chassis', 'Hostname', 'Liveness', 'Ports', 'Encaps', 'Bridge mappings'] as h (h)}
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >{h}</th
               >
             {/each}
@@ -216,11 +216,11 @@
                     aria-expanded={expanded.has(c.name)}
                   >
                     <span
-                      class="select-none text-base-content/40"
+                      class="text-base-content/40 select-none"
                       aria-hidden="true"
                       >{expanded.has(c.name) ? '▾' : '▸'}</span
                     >
-                    <span class="break-all text-xs">{c.name}</span>
+                    <span class="text-xs break-all">{c.name}</span>
                   </button>
                   {#if ovsMembers.has(c.name)}
                     <a
@@ -263,7 +263,7 @@
                 {:else}
                   <div class="flex flex-col gap-0.5">
                     {#each enc as e (e.type + e.ip)}
-                      <span class="whitespace-nowrap text-xs">
+                      <span class="text-xs whitespace-nowrap">
                         <span class="text-base-content/50">{e.type}</span>
                         {e.ip}
                       </span>
@@ -283,7 +283,7 @@
                 <td colspan="6" class="p-3">
                   {#if !d || d.status === 'loading'}
                     <div class="flex items-center gap-2">
-                      <span class="loading loading-spinner loading-xs"></span>
+                      <span class="loading loading-xs loading-spinner"></span>
                       <span class="text-xs text-base-content/55"
                         >loading detail…</span
                       >
@@ -298,7 +298,7 @@
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div>
                         <div
-                          class="mb-1.5 text-2xs uppercase tracking-wider text-base-content/45"
+                          class="mb-1.5 text-2xs tracking-wider text-base-content/45 uppercase"
                         >
                           Other config
                         </div>
@@ -306,12 +306,12 @@
                       </div>
                       <div>
                         <div
-                          class="mb-1.5 text-2xs uppercase tracking-wider text-base-content/45"
+                          class="mb-1.5 text-2xs tracking-wider text-base-content/45 uppercase"
                         >
                           Bound ports ({detail.bound_ports.length})
                         </div>
                         {#if detail.bound_ports.length === 0}
-                          <span class="text-xs italic text-base-content/45"
+                          <span class="text-xs text-base-content/45 italic"
                             >no ports bound</span
                           >
                         {:else}
@@ -323,7 +323,7 @@
                                 <tr>
                                   {#each ['Logical port', 'Type', 'Up', 'Tunnel key'] as h (h)}
                                     <th
-                                      class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                                      class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                                       >{h}</th
                                     >
                                   {/each}
@@ -332,7 +332,7 @@
                               <tbody>
                                 {#each detail.bound_ports as p (p.logical_port)}
                                   <tr class="border-base-300/60">
-                                    <td class="break-all text-xs"
+                                    <td class="text-xs break-all"
                                       >{p.logical_port}</td
                                     >
                                     <td class="text-xs text-base-content/70"

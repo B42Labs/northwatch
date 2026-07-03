@@ -228,7 +228,7 @@
       >
 
       {#if $writeEnabled && selected.size > 0 && deleteStep === 'idle'}
-        <button class="btn btn-error btn-xs ml-auto" onclick={startDelete}>
+        <button class="btn ml-auto btn-error btn-xs" onclick={startDelete}>
           Delete {selected.size} selected
         </button>
       {/if}
@@ -239,13 +239,13 @@
       <div class="mb-4 rounded border border-base-300 bg-base-100 p-4">
         {#if deleteStep === 'preview'}
           <div class="flex items-center gap-2">
-            <span class="loading loading-spinner loading-sm"></span>
+            <span class="loading loading-sm loading-spinner"></span>
             <span class="font-mono text-sm">Previewing changes...</span>
           </div>
         {:else if deleteStep === 'confirming' && plan}
           <div class="flex flex-col gap-3">
             <h3
-              class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+              class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
             >
               Confirm Deletion &mdash; {plan.operations.length} entr{plan
                 .operations.length === 1
@@ -262,7 +262,7 @@
                 <input
                   id="stale-actor"
                   type="text"
-                  class="input input-sm input-bordered w-48 font-mono"
+                  class="input w-48 font-mono input-sm"
                   placeholder="your-name"
                   bind:value={actor}
                 />
@@ -275,7 +275,7 @@
                 Confirm Delete
               </button>
               <button
-                class="btn btn-ghost btn-sm border-base-300"
+                class="btn border-base-300 btn-ghost btn-sm"
                 onclick={cancelDelete}
               >
                 Cancel
@@ -283,31 +283,31 @@
             </div>
 
             {#if expired}
-              <div role="alert" class="alert alert-error py-2 text-xs">
+              <div role="alert" class="alert py-2 text-xs alert-error">
                 Plan has expired. Cancel and try again.
               </div>
             {/if}
           </div>
         {:else if deleteStep === 'applying'}
           <div class="flex items-center gap-2">
-            <span class="loading loading-spinner loading-sm"></span>
+            <span class="loading loading-sm loading-spinner"></span>
             <span class="font-mono text-sm">Deleting entries...</span>
           </div>
         {:else if deleteStep === 'done'}
-          <div role="alert" class="alert alert-success py-2">
+          <div role="alert" class="alert py-2 alert-success">
             <span class="text-sm">Entries deleted successfully.</span>
             <button
-              class="btn btn-ghost btn-xs border-base-300"
+              class="btn border-base-300 btn-ghost btn-xs"
               onclick={resetDeleteFlow}
             >
               Dismiss
             </button>
           </div>
         {:else if deleteStep === 'error'}
-          <div role="alert" class="alert alert-error py-2">
+          <div role="alert" class="alert py-2 alert-error">
             <span class="text-sm">Error: {deleteError}</span>
             <button
-              class="btn btn-ghost btn-xs border-base-300"
+              class="btn border-base-300 btn-ghost btn-xs"
               onclick={resetDeleteFlow}
             >
               Dismiss
@@ -323,7 +323,7 @@
           <tr>
             {#if $writeEnabled}
               <th
-                class="w-8 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="w-8 bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >
                 <input
                   type="checkbox"
@@ -335,23 +335,23 @@
               </th>
             {/if}
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Severity</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Type</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Table</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Message</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Age</th
             >
           </tr>

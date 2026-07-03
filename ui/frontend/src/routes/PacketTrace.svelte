@@ -123,12 +123,12 @@
           type="text"
           bind:value={portFilter}
           placeholder="Filter ports..."
-          class="input input-sm input-bordered mb-1 w-full font-mono"
+          class="input mb-1 w-full font-mono input-sm"
         />
         <select
           id="trace-port"
           bind:value={selectedPort}
-          class="select select-bordered select-sm w-full bg-base-200/60 font-mono"
+          class="select w-full bg-base-200/60 font-mono select-sm"
         >
           <option value="">Select port...</option>
           {#each filteredPBOptions as p (p.uuid)}
@@ -145,14 +145,14 @@
         type="text"
         bind:value={dstIp}
         placeholder="e.g. 10.0.0.1"
-        class="input input-sm input-bordered w-40 font-mono"
+        class="input w-40 font-mono input-sm"
       />
     </FormField>
     <FormField label="Protocol" forId="protocol">
       <select
         id="protocol"
         bind:value={protocol}
-        class="select select-bordered select-sm bg-base-200/60 font-mono"
+        class="select bg-base-200/60 font-mono select-sm"
       >
         <option value="">Any</option>
         <option value="tcp">TCP</option>
@@ -166,7 +166,7 @@
       onclick={runTrace}
     >
       {#if tracing}
-        <span class="loading loading-spinner loading-xs"></span>
+        <span class="loading loading-xs loading-spinner"></span>
       {/if}
       Trace
     </button>
@@ -205,7 +205,7 @@
         <a
           href="/api/v1/export/trace?port={traceData.port_uuid}&format=json"
           download="trace-{traceData.port_name}.json"
-          class="btn btn-ghost btn-sm ml-auto border-base-300"
+          class="btn ml-auto border-base-300 btn-ghost btn-sm"
         >
           Export JSON
         </a>
@@ -241,11 +241,11 @@
                 variant={stage.pipeline === 'ingress' ? 'info' : 'warning'}
               />
               <span
-                class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
               >
                 Table {stage.table_id}
                 {#if stage.table_name}
-                  <span class="ml-1 normal-case text-base-content/55"
+                  <span class="ml-1 text-base-content/55 normal-case"
                     >{stage.table_name}</span
                   >
                 {/if}
@@ -269,7 +269,7 @@
                     {#if flow.selected}
                       <span class="text-success">&#10003;</span>
                     {/if}
-                    <span class="badge badge-ghost badge-sm font-mono"
+                    <span class="badge badge-ghost font-mono badge-sm"
                       >{flow.priority}</span
                     >
                     {#if hintBadge(flow.hint)}

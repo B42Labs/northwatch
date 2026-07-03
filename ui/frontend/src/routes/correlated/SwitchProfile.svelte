@@ -102,7 +102,7 @@
         <div>
           <div class="mb-2 flex items-center gap-2">
             <h2
-              class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+              class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
             >
               Ports
             </h2>
@@ -121,7 +121,7 @@
                   class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-mono text-sm marker:content-none hover:bg-base-300/30"
                 >
                   <span
-                    class="select-none text-primary transition-transform group-open:rotate-90"
+                    class="text-primary transition-transform select-none group-open:rotate-90"
                     aria-hidden="true">▸</span
                   >
                   <span class="truncate">{lsp.name || lsp._uuid || 'Port'}</span

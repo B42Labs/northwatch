@@ -253,7 +253,7 @@
   {#snippet actions()}
     {#if chassisNames.length > 0}
       <select
-        class="select select-bordered select-sm bg-base-200/60 font-mono"
+        class="select bg-base-200/60 font-mono select-sm"
         bind:value={chassisFilter}
         onchange={load}
         aria-label="Filter by chassis"
@@ -305,35 +305,35 @@
           <thead>
             <tr>
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Chassis</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Hostname</th
               >
               <th
-                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-right text-2xs tracking-wider text-base-content/55 uppercase"
                 >Count</th
               >
               <th
-                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-right text-2xs tracking-wider text-base-content/55 uppercase"
                 >Avg</th
               >
               <th
-                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-right text-2xs tracking-wider text-base-content/55 uppercase"
                 >P50</th
               >
               <th
-                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-right text-2xs tracking-wider text-base-content/55 uppercase"
                 >P95</th
               >
               <th
-                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-right text-2xs tracking-wider text-base-content/55 uppercase"
                 >P99</th
               >
               <th
-                class="bg-base-200 text-right text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-right text-2xs tracking-wider text-base-content/55 uppercase"
                 >Max</th
               >
             </tr>

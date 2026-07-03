@@ -53,7 +53,7 @@
   <div class="mb-3 flex items-center justify-between">
     <div>
       <h3
-        class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         Snapshot #{snapshot.id}
       </h3>
@@ -62,7 +62,7 @@
         {#if snapshot.label}— {snapshot.label}{/if}
       </p>
     </div>
-    <button class="btn btn-ghost btn-sm border-base-300" onclick={onClose}
+    <button class="btn border-base-300 btn-ghost btn-sm" onclick={onClose}
       >Close</button
     >
   </div>
@@ -70,7 +70,7 @@
   <div class="mb-3 flex gap-2">
     <select
       bind:value={filterDb}
-      class="select select-bordered select-sm bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-sm"
       onchange={() => (filterTable = '')}
     >
       <option value="">All databases</option>
@@ -81,7 +81,7 @@
 
     <select
       bind:value={filterTable}
-      class="select select-bordered select-sm bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-sm"
     >
       <option value="">All tables</option>
       {#each filteredTables as t (t)}
@@ -99,15 +99,15 @@
         <thead>
           <tr>
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Database</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Table</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >UUID</th
             >
           </tr>

@@ -32,7 +32,7 @@
         {#each fields as [key, value] (key)}
           <tr class="border-base-300/60">
             <td
-              class="w-48 whitespace-nowrap align-top text-xs font-medium text-base-content/55"
+              class="w-48 align-top text-xs font-medium whitespace-nowrap text-base-content/55"
               >{key}</td
             >
             <td class="align-top"

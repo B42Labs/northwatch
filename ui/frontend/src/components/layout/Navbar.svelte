@@ -25,14 +25,14 @@
   <!-- Mobile drawer trigger -->
   <label
     for="sidebar-toggle"
-    class="btn btn-square btn-ghost btn-sm font-mono text-lg lg:hidden"
+    class="btn btn-square btn-ghost font-mono text-lg btn-sm lg:hidden"
     aria-label="Open navigation">≡</label
   >
 
   <!-- Desktop sidebar collapse -->
   <button
     type="button"
-    class="btn btn-square btn-ghost btn-sm hidden font-mono text-lg lg:inline-flex"
+    class="btn hidden btn-square btn-ghost font-mono text-lg btn-sm lg:inline-flex"
     onclick={toggleSidebar}
     title={$sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
     aria-label="Toggle sidebar">≡</button
@@ -42,13 +42,13 @@
   <form onsubmit={handleSearch} class="min-w-0 flex-1">
     <label class="relative block w-full max-w-lg">
       <span
-        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none font-mono text-sm text-primary"
+        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 font-mono text-sm text-primary select-none"
         aria-hidden="true">⌕</span
       >
       <input
         type="text"
         placeholder="search by ip, mac, uuid, or name…"
-        class="input input-sm input-bordered w-full bg-base-200/60 pl-8 font-mono"
+        class="input w-full bg-base-200/60 pl-8 font-mono input-sm"
         bind:value={searchQuery}
         aria-label="Search"
       />

@@ -98,7 +98,7 @@
     {#if $writeEnabled && canWrite}
       <a
         href={link(`/write?action=update&table=${ovsdbName}&uuid=${uuid}`)}
-        class="btn btn-outline btn-warning btn-sm"
+        class="btn btn-outline btn-sm btn-warning"
       >
         Edit
       </a>
@@ -114,7 +114,7 @@
         onclick={loadImpact}
       >
         {#if impactLoading}
-          <span class="loading loading-spinner loading-xs"></span>
+          <span class="loading loading-xs loading-spinner"></span>
         {/if}
         Impact Analysis
       </button>
@@ -152,7 +152,7 @@
           {#each fields as [key, value] (key)}
             <tr class="border-base-300/60">
               <td
-                class="w-48 whitespace-nowrap align-top text-xs font-medium text-base-content/55"
+                class="w-48 align-top text-xs font-medium whitespace-nowrap text-base-content/55"
                 >{key}</td
               >
               <td class="align-top">

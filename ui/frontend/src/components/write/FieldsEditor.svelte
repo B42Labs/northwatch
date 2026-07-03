@@ -242,7 +242,7 @@
     <div class="flex gap-1">
       {#if mode === 'form' && currentSchema}
         <button
-          class="btn btn-ghost btn-xs border-base-300 font-mono"
+          class="btn border-base-300 btn-ghost font-mono btn-xs"
           onclick={loadSchemaFields}
           title="Pre-fill all writable fields from the table schema"
         >
@@ -251,7 +251,7 @@
       {/if}
       {#if mode === 'form' && action === 'update' && entityFields}
         <button
-          class="btn btn-ghost btn-xs border-base-300 font-mono"
+          class="btn border-base-300 btn-ghost font-mono btn-xs"
           onclick={loadFieldsFromEntity}
           title="Load current field values from entity"
         >
@@ -275,7 +275,7 @@
             <td style="width: 11rem; min-width: 11rem" class="align-top">
               {#if writableSchemaFields.length > 0}
                 <select
-                  class="select select-bordered select-xs w-full bg-base-200/60 font-mono"
+                  class="select w-full bg-base-200/60 font-mono select-xs"
                   bind:value={row.key}
                   onchange={handleRowChange}
                 >
@@ -287,7 +287,7 @@
               {:else}
                 <input
                   type="text"
-                  class="input input-xs input-bordered w-full font-mono"
+                  class="input w-full font-mono input-xs"
                   placeholder="field_name"
                   bind:value={row.key}
                   oninput={handleRowChange}
@@ -297,7 +297,7 @@
             <td class="w-full align-top">
               {#if isMultiline(row)}
                 <textarea
-                  class="textarea textarea-bordered textarea-xs w-full font-mono text-xs leading-relaxed"
+                  class="textarea w-full font-mono text-xs leading-relaxed textarea-xs"
                   rows="3"
                   placeholder={row.type ? `(${row.type})` : 'value'}
                   bind:value={row.value}
@@ -306,16 +306,16 @@
               {:else}
                 <input
                   type="text"
-                  class="input input-xs input-bordered w-full font-mono"
+                  class="input w-full font-mono input-xs"
                   placeholder={row.type ? `(${row.type})` : 'value'}
                   bind:value={row.value}
                   oninput={handleRowChange}
                 />
               {/if}
             </td>
-            <td class="whitespace-nowrap pl-1 align-top">
+            <td class="pl-1 align-top whitespace-nowrap">
               {#if row.original !== undefined && row.value !== row.original}
-                <span class="badge badge-warning badge-xs" title="modified"
+                <span class="badge badge-xs badge-warning" title="modified"
                   >M</span
                 >
               {/if}
@@ -327,7 +327,7 @@
             </td>
             <td class="pl-0.5 align-top">
               <button
-                class="btn btn-ghost btn-xs min-h-0 text-error"
+                class="btn min-h-0 btn-ghost text-error btn-xs"
                 onclick={() => removeRow(i)}
                 title="Remove field"
               >
@@ -340,7 +340,7 @@
     </table>
 
     <button
-      class="btn btn-ghost btn-xs self-start border-base-300 font-mono"
+      class="btn self-start border-base-300 btn-ghost font-mono btn-xs"
       onclick={addRow}
     >
       + Add Field
@@ -355,7 +355,7 @@
   {:else}
     <!-- JSON textarea -->
     <textarea
-      class="textarea textarea-bordered font-mono text-xs"
+      class="textarea font-mono text-xs"
       rows="6"
       placeholder={'{"name": "my-switch", "external_ids": {"owner": "admin"}}'}
       {value}

@@ -89,7 +89,7 @@
           <Card padding="none">
             <div class="border-b border-base-300 bg-base-200/40 px-3 py-2">
               <h2
-                class="flex items-baseline gap-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                class="flex items-baseline gap-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
               >
                 <Badge text={dbLabel(group.database)} variant="neutral" />
                 <span class="truncate">{group.table}</span>
@@ -141,7 +141,7 @@
               </table>
               {#if group.matches.length > groupLimit(`${group.database}:${group.table}`)}
                 <button
-                  class="btn btn-ghost btn-sm m-2 border-base-300"
+                  class="btn m-2 border-base-300 btn-ghost btn-sm"
                   onclick={() =>
                     showMoreGroup(`${group.database}:${group.table}`)}
                 >

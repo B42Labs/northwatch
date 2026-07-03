@@ -10,5 +10,5 @@
   <p class="text-base-content/50">
     <span class="text-base-content/30">//</span> route not found
   </p>
-  <a href={link('/')} class="btn btn-primary btn-sm mt-1">cd ~</a>
+  <a href={link('/')} class="btn mt-1 btn-primary btn-sm">cd ~</a>
 </div>

@@ -38,7 +38,7 @@
 
 {#if $clustersError}
   <span
-    class="badge badge-error badge-outline badge-xs gap-1 font-mono text-2xs uppercase tracking-wider"
+    class="badge gap-1 badge-outline font-mono text-2xs badge-xs tracking-wider uppercase badge-error"
     title={$clustersError}
   >
     sources unavailable
@@ -48,11 +48,11 @@
 {#if $multiClusterEnabled}
   <label class="flex items-center gap-1.5">
     <span
-      class="hidden font-mono text-2xs uppercase tracking-wider text-base-content/45 sm:inline"
+      class="hidden font-mono text-2xs tracking-wider text-base-content/45 uppercase sm:inline"
       >source</span
     >
     <select
-      class="select select-bordered select-xs bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-xs"
       value={$activeCluster}
       onchange={(e) => activeCluster.set((e.target as HTMLSelectElement).value)}
       disabled={busy}
@@ -69,13 +69,13 @@
   </label>
   {#if snapshotActive}
     <button
-      class="btn btn-ghost btn-xs border-base-300"
+      class="btn border-base-300 btn-ghost btn-xs"
       onclick={eject}
       disabled={busy}
       title="Unload snapshot and return to live"
     >
       {#if busy}
-        <span class="loading loading-spinner loading-xs"></span>
+        <span class="loading loading-xs loading-spinner"></span>
       {/if}
       eject
     </button>

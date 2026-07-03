@@ -54,7 +54,7 @@
         type="checkbox"
         checked={selectedIds.has(snap.id)}
         onchange={() => onToggle(snap.id)}
-        class="checkbox checkbox-sm mt-1"
+        class="checkbox mt-1 checkbox-sm"
       />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
@@ -83,37 +83,37 @@
       <div class="flex gap-1">
         {#if loadedIds.has(snap.id)}
           <button
-            class="btn btn-ghost btn-xs border-base-300"
+            class="btn border-base-300 btn-ghost btn-xs"
             onclick={() => onUnload(snap.id)}
             disabled={busy}
             title="Unload this snapshot and free its resources"
           >
             {#if busyId === snap.id}
-              <span class="loading loading-spinner loading-xs"></span>
+              <span class="loading loading-xs loading-spinner"></span>
             {/if}
             Unload
           </button>
         {:else}
           <button
-            class="btn btn-ghost btn-xs border-base-300 text-success"
+            class="btn border-base-300 btn-ghost text-success btn-xs"
             onclick={() => onLoad(snap.id)}
             disabled={busy}
             title="Load this snapshot as a data source and switch to it"
           >
             {#if busyId === snap.id}
-              <span class="loading loading-spinner loading-xs"></span>
+              <span class="loading loading-xs loading-spinner"></span>
             {/if}
             Load
           </button>
         {/if}
         <button
-          class="btn btn-ghost btn-xs border-base-300"
+          class="btn border-base-300 btn-ghost btn-xs"
           onclick={() => onView(snap.id)}
         >
           View
         </button>
         <button
-          class="btn btn-ghost btn-xs border-base-300 text-error"
+          class="btn border-base-300 btn-ghost text-error btn-xs"
           onclick={() => onDelete(snap.id)}
         >
           Delete

@@ -100,7 +100,7 @@
       <FormField label="Action" forId="op-action">
         <select
           id="op-action"
-          class="select select-bordered select-sm bg-base-200/60 font-mono"
+          class="select bg-base-200/60 font-mono select-sm"
           bind:value={action}
           disabled={selectedTable?.deleteOnly}
         >
@@ -118,7 +118,7 @@
       <FormField label="Table" forId="op-table">
         <select
           id="op-table"
-          class="select select-bordered select-sm bg-base-200/60 font-mono"
+          class="select bg-base-200/60 font-mono select-sm"
           bind:value={table}
         >
           <option value="">-- select table --</option>
@@ -159,7 +159,7 @@
       <input
         id="op-reason"
         type="text"
-        class="input input-sm input-bordered font-mono"
+        class="input font-mono input-sm"
         placeholder="Why this change?"
         bind:value={reason}
       />
@@ -175,7 +175,7 @@
     {/if}
 
     <button
-      class="btn btn-primary btn-sm self-start font-mono"
+      class="btn self-start font-mono btn-primary btn-sm"
       onclick={handleAdd}
     >
       Add to Batch

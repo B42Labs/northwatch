@@ -254,7 +254,7 @@
   >
     {#snippet actions()}
       <label
-        class="flex cursor-pointer select-none items-center gap-2 font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        class="flex cursor-pointer items-center gap-2 font-mono text-2xs tracking-wider text-base-content/60 uppercase select-none"
       >
         <input
           type="checkbox"
@@ -264,7 +264,7 @@
         Live updates
       </label>
       <label
-        class="flex cursor-pointer select-none items-center gap-2 font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        class="flex cursor-pointer items-center gap-2 font-mono text-2xs tracking-wider text-base-content/60 uppercase select-none"
       >
         <input
           type="checkbox"
@@ -274,7 +274,7 @@
         Show VM ports
       </label>
       <button
-        class="btn btn-ghost btn-sm border-base-300 font-mono normal-case"
+        class="btn border-base-300 btn-ghost font-mono normal-case btn-sm"
         onclick={() => relayoutKey++}
         title="Re-Layout"
       >
@@ -283,14 +283,14 @@
       <div class="dropdown dropdown-end">
         <button
           tabindex="0"
-          class="btn btn-ghost btn-sm border-base-300 font-mono normal-case"
+          class="btn border-base-300 btn-ghost font-mono normal-case btn-sm"
         >
           Export &#9662;
         </button>
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <ul
           tabindex="0"
-          class="menu dropdown-content z-50 w-44 rounded border border-base-300 bg-base-100 p-2 font-mono text-sm shadow-lg"
+          class="dropdown-content menu z-50 w-44 rounded border border-base-300 bg-base-100 p-2 font-mono text-sm shadow-lg"
         >
           <li><button onclick={handleExportSVG}>Download SVG</button></li>
           <li><button onclick={handleExportPNG}>Download PNG</button></li>
@@ -305,7 +305,7 @@
     <!-- Network focus (searchable) -->
     <div class="flex items-center gap-1.5">
       <span
-        class="whitespace-nowrap font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        class="font-mono text-2xs tracking-wider whitespace-nowrap text-base-content/60 uppercase"
         >Network</span
       >
       <div class="relative">
@@ -317,11 +317,11 @@
           }}
           onblur={handleNetworkBlur}
           placeholder="All networks"
-          class="input input-xs input-bordered w-48 font-mono"
+          class="input w-48 font-mono input-xs"
         />
         {#if focusNetwork}
           <button
-            class="btn btn-ghost btn-xs absolute right-1 top-1/2 -translate-y-1/2 px-1"
+            class="btn absolute top-1/2 right-1 -translate-y-1/2 btn-ghost px-1 btn-xs"
             onclick={clearNetwork}>&times;</button
           >
         {/if}
@@ -366,7 +366,7 @@
     <!-- Chassis focus (searchable) -->
     <div class="flex items-center gap-1.5">
       <span
-        class="whitespace-nowrap font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        class="font-mono text-2xs tracking-wider whitespace-nowrap text-base-content/60 uppercase"
         >Chassis</span
       >
       <div class="relative">
@@ -378,11 +378,11 @@
           }}
           onblur={handleChassisBlur}
           placeholder="All chassis"
-          class="input input-xs input-bordered w-48 font-mono"
+          class="input w-48 font-mono input-xs"
         />
         {#if focusChassis}
           <button
-            class="btn btn-ghost btn-xs absolute right-1 top-1/2 -translate-y-1/2 px-1"
+            class="btn absolute top-1/2 right-1 -translate-y-1/2 btn-ghost px-1 btn-xs"
             onclick={clearChassis}>&times;</button
           >
         {/if}
@@ -427,21 +427,21 @@
     <!-- Search highlight -->
     <div class="flex items-center gap-1.5">
       <span
-        class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+        class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
         >Search</span
       >
       <input
         type="text"
         bind:value={searchQuery}
         placeholder="Name, UUID, IP..."
-        class="input input-xs input-bordered w-48 font-mono"
+        class="input w-48 font-mono input-xs"
       />
     </div>
 
     <!-- Clear -->
     {#if focusNetwork || focusChassis || searchQuery}
       <button
-        class="btn btn-ghost btn-xs border-base-300 font-mono normal-case"
+        class="btn border-base-300 btn-ghost font-mono normal-case btn-xs"
         onclick={clearFilters}>Clear filters</button
       >
     {/if}
@@ -449,10 +449,10 @@
 
   <!-- Legend -->
   <div
-    class="mb-3 flex gap-4 font-mono text-2xs uppercase tracking-wider text-base-content/55"
+    class="mb-3 flex gap-4 font-mono text-2xs tracking-wider text-base-content/55 uppercase"
   >
     <div class="flex items-center gap-1.5">
-      <span class="inline-block h-3 w-4 rounded-sm bg-blue-500 opacity-85"
+      <span class="inline-block h-3 w-4 rounded-xs bg-blue-500 opacity-85"
       ></span>
       Switch
     </div>
@@ -462,13 +462,13 @@
       Router
     </div>
     <div class="flex items-center gap-1.5">
-      <span class="inline-block h-3 w-4 rounded-sm bg-gray-500 opacity-60"
+      <span class="inline-block h-3 w-4 rounded-xs bg-gray-500 opacity-60"
       ></span>
       Chassis
     </div>
     <div class="flex items-center gap-1.5">
       <span
-        class="inline-block h-3 w-4 rounded-sm opacity-85"
+        class="inline-block h-3 w-4 rounded-xs opacity-85"
         style="background: #7c3aed;"
       ></span>
       Gateway

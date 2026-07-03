@@ -59,7 +59,7 @@
 
 <!-- Panel -->
 <div
-  class="animate-in slide-in-from-right fixed right-0 top-0 z-50 flex h-full w-full max-w-xl flex-col border-l border-base-300 bg-base-100 shadow-2xl transition-transform duration-300"
+  class="animate-in slide-in-from-right fixed top-0 right-0 z-50 flex h-full w-full max-w-xl flex-col border-l border-base-300 bg-base-100 shadow-2xl transition-transform duration-300"
 >
   <!-- Header -->
   <div
@@ -105,7 +105,7 @@
     >
       <div>
         <div
-          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+          class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
         >
           Database
         </div>
@@ -113,7 +113,7 @@
       </div>
       <div>
         <div
-          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+          class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
         >
           Table
         </div>
@@ -121,11 +121,11 @@
       </div>
       <div class="col-span-2">
         <div
-          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+          class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
         >
           UUID
         </div>
-        <div class="select-all font-mono text-sm">{event.uuid}</div>
+        <div class="font-mono text-sm select-all">{event.uuid}</div>
       </div>
     </div>
 
@@ -133,7 +133,7 @@
     {#if event.type === 'update' && event.old_row && event.row}
       <!-- Update: show diff -->
       <h3
-        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         Changed Fields
       </h3>
@@ -149,23 +149,23 @@
               <div class="grid grid-cols-2 gap-2">
                 <div class="rounded bg-error/10 p-2">
                   <div
-                    class="mb-0.5 font-mono text-2xs font-semibold uppercase tracking-wider text-error"
+                    class="mb-0.5 font-mono text-2xs font-semibold tracking-wider text-error uppercase"
                   >
                     Old
                   </div>
                   <pre
-                    class="whitespace-pre-wrap break-all font-mono text-xs">{formatValue(
+                    class="font-mono text-xs break-all whitespace-pre-wrap">{formatValue(
                       event.old_row![key],
                     )}</pre>
                 </div>
                 <div class="rounded bg-success/10 p-2">
                   <div
-                    class="mb-0.5 font-mono text-2xs font-semibold uppercase tracking-wider text-success"
+                    class="mb-0.5 font-mono text-2xs font-semibold tracking-wider text-success uppercase"
                   >
                     New
                   </div>
                   <pre
-                    class="whitespace-pre-wrap break-all font-mono text-xs">{formatValue(
+                    class="font-mono text-xs break-all whitespace-pre-wrap">{formatValue(
                       event.row![key],
                     )}</pre>
                 </div>
@@ -181,7 +181,7 @@
 
       {#if allKeys.filter((k) => !diffKeys.has(k)).length > 0}
         <h3
-          class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+          class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
         >
           Unchanged Fields
         </h3>
@@ -199,7 +199,7 @@
                       >
                     {:else}
                       <pre
-                        class="whitespace-pre-wrap break-all text-xs">{formatValue(
+                        class="text-xs break-all whitespace-pre-wrap">{formatValue(
                           event.row![key],
                         )}</pre>
                     {/if}
@@ -213,7 +213,7 @@
     {:else if event.type === 'insert' && event.row}
       <!-- Insert: show new data -->
       <h3
-        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         New Row
       </h3>
@@ -232,7 +232,7 @@
                     <span class="text-xs">{formatValue(event.row[key])}</span>
                   {:else}
                     <pre
-                      class="whitespace-pre-wrap break-all text-xs">{formatValue(
+                      class="text-xs break-all whitespace-pre-wrap">{formatValue(
                         event.row[key],
                       )}</pre>
                   {/if}
@@ -245,7 +245,7 @@
     {:else if event.type === 'delete' && event.old_row}
       <!-- Delete: show removed data -->
       <h3
-        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         Deleted Row
       </h3>
@@ -266,7 +266,7 @@
                     >
                   {:else}
                     <pre
-                      class="whitespace-pre-wrap break-all text-xs">{formatValue(
+                      class="text-xs break-all whitespace-pre-wrap">{formatValue(
                         event.old_row[key],
                       )}</pre>
                   {/if}
@@ -279,7 +279,7 @@
     {:else if displayRow}
       <!-- Fallback: generic key-value -->
       <h3
-        class="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="mb-2 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         Row Data
       </h3>
@@ -296,7 +296,7 @@
                     <span class="text-xs">{formatValue(displayRow![key])}</span>
                   {:else}
                     <pre
-                      class="whitespace-pre-wrap break-all text-xs">{formatValue(
+                      class="text-xs break-all whitespace-pre-wrap">{formatValue(
                         displayRow![key],
                       )}</pre>
                   {/if}
@@ -315,7 +315,7 @@
     <!-- Raw JSON toggle -->
     <div class="border-t border-base-300 pt-3">
       <button
-        class="btn btn-ghost btn-xs border-base-300"
+        class="btn border-base-300 btn-ghost btn-xs"
         onclick={() => (showRawJson = !showRawJson)}
       >
         {showRawJson ? 'Hide' : 'Show'} Raw JSON
@@ -325,7 +325,7 @@
           {#if event.old_row}
             <div>
               <div
-                class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                class="mb-1 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
               >
                 old_row
               </div>
@@ -340,7 +340,7 @@
           {#if event.row}
             <div>
               <div
-                class="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                class="mb-1 font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
               >
                 row
               </div>

@@ -32,7 +32,7 @@
   <div class="flex items-center gap-2 py-0.5">
     {#if childCount > 0}
       <button
-        class="btn btn-ghost btn-xs px-0.5"
+        class="btn btn-ghost px-0.5 btn-xs"
         onclick={() => (expanded = !expanded)}
         aria-label={expanded ? 'Collapse' : 'Expand'}
       >

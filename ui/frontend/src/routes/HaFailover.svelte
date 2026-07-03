@@ -572,7 +572,7 @@
     <div class="mb-3 flex items-center justify-between">
       <div>
         <div
-          class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+          class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
         >
           {opts.title}
         </div>
@@ -581,7 +581,7 @@
         </div>
       </div>
       <button
-        class="btn btn-ghost btn-sm border-base-300"
+        class="btn border-base-300 btn-ghost btn-sm"
         aria-label="Close"
         onclick={opts.onclose}
       >
@@ -606,19 +606,19 @@
         <thead>
           <tr>
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Chassis</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >Hostname</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
               >{opts.countHeader}</th
             >
             <th
-              class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+              class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
             ></th>
           </tr>
         </thead>
@@ -637,7 +637,7 @@
               </td>
               <td class="text-right">
                 <button
-                  class="btn btn-xs font-mono normal-case {opts.actionClass}"
+                  class="btn font-mono normal-case btn-xs {opts.actionClass}"
                   onclick={() => opts.onaction(chassis.name)}
                   disabled={actionLoading}
                 >
@@ -667,7 +667,7 @@
 
     {#if $writeEnabled && hasNbGroups && activeChassisInfo.length > 0}
       <button
-        class="btn btn-outline btn-warning btn-sm font-mono normal-case"
+        class="btn btn-outline font-mono normal-case btn-sm btn-warning"
         onclick={() => {
           showEvacuateDropdown = !showEvacuateDropdown;
           showRestoreDropdown = false;
@@ -679,7 +679,7 @@
     {/if}
     {#if $writeEnabled && drainedChassisInfo.length > 0}
       <button
-        class="btn btn-outline btn-success btn-sm font-mono normal-case"
+        class="btn btn-outline font-mono normal-case btn-sm btn-success"
         onclick={() => {
           showRestoreDropdown = !showRestoreDropdown;
           showEvacuateDropdown = false;
@@ -759,14 +759,14 @@
         </div>
       {:else if actionLoading && !pendingPlan}
         <div class="flex items-center gap-2 font-mono text-sm">
-          <span class="loading loading-spinner loading-sm"></span>
+          <span class="loading loading-sm loading-spinner"></span>
           Computing preview...
         </div>
       {:else if actionError && !pendingPlan}
         <div class="flex items-center justify-between">
           <span class="font-mono text-sm text-error">{actionError}</span>
           <button
-            class="btn btn-ghost btn-sm border-base-300"
+            class="btn border-base-300 btn-ghost btn-sm"
             onclick={clearAction}
           >
             Close
@@ -779,7 +779,7 @@
             <div>
               {#if failoverTarget}
                 <div
-                  class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
                 >
                   Failover: {failoverTarget.groupName}
                 </div>
@@ -788,7 +788,7 @@
                 </div>
               {:else if evacuateTarget}
                 <div
-                  class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
                 >
                   Evacuate: {evacuateTarget}
                 </div>
@@ -797,7 +797,7 @@
                 </div>
               {:else if restoreTarget}
                 <div
-                  class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
                 >
                   Restore: {restoreTarget}
                 </div>
@@ -818,23 +818,23 @@
               <thead>
                 <tr>
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Table</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >UUID</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Field</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Before</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >After</th
                   >
                 </tr>
@@ -867,17 +867,17 @@
           <!-- Buttons -->
           <div class="flex items-center gap-2">
             <button
-              class="btn btn-warning btn-sm font-mono normal-case"
+              class="btn font-mono normal-case btn-sm btn-warning"
               onclick={confirmApply}
               disabled={actionLoading}
             >
               {#if actionLoading}
-                <span class="loading loading-spinner loading-sm"></span>
+                <span class="loading loading-sm loading-spinner"></span>
               {/if}
               Apply
             </button>
             <button
-              class="btn btn-ghost btn-sm border-base-300"
+              class="btn border-base-300 btn-ghost btn-sm"
               onclick={confirmCancel}
               disabled={actionLoading}
             >
@@ -910,7 +910,7 @@
             <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2
-                  class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+                  class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
                 >
                   {shortName(group.name)}
                 </h2>
@@ -940,7 +940,7 @@
                   )}
                   {#if activeEntry && standbyEntry}
                     <button
-                      class="btn btn-square btn-outline btn-warning btn-xs font-mono"
+                      class="btn btn-square btn-outline font-mono btn-warning btn-xs"
                       aria-label="Failover to {standbyEntry.chassisName}"
                       title="Failover to {standbyEntry.chassisName}"
                       onclick={() =>

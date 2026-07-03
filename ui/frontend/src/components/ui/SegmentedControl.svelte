@@ -30,7 +30,7 @@
       type="button"
       class="btn join-item btn-{size} font-mono normal-case {value === o.value
         ? 'btn-primary'
-        : 'btn-ghost border-base-300'}"
+        : 'border-base-300 btn-ghost'}"
       aria-pressed={value === o.value}
       onclick={() => select(o.value)}>{o.label}</button
     >

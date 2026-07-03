@@ -123,7 +123,7 @@
               <div>
                 <span class="font-mono font-semibold">{port.port_name}</span>
                 {#if port.port_type}
-                  <span class="badge badge-ghost badge-xs ml-1"
+                  <span class="ml-1 badge badge-ghost badge-xs"
                     >{port.port_type}</span
                   >
                 {/if}
@@ -139,7 +139,7 @@
                 href={link(
                   `/correlated/logical-switch-ports/${port.port_uuid}`,
                 )}
-                class="btn btn-ghost btn-xs border-base-300"
+                class="btn border-base-300 btn-ghost btn-xs"
                 onclick={(e) => e.stopPropagation()}>View</a
               >
               <span class="font-mono text-xs text-base-content/40"
@@ -154,7 +154,7 @@
                 {#each port.checks as check (check.name)}
                   <div class="flex items-start gap-2 font-mono text-sm">
                     <span
-                      class="badge badge-xs mt-0.5 {severityVariant(
+                      class="mt-0.5 badge badge-xs {severityVariant(
                         check.status,
                       ) === 'error'
                         ? 'badge-error'

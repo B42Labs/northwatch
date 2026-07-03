@@ -221,15 +221,15 @@
               <thead>
                 <tr>
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >IP Address</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >MAC Address</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Logical Port</th
                   >
                 </tr>

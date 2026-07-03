@@ -27,12 +27,12 @@
       class="flex min-w-[6.5rem] flex-1 flex-col gap-0.5 bg-base-100 px-3 py-2"
     >
       <span
-        class="font-mono text-xl font-semibold tabular-nums leading-none {textClass[
+        class="font-mono text-xl leading-none font-semibold tabular-nums {textClass[
           t.variant ?? 'neutral'
         ]}">{t.value}</span
       >
       <span
-        class="font-mono text-2xs uppercase tracking-wider text-base-content/50"
+        class="font-mono text-2xs tracking-wider text-base-content/50 uppercase"
         title={t.hint}>{t.label}</span
       >
     </div>

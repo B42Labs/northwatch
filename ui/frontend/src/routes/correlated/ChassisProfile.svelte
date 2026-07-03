@@ -98,15 +98,15 @@
               <thead>
                 <tr>
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Type</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >IP</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Options</th
                   >
                 </tr>
@@ -142,23 +142,23 @@
               <thead>
                 <tr>
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >UUID</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Logical Port</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Type</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >Tunnel Key</th
                   >
                   <th
-                    class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                    class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                     >MAC</th
                   >
                 </tr>
@@ -175,7 +175,7 @@
                     <td>
                       <a
                         href={link(`/correlated/port-bindings/${pb._uuid}`)}
-                        class="link link-primary text-xs"
+                        class="link text-xs link-primary"
                       >
                         {String(pb._uuid).slice(0, 8)}
                       </a>

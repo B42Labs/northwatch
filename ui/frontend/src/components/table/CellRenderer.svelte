@@ -48,12 +48,12 @@
 </script>
 
 {#if value === null || value === undefined}
-  <span class="italic text-base-content/40">-</span>
+  <span class="text-base-content/40 italic">-</span>
 {:else if typeof value === 'boolean'}
   {#if value}
-    <span class="badge badge-success badge-sm">true</span>
+    <span class="badge badge-sm badge-success">true</span>
   {:else}
-    <span class="badge badge-error badge-sm">false</span>
+    <span class="badge badge-sm badge-error">false</span>
   {/if}
 {:else if isUuid(value)}
   <UuidLink
@@ -64,7 +64,7 @@
   />
 {:else if Array.isArray(value)}
   {#if value.length === 0}
-    <span class="italic text-base-content/40">empty</span>
+    <span class="text-base-content/40 italic">empty</span>
   {:else if value.length <= 3 && value.every(isUuid)}
     <div class="flex flex-col gap-0.5">
       {#each value as item (item)}
@@ -97,7 +97,7 @@
   {/if}
 {:else if isStringMap(value)}
   {#if Object.keys(value).length === 0}
-    <span class="italic text-base-content/40">empty</span>
+    <span class="text-base-content/40 italic">empty</span>
   {:else}
     <details class="text-xs">
       <summary class="cursor-pointer"

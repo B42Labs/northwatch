@@ -52,12 +52,12 @@
   <div class="mb-0.5">
     <button
       type="button"
-      class="group flex w-full items-center gap-1.5 rounded px-2 py-1.5 font-mono text-2xs font-semibold uppercase tracking-widest text-base-content/45 transition-colors hover:text-base-content/80"
+      class="group flex w-full items-center gap-1.5 rounded px-2 py-1.5 font-mono text-2xs font-semibold tracking-widest text-base-content/45 uppercase transition-colors hover:text-base-content/80"
       onclick={() => toggle(key)}
       aria-expanded={isOpen}
     >
       <span
-        class="select-none text-base-content/30 transition-colors group-hover:text-primary"
+        class="text-base-content/30 transition-colors select-none group-hover:text-primary"
         >{isOpen ? '▾' : '▸'}</span
       >
       <span class="truncate">{label}</span>
@@ -98,7 +98,7 @@
     class="flex items-center gap-2.5 border-b border-base-300 px-4 py-3.5 transition-colors hover:bg-base-300/30"
   >
     <span
-      class="nw-glow grid h-7 w-7 place-items-center rounded-sm bg-primary/15 font-bold text-primary"
+      class="nw-glow grid h-7 w-7 place-items-center rounded-xs bg-primary/15 font-bold text-primary"
       aria-hidden="true">◈</span
     >
     <span
@@ -114,7 +114,7 @@
 
     <div class="my-2 flex items-center gap-2 px-2">
       <span
-        class="font-mono text-2xs uppercase tracking-widest text-base-content/30"
+        class="font-mono text-2xs tracking-widest text-base-content/30 uppercase"
         >Databases</span
       >
       <span class="h-px flex-1 bg-base-300"></span>

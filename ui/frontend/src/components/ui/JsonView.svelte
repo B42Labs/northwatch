@@ -28,11 +28,11 @@
 <div class="overflow-hidden rounded border border-base-300 bg-base-100">
   <button
     type="button"
-    class="flex w-full items-center gap-2 border-b border-base-300 bg-base-200/40 px-3 py-2 text-left font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80 transition-colors hover:text-primary"
+    class="flex w-full items-center gap-2 border-b border-base-300 bg-base-200/40 px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase transition-colors hover:text-primary"
     onclick={() => (open = !open)}
     aria-expanded={open}
   >
-    <span class="select-none text-primary" aria-hidden="true"
+    <span class="text-primary select-none" aria-hidden="true"
       >{open ? '▾' : '▸'}</span
     >
     {label}
@@ -40,24 +40,24 @@
   {#if open}
     <!-- eslint-disable svelte/no-at-html-tags -- highlighted is derived from JSON.stringify, not user input -->
     <pre
-      class="json-block overflow-x-auto whitespace-pre-wrap p-3 text-xs leading-relaxed">{@html highlighted}</pre>
+      class="json-block overflow-x-auto p-3 text-xs leading-relaxed whitespace-pre-wrap">{@html highlighted}</pre>
     <!-- eslint-enable svelte/no-at-html-tags -->
   {/if}
 </div>
 
 <style>
-  /* DaisyUI theme variables (oklch triplets) — theme-aware in plain CSS. */
+  /* daisyUI theme variables — theme-aware in plain CSS. */
   .json-block :global(.json-key) {
-    color: oklch(var(--a));
+    color: var(--color-accent);
   }
   .json-block :global(.json-string) {
-    color: oklch(var(--su));
+    color: var(--color-success);
   }
   .json-block :global(.json-bool) {
-    color: oklch(var(--s));
+    color: var(--color-secondary);
     font-weight: 600;
   }
   .json-block :global(.json-num) {
-    color: oklch(var(--s));
+    color: var(--color-secondary);
   }
 </style>

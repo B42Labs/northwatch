@@ -54,7 +54,7 @@
 
     <div class="flex flex-col gap-4">
       <h2
-        class="font-mono text-xs font-semibold uppercase tracking-wider text-base-content/80"
+        class="font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase"
       >
         Binding Chain
       </h2>

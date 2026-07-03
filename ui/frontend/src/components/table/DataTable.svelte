@@ -123,7 +123,7 @@
       rows
     </span>
     <select
-      class="select select-bordered select-sm bg-base-200/60 font-mono"
+      class="select bg-base-200/60 font-mono select-sm"
       bind:value={pageSize}
       onchange={() => (currentPage = 1)}
       aria-label="Rows per page"
@@ -141,7 +141,7 @@
           bind:checked={showAll}
         />
         <span
-          class="font-mono text-2xs uppercase tracking-wider text-base-content/60"
+          class="font-mono text-2xs tracking-wider text-base-content/60 uppercase"
           >all columns</span
         >
       </label>
@@ -152,12 +152,12 @@
   <div
     class="max-h-[calc(100vh-16rem)] overflow-auto rounded border border-base-300"
   >
-    <table class="table table-pin-rows table-xs font-mono">
+    <table class="table-pin-rows table table-xs font-mono">
       <thead>
         <tr>
           {#each displayColumns as col (col)}
             <th
-              class="cursor-pointer select-none whitespace-nowrap border-b border-base-300 bg-base-200 text-2xs uppercase tracking-wider text-base-content/55 transition-colors hover:text-base-content"
+              class="cursor-pointer border-b border-base-300 bg-base-200 text-2xs tracking-wider whitespace-nowrap text-base-content/55 uppercase transition-colors select-none hover:text-base-content"
               onclick={() => toggleSort(col)}
             >
               <div class="flex items-center gap-1">
@@ -186,7 +186,7 @@
             onclick={() => onRowClick?.(row)}
           >
             {#each displayColumns as col (col)}
-              <td class="max-w-xs whitespace-nowrap align-top">
+              <td class="max-w-xs align-top whitespace-nowrap">
                 <CellRenderer
                   value={row[col]}
                   refHref={refHref?.(col)}
@@ -214,27 +214,27 @@
       {#if totalPages > 1}
         <div class="join">
           <button
-            class="btn btn-ghost join-item btn-sm border-base-300"
+            class="btn join-item border-base-300 btn-ghost btn-sm"
             disabled={currentPage === 1}
             onclick={() => currentPage--}
             aria-label="Previous page">«</button
           >
           {#each pageNumbers as p, i (i)}
             {#if p === '...'}
-              <button class="btn btn-disabled btn-ghost join-item btn-sm"
+              <button class="btn btn-disabled join-item btn-ghost btn-sm"
                 >…</button
               >
             {:else}
               <button
                 class="btn join-item btn-sm {p === currentPage
                   ? 'btn-primary'
-                  : 'btn-ghost border-base-300'}"
+                  : 'border-base-300 btn-ghost'}"
                 onclick={() => (currentPage = p)}>{p}</button
               >
             {/if}
           {/each}
           <button
-            class="btn btn-ghost join-item btn-sm border-base-300"
+            class="btn join-item border-base-300 btn-ghost btn-sm"
             disabled={currentPage === totalPages}
             onclick={() => currentPage++}
             aria-label="Next page">»</button

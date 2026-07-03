@@ -43,7 +43,7 @@
 </script>
 
 <div
-  class="flex items-center gap-1.5 font-mono text-2xs uppercase tracking-wider {textClass}"
+  class="flex items-center gap-1.5 font-mono text-2xs tracking-wider uppercase {textClass}"
   title={tip}
 >
   <span class={dotClass}></span>

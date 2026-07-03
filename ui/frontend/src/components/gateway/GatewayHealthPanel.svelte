@@ -98,7 +98,7 @@
       >
     </h2>
     <button
-      class="btn btn-ghost btn-xs border-base-300 font-mono"
+      class="btn border-base-300 btn-ghost font-mono btn-xs"
       onclick={() => load()}>refresh</button
     >
   </div>
@@ -183,7 +183,7 @@
                   {#if gw.served_ips && gw.served_ips.length}
                     <div class="mt-0.5 flex flex-wrap gap-1">
                       {#each gw.served_ips as ip (ip)}
-                        <span class="badge badge-ghost badge-xs font-mono"
+                        <span class="badge badge-ghost font-mono badge-xs"
                           >{ip}</span
                         >
                       {/each}
@@ -219,7 +219,7 @@
                   {#each gw.checks as check (check.name)}
                     <div class="flex items-start gap-2 font-mono text-sm">
                       <span
-                        class="badge badge-xs mt-0.5 {severityVariant(
+                        class="mt-0.5 badge badge-xs {severityVariant(
                           check.status,
                         ) === 'error'
                           ? 'badge-error'
@@ -242,7 +242,7 @@
                     href={link(
                       `/correlated/port-bindings/${gw.port_binding_uuid}`,
                     )}
-                    class="btn btn-ghost btn-xs border-base-300"
+                    class="btn border-base-300 btn-ghost btn-xs"
                     onclick={(e) => e.stopPropagation()}>cr-port</a
                   >
                   {#if gw.router_uuid}
@@ -250,7 +250,7 @@
                       href={link(
                         `/correlated/logical-routers/${gw.router_uuid}`,
                       )}
-                      class="btn btn-ghost btn-xs border-base-300"
+                      class="btn border-base-300 btn-ghost btn-xs"
                       onclick={(e) => e.stopPropagation()}>router</a
                     >
                   {/if}

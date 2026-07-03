@@ -60,7 +60,7 @@
 
 <div
   bind:this={panelEl}
-  class="absolute bottom-3 right-3 z-30 flex flex-col overflow-hidden rounded border border-base-300 bg-base-100/95 shadow-xl backdrop-blur"
+  class="absolute right-3 bottom-3 z-30 flex flex-col overflow-hidden rounded border border-base-300 bg-base-100/95 shadow-xl backdrop-blur"
   style="width: {width}px; max-width: calc(100% - 1.5rem); max-height: calc(100% - 1.5rem);{collapsed
     ? ''
     : ` height: ${height}px;`}"
@@ -69,12 +69,12 @@
     <!-- Resize grip (top-left corner) -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute left-0 top-0 z-10 h-4 w-4 cursor-nwse-resize"
+      class="absolute top-0 left-0 z-10 h-4 w-4 cursor-nwse-resize"
       onpointerdown={startResize}
       title="Drag to resize"
     >
       <span
-        class="absolute left-1 top-1 h-2 w-2 border-l-2 border-t-2 border-base-content/30"
+        class="absolute top-1 left-1 h-2 w-2 border-t-2 border-l-2 border-base-content/30"
       ></span>
     </div>
   {/if}
@@ -90,16 +90,16 @@
       <span class="relative inline-flex h-2 w-2 rounded-full bg-success"></span>
     </span>
     <span
-      class="font-mono text-2xs uppercase tracking-wider text-base-content/70"
+      class="font-mono text-2xs tracking-wider text-base-content/70 uppercase"
       >Event Stream</span
     >
-    <span class="font-mono text-2xs tabular-nums text-base-content/40"
+    <span class="font-mono text-2xs text-base-content/40 tabular-nums"
       >{events.length}</span
     >
     <div class="ml-auto flex items-center gap-0.5">
       {#if events.length > 0}
         <button
-          class="btn btn-ghost btn-xs px-1.5 font-mono text-2xs normal-case text-base-content/60"
+          class="btn btn-ghost px-1.5 font-mono text-2xs text-base-content/60 normal-case btn-xs"
           onclick={onClear}
           title="Clear stream">clear</button
         >
@@ -127,23 +127,23 @@
           <span class="text-base-content/30">//</span> waiting for changes…
         </div>
       {:else}
-        <table class="table table-pin-rows table-xs w-full font-mono">
+        <table class="table-pin-rows table w-full table-xs font-mono">
           <thead>
             <tr>
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Time</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Type</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >Table</th
               >
               <th
-                class="bg-base-200 text-2xs uppercase tracking-wider text-base-content/55"
+                class="bg-base-200 text-2xs tracking-wider text-base-content/55 uppercase"
                 >UUID</th
               >
             </tr>
@@ -155,7 +155,7 @@
                 onclick={() => onSelect(evt)}
                 title="Show details"
               >
-                <td class="whitespace-nowrap text-2xs text-base-content/55"
+                <td class="text-2xs whitespace-nowrap text-base-content/55"
                   >{eventTime(evt)}</td
                 >
                 <td>
@@ -165,10 +165,10 @@
                     glyph={actionGlyph(evt.type)}
                   />
                 </td>
-                <td class="whitespace-nowrap text-2xs text-base-content/80"
+                <td class="text-2xs whitespace-nowrap text-base-content/80"
                   >{evt.table}</td
                 >
-                <td class="whitespace-nowrap text-2xs text-base-content/55"
+                <td class="text-2xs whitespace-nowrap text-base-content/55"
                   >{evt.uuid.slice(0, 8)}</td
                 >
               </tr>
@@ -183,7 +183,11 @@
 <style>
   @keyframes fade-in {
     from {
-      background-color: oklch(var(--s) / 0.2);
+      background-color: color-mix(
+        in oklab,
+        var(--color-secondary) 20%,
+        transparent
+      );
     }
     to {
       background-color: transparent;
