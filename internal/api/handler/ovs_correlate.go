@@ -46,8 +46,8 @@ func RegisterOVSCorrelation(mux *http.ServeMux, pool *ovndb.OVSPool, sbClient cl
 		result, err := cor.ForInterface(r.Context(), ovscorrelate.LiveInterface{
 			SystemID:  r.PathValue("chassis"),
 			IfaceID:   iface.ExternalIDs["iface-id"],
-			LinkState: derefStr(iface.LinkState),
-			Error:     derefStr(iface.Error),
+			LinkState: ovndb.DerefStr(iface.LinkState),
+			Error:     ovndb.DerefStr(iface.Error),
 		})
 		if err != nil {
 			api.WriteError(w, http.StatusInternalServerError, "internal error")
@@ -55,12 +55,4 @@ func RegisterOVSCorrelation(mux *http.ServeMux, pool *ovndb.OVSPool, sbClient cl
 		}
 		api.WriteJSON(w, http.StatusOK, result)
 	})
-}
-
-// derefStr returns the pointed-to string, or "" when the pointer is nil.
-func derefStr(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
