@@ -28,7 +28,7 @@ func TestBuildTopology_Basic(t *testing.T) {
 		{UUID: "ch-1", Name: "host1", Hostname: "host1.example.com"},
 	}
 
-	resp := buildTopology(switches, routers, lsps, lrps, chassisList, nil, nil, false)
+	resp := buildTopology(&topologyData{switches: switches, routers: routers, lsps: lsps, lrps: lrps, chassisList: chassisList}, false)
 
 	// Should have 2 nodes: 1 switch + 1 router (chassis without bindings excluded)
 	assert.Len(t, resp.Nodes, 2)
@@ -56,7 +56,7 @@ func TestBuildTopology_PatchPorts(t *testing.T) {
 		{UUID: "lsp-2", Name: "patch-to-1", Type: "patch", Options: map[string]string{"peer": "patch-to-2"}},
 	}
 
-	resp := buildTopology(switches, nil, lsps, nil, nil, nil, nil, false)
+	resp := buildTopology(&topologyData{switches: switches, lsps: lsps}, false)
 
 	// Should have 2 switch nodes
 	assert.Len(t, resp.Nodes, 2)
@@ -67,7 +67,7 @@ func TestBuildTopology_PatchPorts(t *testing.T) {
 }
 
 func TestBuildTopology_Empty(t *testing.T) {
-	resp := buildTopology(nil, nil, nil, nil, nil, nil, nil, false)
+	resp := buildTopology(&topologyData{}, false)
 	assert.Empty(t, resp.Nodes)
 	assert.Empty(t, resp.Edges)
 
@@ -98,7 +98,7 @@ func TestBuildTopology_ChassisGrouping(t *testing.T) {
 		{UUID: "dp-1", ExternalIDs: map[string]string{"logical-switch": "ls-1"}},
 	}
 
-	resp := buildTopology(switches, nil, lsps, nil, chassisList, portBindings, datapaths, false)
+	resp := buildTopology(&topologyData{switches: switches, lsps: lsps, chassisList: chassisList, portBindings: portBindings, datapaths: datapaths}, false)
 
 	// Switch node should have chassis group
 	for _, n := range resp.Nodes {
@@ -137,7 +137,7 @@ func TestBuildTopology_RouterChassisGrouping(t *testing.T) {
 		{UUID: "dp-1", ExternalIDs: map[string]string{"logical-router": "lr-1"}},
 	}
 
-	resp := buildTopology(nil, routers, nil, lrps, chassisList, portBindings, datapaths, false)
+	resp := buildTopology(&topologyData{routers: routers, lrps: lrps, chassisList: chassisList, portBindings: portBindings, datapaths: datapaths}, false)
 
 	// Router node should have chassis group
 	for _, n := range resp.Nodes {
@@ -191,14 +191,14 @@ func TestBuildTopology_VMPorts(t *testing.T) {
 	}
 
 	t.Run("excluded by default", func(t *testing.T) {
-		resp := buildTopology(switches, nil, lsps, nil, chassisList, portBindings, datapaths, false)
+		resp := buildTopology(&topologyData{switches: switches, lsps: lsps, chassisList: chassisList, portBindings: portBindings, datapaths: datapaths}, false)
 		for _, n := range resp.Nodes {
 			assert.NotEqual(t, "vm-port", n.Type)
 		}
 	})
 
 	t.Run("included when enabled", func(t *testing.T) {
-		resp := buildTopology(switches, nil, lsps, nil, chassisList, portBindings, datapaths, true)
+		resp := buildTopology(&topologyData{switches: switches, lsps: lsps, chassisList: chassisList, portBindings: portBindings, datapaths: datapaths}, true)
 
 		var vmNode TopologyNode
 		for _, n := range resp.Nodes {
@@ -239,7 +239,7 @@ func TestBuildTopology_VMPorts_SkipsNonVIF(t *testing.T) {
 	}
 	datapaths := []sb.DatapathBinding{{UUID: "dp-1", ExternalIDs: map[string]string{"logical-switch": "ls-1"}}}
 
-	resp := buildTopology(switches, nil, lsps, nil, chassisList, portBindings, datapaths, true)
+	resp := buildTopology(&topologyData{switches: switches, lsps: lsps, chassisList: chassisList, portBindings: portBindings, datapaths: datapaths}, true)
 
 	vmCount := 0
 	for _, n := range resp.Nodes {
