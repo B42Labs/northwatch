@@ -1,3 +1,8 @@
+// Command northwatch is the Northwatch server entrypoint. It parses the runtime
+// configuration, connects to the OVN Northbound/Southbound databases (or serves
+// a stored snapshot offline), assembles the HTTP API and the embedded web UI,
+// and runs until interrupted. It also hosts the "snapshot" subcommand, which
+// captures the live databases to a file for later offline replay.
 package main
 
 import (
@@ -5,9 +10,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -152,11 +159,36 @@ func runSnapshot(args []string) error {
 	return nil
 }
 
+// setupLogging installs a structured, leveled slog handler on stderr as the
+// process-wide default logger, per the configured level and format.
+func setupLogging(cfg *config.Config) {
+	var level slog.Level
+	switch cfg.LogLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+	opts := &slog.HandlerOptions{Level: level}
+	var h slog.Handler
+	if cfg.LogFormat == "json" {
+		h = slog.NewJSONHandler(os.Stderr, opts)
+	} else {
+		h = slog.NewTextHandler(os.Stderr, opts)
+	}
+	slog.SetDefault(slog.New(h))
+}
+
 func run() error {
 	cfg, err := config.Parse(os.Args[1:])
 	if err != nil {
 		return err
 	}
+	setupLogging(cfg)
 
 	// Stage 2 of the offline workflow: when --snapshot is set, spin up local
 	// in-memory OVSDB servers from the file and point the cluster at them, so
@@ -213,7 +245,7 @@ func run() error {
 		}
 		ovsPool = ovndb.ConnectOVSPool(vsModel, tlsConfig, cfg.OVSMgmtAddrs)
 		defer ovsPool.Close()
-		fmt.Printf("OVS visibility enabled for %d chassis\n", len(cfg.OVSMgmtAddrs))
+		slog.Info("OVS visibility enabled", "chassis", len(cfg.OVSMgmtAddrs))
 	}
 
 	// History & snapshot store (shared across clusters, uses default cluster)
@@ -272,24 +304,38 @@ func run() error {
 		handler.RegisterWrite(mux, writeEngine)
 		handler.RegisterFailover(mux, writeEngine)
 		handler.RegisterImpact(mux, impactResolver)
-		fmt.Println("Write operations enabled")
+		slog.Info("write operations enabled")
 	}
 
-	// Trace store (shared)
-	traceStore := handler.NewTraceStore(1 * time.Hour)
+	// Per-cluster trace stores so saved traces never leak across clusters. The
+	// default cluster's top-level routes and its /clusters/default/ proxy routes
+	// share one store (they resolve to the same name); each snapshot cluster
+	// loaded at runtime gets its own.
+	var traceMu sync.Mutex
+	traceStores := make(map[string]*handler.TraceStore)
+	storeFor := func(name string) *handler.TraceStore {
+		traceMu.Lock()
+		defer traceMu.Unlock()
+		s, ok := traceStores[name]
+		if !ok {
+			s = handler.NewTraceStore(1 * time.Hour)
+			traceStores[name] = s
+		}
+		return s
+	}
 
 	wsOrigins := handler.ParseWSAllowedOrigins(cfg.WSAllowedOrigins)
-	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, traceStore, wsOrigins, multiCluster, ovsPool, snapInfo)
+	registerDefaultRoutes(mux, reg, def, cfg, historyStore, historyCollector, promRegistry, storeFor(def.Name), wsOrigins, multiCluster, ovsPool, snapInfo)
 
 	// The cluster proxy serves /api/v1/clusters/{name}/... for every cluster. It
 	// is always registered — even with a single live cluster — so a snapshot
 	// loaded at runtime becomes reachable as an additional cluster without a
 	// restart.
 	proxy := handler.RegisterClusterProxy(mux, reg, func(subMux *http.ServeMux, c *cluster.Cluster) {
-		registerClusterRoutes(subMux, c, traceStore, wsOrigins, cfg.ChassisStaleThreshold)
+		registerClusterRoutes(subMux, c, storeFor(c.Name), wsOrigins, cfg.ChassisStaleThreshold)
 	})
 	if multiCluster {
-		fmt.Printf("Multi-cluster mode enabled with %d clusters\n", reg.Len())
+		slog.Info("multi-cluster mode enabled", "clusters", reg.Len())
 	}
 
 	// Snapshot loading: a stored history snapshot can be loaded from the UI as a
@@ -311,7 +357,7 @@ func run() error {
 		},
 		func(c *cluster.Cluster) {
 			subMux := http.NewServeMux()
-			registerSnapshotClusterRoutes(subMux, c, traceStore, cfg.ChassisStaleThreshold)
+			registerSnapshotClusterRoutes(subMux, c, storeFor(c.Name), cfg.ChassisStaleThreshold)
 			proxy.Add(c.Name, subMux)
 		},
 		proxy.Remove,
@@ -336,7 +382,7 @@ func run() error {
 	case err := <-errCh:
 		return err
 	case sig := <-sigCh:
-		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+		slog.Info("received signal, shutting down", "signal", sig.String())
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
 		return srv.Shutdown(shutdownCtx)
@@ -349,7 +395,7 @@ func run() error {
 // metadata (for the UI mode indicator) and a function that shuts the servers
 // down, which must be called on exit.
 func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error) {
-	fmt.Printf("Loading snapshot from %s...\n", cfg.SnapshotFile)
+	slog.Info("loading snapshot", "file", cfg.SnapshotFile)
 	// The snapshot path is an operator-provided CLI argument (like --config-file),
 	// not untrusted input, so reading it directly is intentional.
 	data, err := os.ReadFile(cfg.SnapshotFile) // #nosec G703
@@ -393,7 +439,7 @@ func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error
 		info.SBAddr = snap.Source.SBAddr
 	}
 
-	fmt.Printf("Snapshot loaded (NB: %d rows, SB: %d rows); serving offline copy\n", snap.NB.RowCount(), snap.SB.RowCount())
+	slog.Info("snapshot loaded, serving offline copy", "nb_rows", snap.NB.RowCount(), "sb_rows", snap.SB.RowCount())
 	return info, servers.Close, nil
 }
 
@@ -401,7 +447,7 @@ func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error
 // returns the populated *cluster.Cluster along with the cleanup functions
 // that should run on shutdown.
 func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConfig) (*cluster.Cluster, []func(), error) {
-	fmt.Printf("Connecting to OVN databases for cluster %q...\n", cc.Name)
+	slog.Info("connecting to OVN databases", "cluster", cc.Name)
 
 	nbModel, err := nb.FullDatabaseModel()
 	if err != nil {
@@ -429,7 +475,7 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 	if err != nil {
 		return nil, nil, fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
 	}
-	fmt.Printf("Connected to OVN databases for cluster %q\n", cc.Name)
+	slog.Info("connected to OVN databases", "cluster", cc.Name)
 
 	enricher, err := buildEnricher(connectCtx, cfg, cc)
 	if err != nil {
@@ -466,7 +512,7 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 	if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
 		notifier := alert.NewWebhookNotifier(urls)
 		alertEngine.SetNotifier(notifier.Notifier())
-		fmt.Printf("Cluster %q: alert webhook notifications enabled (%d endpoints)\n", cc.Name, len(urls))
+		slog.Info("alert webhook notifications enabled", "cluster", cc.Name, "endpoints", len(urls))
 	}
 
 	// Pause alert evaluation and flowdiff collection while this cluster's live
@@ -639,20 +685,20 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 	if cc.Enrichment != nil {
 		switch cc.Enrichment.Type {
 		case "kubernetes":
-			fmt.Printf("Cluster %q: setting up Kubernetes enrichment...\n", cc.Name)
+			slog.Info("setting up Kubernetes enrichment", "cluster", cc.Name)
 			provider, err := enrich.NewKubernetesProvider(ctx, cc.Enrichment.Kubeconfig, cc.Enrichment.KubeContext)
 			if err != nil {
 				// Optional enrichment: an unreachable or misconfigured cluster
 				// must not stop Northwatch from serving the OVN databases. Warn
 				// and continue without enrichment.
-				fmt.Fprintf(os.Stderr, "warning: cluster %q: Kubernetes enrichment disabled: %v\n", cc.Name, err)
+				slog.Warn("Kubernetes enrichment disabled", "cluster", cc.Name, "err", err)
 				return enrich.NewEnricher(nil, 0), nil
 			}
-			fmt.Printf("Cluster %q: Kubernetes enrichment enabled\n", cc.Name)
+			slog.Info("Kubernetes enrichment enabled", "cluster", cc.Name)
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
 
 		case "openstack":
-			fmt.Printf("Cluster %q: authenticating with OpenStack...\n", cc.Name)
+			slog.Info("authenticating with OpenStack", "cluster", cc.Name)
 			// Build a temporary config-like struct for the OpenStack provider
 			osCfg := &config.Config{
 				OpenStackAuthURL:     cc.Enrichment.OpenStackAuthURL,
@@ -669,10 +715,10 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 				// OpenStack names); a failure to reach OpenStack must not stop
 				// Northwatch from serving the OVN databases. Warn and continue
 				// without enrichment.
-				fmt.Fprintf(os.Stderr, "warning: cluster %q: OpenStack enrichment disabled: %v\n", cc.Name, err)
+				slog.Warn("OpenStack enrichment disabled", "cluster", cc.Name, "err", err)
 				return enrich.NewEnricher(nil, 0), nil
 			}
-			fmt.Printf("Cluster %q: OpenStack enrichment enabled\n", cc.Name)
+			slog.Info("OpenStack enrichment enabled", "cluster", cc.Name)
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
 		}
 	}
@@ -680,27 +726,27 @@ func buildEnricher(ctx context.Context, cfg *config.Config, cc config.ClusterCon
 	// Fallback: check legacy flat flags for the default cluster
 	if cc.Name == "default" {
 		if cfg.KubeEnrichment {
-			fmt.Println("Setting up Kubernetes enrichment...")
+			slog.Info("setting up Kubernetes enrichment")
 			provider, err := enrich.NewKubernetesProvider(ctx, cfg.Kubeconfig, cfg.KubeContext)
 			if err != nil {
 				// Optional enrichment: warn and continue without it rather than
 				// failing startup (see the per-cluster case above).
-				fmt.Fprintf(os.Stderr, "warning: Kubernetes enrichment disabled: %v\n", err)
+				slog.Warn("Kubernetes enrichment disabled", "err", err)
 				return enrich.NewEnricher(nil, 0), nil
 			}
-			fmt.Println("Kubernetes enrichment enabled")
+			slog.Info("Kubernetes enrichment enabled")
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
 		}
 		if cfg.OpenStackAuthURL != "" {
-			fmt.Println("Authenticating with OpenStack...")
+			slog.Info("authenticating with OpenStack")
 			provider, err := enrich.NewOpenStackProvider(ctx, cfg)
 			if err != nil {
 				// Optional enrichment: warn and continue without it rather than
 				// failing startup (see the per-cluster case above).
-				fmt.Fprintf(os.Stderr, "warning: OpenStack enrichment disabled: %v\n", err)
+				slog.Warn("OpenStack enrichment disabled", "err", err)
 				return enrich.NewEnricher(nil, 0), nil
 			}
-			fmt.Println("OpenStack enrichment enabled")
+			slog.Info("OpenStack enrichment enabled")
 			return enrich.NewEnricher(provider, cfg.EnrichmentCacheTTL), nil
 		}
 	}
