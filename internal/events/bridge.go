@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/ovn-kubernetes/libovsdb/model"
 )
 
@@ -19,22 +19,22 @@ func NewBridge(hub *Hub, database string) *Bridge {
 
 // OnAdd is called when a row is inserted into the cache.
 func (b *Bridge) OnAdd(table string, m model.Model) {
-	row := api.ModelToMap(m)
+	row := ovndb.ModelToMap(m)
 	uuid := extractUUID(row)
 	b.hub.Publish(NewEvent(EventInsert, b.database, table, uuid, row, nil))
 }
 
 // OnUpdate is called when a row is updated in the cache.
 func (b *Bridge) OnUpdate(table string, old model.Model, new model.Model) {
-	row := api.ModelToMap(new)
-	oldRow := api.ModelToMap(old)
+	row := ovndb.ModelToMap(new)
+	oldRow := ovndb.ModelToMap(old)
 	uuid := extractUUID(row)
 	b.hub.Publish(NewEvent(EventUpdate, b.database, table, uuid, row, oldRow))
 }
 
 // OnDelete is called when a row is deleted from the cache.
 func (b *Bridge) OnDelete(table string, m model.Model) {
-	row := api.ModelToMap(m)
+	row := ovndb.ModelToMap(m)
 	uuid := extractUUID(row)
 	b.hub.Publish(NewEvent(EventDelete, b.database, table, uuid, row, nil))
 }

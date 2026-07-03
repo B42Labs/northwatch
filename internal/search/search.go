@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
@@ -149,7 +149,7 @@ func searchTable(ctx context.Context, td TableDef, queryLower string) ([]map[str
 	for i := 0; i < v.Len(); i++ {
 		row := v.Index(i)
 		if matchesQuery(row, queryLower) {
-			matches = append(matches, api.ModelToMap(row.Interface()))
+			matches = append(matches, ovndb.ModelToMap(row.Interface()))
 		}
 	}
 	return matches, nil

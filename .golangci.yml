@@ -11,11 +11,29 @@ linters:
     - govet
     - ineffassign
     - unused
+    - depguard
   settings:
     revive:
       rules:
         - name: exported
           disabled: true
+    # Enforce the layering acceptance criterion: only the HTTP layer itself
+    # (internal/api + handlers), the startup wiring (internal/app), the spec
+    # builder (internal/openapi) and the command entrypoints (cmd) may import
+    # internal/api. Lower layers must depend on internal/ovsdb for the OVSDB
+    # model-map helpers instead, so an import cycle can never form.
+    depguard:
+      rules:
+        no-http-layer-inversion:
+          list-mode: lax
+          files:
+            - "!**/internal/api/**"
+            - "!**/internal/app/**"
+            - "!**/internal/openapi/**"
+            - "!**/cmd/**"
+          deny:
+            - pkg: github.com/b42labs/northwatch/internal/api
+              desc: lower layers must not import the HTTP layer; OVSDB model-map helpers live in internal/ovsdb
   exclusions:
     paths:
       - internal/ovsdb/nb

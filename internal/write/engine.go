@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/history"
 	"github.com/b42labs/northwatch/internal/impact"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
 )
@@ -463,7 +463,7 @@ func (e *Engine) readCurrentState(ctx context.Context, table, uuid string) (map[
 		return nil, fmt.Errorf("row not found: %w", err)
 	}
 
-	return api.ModelToMap(modelPtr.Interface()), nil
+	return ovndb.ModelToMap(modelPtr.Interface()), nil
 }
 
 // buildOVSDBOps converts WriteOperations into ovsdb.Operation structs using the

@@ -12,7 +12,7 @@ import (
 
 // RowInput is one row to assemble into a snapshot, in the shape Northwatch's
 // history store keeps: the column values keyed by their OVSDB tag (e.g.
-// "_uuid", "external_ids"), which is what api.ModelToMap emits.
+// "_uuid", "external_ids"), which is what ovsdb.ModelToMap emits.
 type RowInput struct {
 	Database string // "nb" or "sb"
 	Table    string
@@ -270,7 +270,7 @@ func isUUIDRef(bt *ovsdb.BaseType) bool {
 }
 
 // tagToFieldMap returns a mapping from each OVSDB column tag to the Go struct
-// field name of the generated model for table. It mirrors api.ModelToMap's tag
+// field name of the generated model for table. It mirrors ovsdb.ModelToMap's tag
 // parsing so the round-trip is symmetric.
 func tagToFieldMap(dbModel model.DatabaseModel, table string) (map[string]string, error) {
 	m, err := dbModel.NewModel(table)

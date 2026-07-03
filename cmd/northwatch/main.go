@@ -754,7 +754,7 @@ func snapshotSource[T any](database, table string, c client.Client) history.Tabl
 			if err := c.List(ctx, &results); err != nil {
 				return nil, err
 			}
-			return api.ModelsToMaps(results), nil
+			return ovndb.ModelsToMaps(results), nil
 		},
 	}
 }

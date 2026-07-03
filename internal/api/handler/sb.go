@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
@@ -77,7 +78,7 @@ func handleLogicalFlows(c client.Client) http.HandlerFunc {
 				api.WriteError(w, http.StatusInternalServerError, "internal error")
 				return
 			}
-			api.WriteJSON(w, http.StatusOK, api.ModelsToMaps(results))
+			api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))
 			return
 		}
 
@@ -101,6 +102,6 @@ func handleLogicalFlows(c client.Client) http.HandlerFunc {
 			api.WriteError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
-		api.WriteJSON(w, http.StatusOK, api.ModelsToMaps(results))
+		api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
@@ -256,7 +256,7 @@ func (r *Resolver) readEntity(ctx context.Context, db, table, uuid string) (map[
 		return nil, fmt.Errorf("row not found: %w", err)
 	}
 
-	return api.ModelToMap(modelPtr.Interface()), nil
+	return ovndb.ModelToMap(modelPtr.Interface()), nil
 }
 
 // listEntitiesReferencing lists all entities of sourceTable where column contains targetUUID.
@@ -276,7 +276,7 @@ func (r *Resolver) listEntitiesReferencing(ctx context.Context, db, sourceTable,
 	slice := slicePtr.Elem()
 	var results []map[string]any
 	for i := 0; i < slice.Len(); i++ {
-		m := api.ModelToMap(slice.Index(i).Interface())
+		m := ovndb.ModelToMap(slice.Index(i).Interface())
 		if containsUUID(m, column, targetUUID) {
 			results = append(results, m)
 		}

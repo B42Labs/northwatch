@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/b42labs/northwatch/internal/api"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/ovn-kubernetes/libovsdb/client"
@@ -57,10 +57,10 @@ type ChassisCorrelated struct {
 // SwitchSummary returns a lightweight correlation for a LogicalSwitch (switch + datapath only).
 func (c *Correlator) SwitchSummary(ctx context.Context, ls nb.LogicalSwitch) SwitchCorrelated {
 	result := SwitchCorrelated{
-		Switch: api.ModelToMap(ls),
+		Switch: ovndb.ModelToMap(ls),
 	}
 	if dp := c.findDatapathForSwitch(ctx, ls.UUID); dp != nil {
-		result.Datapath = api.ModelToMap(*dp)
+		result.Datapath = ovndb.ModelToMap(*dp)
 	}
 	return result
 }
@@ -73,11 +73,11 @@ func (c *Correlator) SwitchDetail(ctx context.Context, switchUUID string) (*Swit
 	}
 
 	result := &SwitchCorrelated{
-		Switch: api.ModelToMap(*ls),
+		Switch: ovndb.ModelToMap(*ls),
 	}
 
 	if dp := c.findDatapathForSwitch(ctx, switchUUID); dp != nil {
-		result.Datapath = api.ModelToMap(*dp)
+		result.Datapath = ovndb.ModelToMap(*dp)
 	}
 
 	for _, portUUID := range ls.Ports {
@@ -95,10 +95,10 @@ func (c *Correlator) SwitchDetail(ctx context.Context, switchUUID string) (*Swit
 // RouterSummary returns a lightweight correlation for a LogicalRouter (router + datapath only).
 func (c *Correlator) RouterSummary(ctx context.Context, lr nb.LogicalRouter) RouterCorrelated {
 	result := RouterCorrelated{
-		Router: api.ModelToMap(lr),
+		Router: ovndb.ModelToMap(lr),
 	}
 	if dp := c.findDatapathForRouter(ctx, lr.UUID); dp != nil {
-		result.Datapath = api.ModelToMap(*dp)
+		result.Datapath = ovndb.ModelToMap(*dp)
 	}
 	return result
 }
@@ -111,11 +111,11 @@ func (c *Correlator) RouterDetail(ctx context.Context, routerUUID string) (*Rout
 	}
 
 	result := &RouterCorrelated{
-		Router: api.ModelToMap(*lr),
+		Router: ovndb.ModelToMap(*lr),
 	}
 
 	if dp := c.findDatapathForRouter(ctx, routerUUID); dp != nil {
-		result.Datapath = api.ModelToMap(*dp)
+		result.Datapath = ovndb.ModelToMap(*dp)
 	}
 
 	for _, portUUID := range lr.Ports {
@@ -132,7 +132,7 @@ func (c *Correlator) RouterDetail(ctx context.Context, routerUUID string) (*Rout
 		if err := c.NB.Get(ctx, nat); err != nil {
 			continue
 		}
-		result.NATs = append(result.NATs, api.ModelToMap(*nat))
+		result.NATs = append(result.NATs, ovndb.ModelToMap(*nat))
 	}
 
 	return result, nil
@@ -160,7 +160,7 @@ func (c *Correlator) LSPDetail(ctx context.Context, lspUUID string) (*PortBindin
 		log.Printf("correlate: listing switches for LSP %s: %v", lspUUID, err)
 	}
 	if len(switches) > 0 {
-		chain.ParentSwitch = api.ModelToMap(switches[0])
+		chain.ParentSwitch = ovndb.ModelToMap(switches[0])
 	}
 
 	return &chain, nil
@@ -188,7 +188,7 @@ func (c *Correlator) LRPDetail(ctx context.Context, lrpUUID string) (*PortBindin
 		log.Printf("correlate: listing routers for LRP %s: %v", lrpUUID, err)
 	}
 	if len(routers) > 0 {
-		chain.ParentRouter = api.ModelToMap(routers[0])
+		chain.ParentRouter = ovndb.ModelToMap(routers[0])
 	}
 
 	return &chain, nil
@@ -197,12 +197,12 @@ func (c *Correlator) LRPDetail(ctx context.Context, lrpUUID string) (*PortBindin
 // ChassisSummary returns a lightweight correlation for a Chassis (chassis + encaps).
 func (c *Correlator) ChassisSummary(ctx context.Context, ch sb.Chassis) ChassisCorrelated {
 	result := ChassisCorrelated{
-		Chassis: api.ModelToMap(ch),
+		Chassis: ovndb.ModelToMap(ch),
 	}
 	for _, encapUUID := range ch.Encaps {
 		enc := &sb.Encap{UUID: encapUUID}
 		if c.SB.Get(ctx, enc) == nil {
-			result.Encaps = append(result.Encaps, api.ModelToMap(*enc))
+			result.Encaps = append(result.Encaps, ovndb.ModelToMap(*enc))
 		}
 	}
 	return result
@@ -216,7 +216,7 @@ func (c *Correlator) ChassisDetail(ctx context.Context, chassisUUID string) (*Ch
 	}
 
 	result := &ChassisCorrelated{
-		Chassis: api.ModelToMap(*ch),
+		Chassis: ovndb.ModelToMap(*ch),
 	}
 
 	// Find ChassisPrivate by name
@@ -227,14 +227,14 @@ func (c *Correlator) ChassisDetail(ctx context.Context, chassisUUID string) (*Ch
 		log.Printf("correlate: listing ChassisPrivate for %s: %v", ch.Name, err)
 	}
 	if len(cps) > 0 {
-		result.ChassisPrivate = api.ModelToMap(cps[0])
+		result.ChassisPrivate = ovndb.ModelToMap(cps[0])
 	}
 
 	// Resolve encaps
 	for _, encapUUID := range ch.Encaps {
 		enc := &sb.Encap{UUID: encapUUID}
 		if c.SB.Get(ctx, enc) == nil {
-			result.Encaps = append(result.Encaps, api.ModelToMap(*enc))
+			result.Encaps = append(result.Encaps, ovndb.ModelToMap(*enc))
 		}
 	}
 
@@ -246,7 +246,7 @@ func (c *Correlator) ChassisDetail(ctx context.Context, chassisUUID string) (*Ch
 		log.Printf("correlate: listing PortBindings for chassis %s: %v", chassisUUID, err)
 	}
 	for _, pb := range pbs {
-		result.PortBindings = append(result.PortBindings, api.ModelToMap(pb))
+		result.PortBindings = append(result.PortBindings, ovndb.ModelToMap(pb))
 	}
 
 	return result, nil
@@ -260,7 +260,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 	}
 
 	chain := PortBindingChain{
-		PortBinding: api.ModelToMap(*pb),
+		PortBinding: ovndb.ModelToMap(*pb),
 	}
 
 	c.resolveBindingDetails(ctx, pb, &chain)
@@ -273,7 +273,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 		log.Printf("correlate: listing LSPs for port %s: %v", pb.LogicalPort, err)
 	}
 	if len(lsps) > 0 {
-		chain.LSP = api.ModelToMap(lsps[0])
+		chain.LSP = ovndb.ModelToMap(lsps[0])
 		// Find parent switch
 		lspUUID := lsps[0].UUID
 		var switches []nb.LogicalSwitch
@@ -288,7 +288,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 			log.Printf("correlate: listing switches for LSP %s: %v", lspUUID, err)
 		}
 		if len(switches) > 0 {
-			chain.ParentSwitch = api.ModelToMap(switches[0])
+			chain.ParentSwitch = ovndb.ModelToMap(switches[0])
 		}
 	} else {
 		// Try as LRP
@@ -299,7 +299,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 			log.Printf("correlate: listing LRPs for port %s: %v", pb.LogicalPort, err)
 		}
 		if len(lrps) > 0 {
-			chain.LRP = api.ModelToMap(lrps[0])
+			chain.LRP = ovndb.ModelToMap(lrps[0])
 			lrpUUID := lrps[0].UUID
 			var routers []nb.LogicalRouter
 			if err := c.NB.WhereCache(func(lr *nb.LogicalRouter) bool {
@@ -313,7 +313,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 				log.Printf("correlate: listing routers for LRP %s: %v", lrpUUID, err)
 			}
 			if len(routers) > 0 {
-				chain.ParentRouter = api.ModelToMap(routers[0])
+				chain.ParentRouter = ovndb.ModelToMap(routers[0])
 			}
 		}
 	}
@@ -324,14 +324,14 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 // lspChain builds a PortBindingChain for a LogicalSwitchPort.
 func (c *Correlator) lspChain(ctx context.Context, lsp nb.LogicalSwitchPort) PortBindingChain {
 	chain := PortBindingChain{
-		LSP: api.ModelToMap(lsp),
+		LSP: ovndb.ModelToMap(lsp),
 	}
 
 	pb := c.findPortBinding(ctx, lsp.Name)
 	if pb == nil {
 		return chain
 	}
-	chain.PortBinding = api.ModelToMap(*pb)
+	chain.PortBinding = ovndb.ModelToMap(*pb)
 	c.resolveBindingDetails(ctx, pb, &chain)
 	return chain
 }
@@ -340,7 +340,7 @@ func (c *Correlator) lspChain(ctx context.Context, lsp nb.LogicalSwitchPort) Por
 // It tries both the direct name and the "cr-" prefix for gateway redirect ports.
 func (c *Correlator) lrpChain(ctx context.Context, lrp nb.LogicalRouterPort) PortBindingChain {
 	chain := PortBindingChain{
-		LRP: api.ModelToMap(lrp),
+		LRP: ovndb.ModelToMap(lrp),
 	}
 
 	pb := c.findPortBinding(ctx, lrp.Name)
@@ -350,7 +350,7 @@ func (c *Correlator) lrpChain(ctx context.Context, lrp nb.LogicalRouterPort) Por
 	if pb == nil {
 		return chain
 	}
-	chain.PortBinding = api.ModelToMap(*pb)
+	chain.PortBinding = ovndb.ModelToMap(*pb)
 	c.resolveBindingDetails(ctx, pb, &chain)
 	return chain
 }
@@ -360,11 +360,11 @@ func (c *Correlator) resolveBindingDetails(ctx context.Context, pb *sb.PortBindi
 	if pb.Chassis != nil && *pb.Chassis != "" {
 		ch := &sb.Chassis{UUID: *pb.Chassis}
 		if c.SB.Get(ctx, ch) == nil {
-			chain.Chassis = api.ModelToMap(*ch)
+			chain.Chassis = ovndb.ModelToMap(*ch)
 			for _, encapUUID := range ch.Encaps {
 				enc := &sb.Encap{UUID: encapUUID}
 				if c.SB.Get(ctx, enc) == nil {
-					chain.Encaps = append(chain.Encaps, api.ModelToMap(*enc))
+					chain.Encaps = append(chain.Encaps, ovndb.ModelToMap(*enc))
 				}
 			}
 		}
@@ -372,7 +372,7 @@ func (c *Correlator) resolveBindingDetails(ctx context.Context, pb *sb.PortBindi
 
 	dp := &sb.DatapathBinding{UUID: pb.Datapath}
 	if c.SB.Get(ctx, dp) == nil {
-		chain.Datapath = api.ModelToMap(*dp)
+		chain.Datapath = ovndb.ModelToMap(*dp)
 	}
 }
 
