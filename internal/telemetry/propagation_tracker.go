@@ -2,7 +2,7 @@ package telemetry
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -143,7 +143,7 @@ func (t *PropagationTracker) handleNBGlobalUpdate(ctx context.Context, evt event
 	// sb.List reads from libovsdb's in-memory cache, so it's safe to hold the lock.
 	var privates []sb.ChassisPrivate
 	if err := t.sb.List(ctx, &privates); err != nil {
-		log.Printf("propagation-tracker: listing Chassis_Private: %v", err)
+		slog.Error("propagation-tracker listing Chassis_Private failed", "err", err)
 		return
 	}
 

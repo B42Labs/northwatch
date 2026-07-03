@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/b42labs/northwatch/internal/openapi"
@@ -14,7 +14,7 @@ import (
 func RegisterOpenAPI(mux *http.ServeMux, spec openapi.Document) {
 	specJSON, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
-		log.Printf("openapi: failed to marshal spec: %v", err)
+		slog.Error("marshaling openapi spec failed", "err", err)
 		return
 	}
 

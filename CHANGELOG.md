@@ -223,6 +223,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact string comparison flagged every router port in every deployment.
 
 ### Changed
+- Logging is now structured and leveled (`log/slog`) across the codebase and
+  written to stderr, replacing the previous mix of `fmt.Printf`, `log.Printf`
+  and logr. The level and format are controlled by `--log-level`/`--log-format`.
+  Hot-path logs are rate-limited (a slow WebSocket client no longer floods the
+  log). CLI output (`--version`, the `snapshot` subcommand progress, `ovnsim`
+  and `openapi-export`) stays on stdout.
 - Malformed boolean/integer environment variables (`NORTHWATCH_WRITE_ENABLED`,
   `NORTHWATCH_KUBE_ENRICHMENT`, `NORTHWATCH_WRITE_RATE_LIMIT`,
   `NORTHWATCH_EVENT_MAX_COUNT`) now fail startup instead of silently

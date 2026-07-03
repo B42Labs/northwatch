@@ -7,7 +7,7 @@ package snapshotsession
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"sync"
 	"time"
@@ -336,15 +336,15 @@ func (m *Manager) reconcileLive(ctx context.Context) {
 	ctx = context.WithoutCancel(ctx)
 
 	if wantSuspended {
-		log.Print("snapshot: loaded — suspending live OVN connection")
+		slog.Info("snapshot loaded — suspending live OVN connection")
 		if err := m.live.SuspendMonitors(ctx); err != nil {
-			log.Printf("snapshot: suspending live OVN monitors failed: %v", err)
+			slog.Error("suspending live OVN monitors failed", "err", err)
 			return
 		}
 	} else {
-		log.Print("snapshot: last snapshot ejected — resuming live OVN connection and reloading tables")
+		slog.Info("last snapshot ejected — resuming live OVN connection and reloading tables")
 		if err := m.live.ResumeMonitors(ctx); err != nil {
-			log.Printf("snapshot: resuming live OVN monitors failed: %v", err)
+			slog.Error("resuming live OVN monitors failed", "err", err)
 			return
 		}
 	}

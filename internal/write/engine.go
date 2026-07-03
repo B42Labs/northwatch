@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strconv"
@@ -567,7 +567,7 @@ func (e *Engine) recordAudit(ctx context.Context, plan *Plan, actor string, snap
 		Error:      errMsg,
 	}
 	if err := e.auditStore.Insert(ctx, entry); err != nil {
-		log.Printf("write: recording audit entry for plan %s (result %q) failed: %v", plan.ID, result, err)
+		slog.Error("recording write audit entry failed", "plan", plan.ID, "result", result, "err", err)
 	}
 	return &entry
 }

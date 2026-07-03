@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -106,7 +106,7 @@ func (p *OVSPool) supervise(m *ovsMember) {
 	bo := newBackoff()
 	for {
 		if err := p.connectAndMonitor(m); err != nil {
-			log.Printf("ovs: chassis %s (%s) unreachable, retrying: %v", m.systemID, m.addr, err)
+			slog.Warn("ovs chassis unreachable, retrying", "system_id", m.systemID, "addr", m.addr, "err", err)
 			select {
 			case <-p.ctx.Done():
 				return
@@ -114,7 +114,7 @@ func (p *OVSPool) supervise(m *ovsMember) {
 				continue
 			}
 		}
-		log.Printf("ovs: chassis %s (%s) connected and monitored", m.systemID, m.addr)
+		slog.Info("ovs chassis connected and monitored", "system_id", m.systemID, "addr", m.addr)
 		return
 	}
 }
@@ -183,7 +183,7 @@ func ConnectOVSPool(dbModel model.ClientDBModel, tlsConfig *tls.Config, addrs ma
 	pool := NewOVSPool(dbModel, tlsConfig)
 	for systemID, addr := range addrs {
 		if err := pool.Add(systemID, addr); err != nil {
-			log.Printf("ovs: skipping chassis %s: %v", systemID, err)
+			slog.Error("skipping ovs chassis", "system_id", systemID, "err", err)
 		}
 	}
 	return pool

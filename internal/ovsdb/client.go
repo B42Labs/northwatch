@@ -3,7 +3,7 @@ package ovsdb
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -219,7 +219,7 @@ func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
 
 	sm, err := serverdb.FullDatabaseModel()
 	if err != nil {
-		fmt.Printf("warning: building _Server model (Raft health unavailable): %v\n", err)
+		slog.Warn("building _Server model failed (Raft health unavailable)", "err", err)
 		return nil
 	}
 
@@ -229,7 +229,7 @@ func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
 		monitors[i].Endpoint = ep
 		c, err := client.NewOVSDBClient(sm, client.WithEndpoint(ep), client.WithReconnect(10*time.Second, newBackoff()))
 		if err != nil {
-			fmt.Printf("warning: creating _Server client for %s: %v\n", ep, err)
+			slog.Warn("creating _Server client failed", "endpoint", ep, "err", err)
 			continue
 		}
 		clients[i] = c
@@ -247,12 +247,12 @@ func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
 			connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 			if err := c.Connect(connCtx); err != nil {
-				fmt.Printf("warning: connecting _Server on %s (member unreachable): %v\n", monitors[i].Endpoint, err)
+				slog.Warn("connecting _Server failed (member unreachable)", "endpoint", monitors[i].Endpoint, "err", err)
 				c.Close()
 				return
 			}
 			if _, err := c.MonitorAll(connCtx); err != nil {
-				fmt.Printf("warning: monitoring _Server on %s (member unreachable): %v\n", monitors[i].Endpoint, err)
+				slog.Warn("monitoring _Server failed (member unreachable)", "endpoint", monitors[i].Endpoint, "err", err)
 				c.Close()
 				return
 			}
@@ -330,7 +330,7 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 			case <-time.After(mon.BatchDelay):
 			}
 		}
-		fmt.Printf("[%s] loading table %s (%d/%d)...\n", dbName, t, i+1, len(tables))
+		slog.Debug("loading table", "db", dbName, "table", t, "index", i+1, "total", len(tables))
 		m := c.NewMonitor()
 		m.Tables = append(m.Tables, client.TableMonitor{Table: t})
 		start := time.Now()
@@ -339,9 +339,9 @@ func startMonitor(ctx context.Context, c client.Client, dbModel model.ClientDBMo
 			return nil, fmt.Errorf("monitoring table %s: %w", t, err)
 		}
 		cookies = append(cookies, ck)
-		fmt.Printf("[%s] loaded table %s (%d/%d) in %s\n", dbName, t, i+1, len(tables), time.Since(start).Round(time.Millisecond))
+		slog.Debug("loaded table", "db", dbName, "table", t, "index", i+1, "total", len(tables), "duration", time.Since(start).Round(time.Millisecond))
 	}
-	fmt.Printf("[%s] staged load complete: %d tables in %s\n", dbName, len(tables), time.Since(stagedStart).Round(time.Millisecond))
+	slog.Info("staged load complete", "db", dbName, "tables", len(tables), "duration", time.Since(stagedStart).Round(time.Millisecond))
 	return cookies, nil
 }
 
@@ -443,7 +443,7 @@ func (d *OVNDatabases) SuspendMonitors(ctx context.Context) error {
 	}
 
 	d.suspended = true
-	log.Printf("ovn: suspended live NB/SB monitors — live servers will stop streaming updates")
+	slog.Info("suspended live NB/SB monitors — live servers will stop streaming updates")
 
 	if len(errs) > 0 {
 		return fmt.Errorf("cancelling monitors: %s", strings.Join(errs, "; "))
@@ -471,7 +471,7 @@ func (d *OVNDatabases) ResumeMonitors(ctx context.Context) error {
 	}
 	d.nbCookies, d.sbCookies = nbCookies, sbCookies
 	d.suspended = false
-	log.Printf("ovn: resumed live NB/SB monitors and reloaded all tables")
+	slog.Info("resumed live NB/SB monitors and reloaded all tables")
 	return nil
 }
 

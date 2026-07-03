@@ -14,7 +14,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 	"os/signal"
@@ -28,7 +28,6 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.Ltime)
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
@@ -58,7 +57,8 @@ func main() {
 	if err != nil {
 		// Each command wraps its own context into err; cmd is omitted from the
 		// format string to avoid a tainted-value log-injection warning.
-		log.Fatalf("ovnsim: %v", err)
+		fmt.Fprintf(os.Stderr, "ovnsim: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -110,14 +110,14 @@ func cmdSeed(args []string) error {
 			PortsPerSwitch: scaled(*portsPer, *scale),
 			Chassis:        splitCSV(*chassis),
 		}
-		log.Printf("seeding: %d switches, %d routers, %d ports/switch", opts.Switches, opts.Routers, opts.PortsPerSwitch)
+		slog.Info("seeding", "switches", opts.Switches, "routers", opts.Routers, "ports_per_switch", opts.PortsPerSwitch)
 		res, err := ovnsim.Seed(ctx, c, opts)
 		if err != nil {
 			return err
 		}
-		log.Printf("seed complete: %d rows created", res.Total())
+		slog.Info("seed complete", "rows_created", res.Total())
 		for _, t := range sortedKeys(res.Created) {
-			log.Printf("  %-28s %d", t, res.Created[t])
+			slog.Info("seeded table", "table", t, "count", res.Created[t])
 		}
 		return nil
 	})
@@ -139,17 +139,17 @@ func cmdRun(args []string) error {
 			Options:  ovnsim.Options{Switches: *target, Routers: 3, PortsPerSwitch: 5, Chassis: splitCSV(*chassis)},
 			Target:   *target,
 			RandSeed: *randSeed,
-			Logf:     func(f string, a ...any) { log.Printf(f, a...) },
+			Logf:     func(f string, a ...any) { slog.Info(fmt.Sprintf(f, a...)) },
 		}
 		if *bindPorts {
 			cfg.Binder = ovnsim.NewBinder(*labName, splitCSV(*chassis))
-			log.Printf("port binding enabled via docker exec on lab %q", *labName)
+			slog.Info("port binding enabled via docker exec", "lab", *labName)
 			// Bind any already-unbound VIFs up front (e.g. freshly seeded ones)
 			// so the lab starts healthy; the loop then keeps new ports bound.
 			if n, err := ovnsim.BindAll(ctx, c, cfg.Binder); err != nil {
-				log.Printf("initial bind: %v", err)
+				slog.Error("initial bind failed", "err", err)
 			} else if n > 0 {
-				log.Printf("bound %d pre-existing unbound VIFs", n)
+				slog.Info("bound pre-existing unbound VIFs", "count", n)
 			}
 		}
 		sim := ovnsim.NewSimulator(c, cfg)
@@ -159,11 +159,11 @@ func cmdRun(args []string) error {
 			if err != nil {
 				return err
 			}
-			log.Printf("%s", desc)
+			slog.Info(desc)
 			return nil
 		}
 
-		log.Printf("simulating every %s (target %d switches); Ctrl-C to stop", *interval, *target)
+		slog.Info("simulating; Ctrl-C to stop", "interval", *interval, "target_switches", *target)
 		err := sim.Run(ctx, *interval)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
@@ -186,11 +186,11 @@ func cmdBind(args []string, unbind bool) error {
 		binder := ovnsim.NewBinder(*labName, splitCSV(*chassis))
 		if unbind {
 			n, err := ovnsim.UnbindAll(ctx, c, binder)
-			log.Printf("unbound %d VIFs", n)
+			slog.Info("unbound VIFs", "count", n)
 			return err
 		}
 		n, err := ovnsim.BindAll(ctx, c, binder)
-		log.Printf("bound %d VIFs across chassis %v", n, splitCSV(*chassis))
+		slog.Info("bound VIFs", "count", n, "chassis", splitCSV(*chassis))
 		return err
 	})
 }
@@ -200,7 +200,7 @@ func cmdClean(args []string) error {
 	nb := fs.String("nb", envOr("NORTHWATCH_OVN_NB_ADDR", "tcp:127.0.0.1:6641"), "OVN Northbound OVSDB address")
 	return withNB(fs, args, nb, func(ctx context.Context, c client.Client) error {
 		n, err := ovnsim.Clean(ctx, c)
-		log.Printf("removed %d simulator-owned root objects", n)
+		slog.Info("removed simulator-owned root objects", "count", n)
 		return err
 	})
 }

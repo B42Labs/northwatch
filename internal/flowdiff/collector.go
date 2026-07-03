@@ -1,7 +1,8 @@
 package flowdiff
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 
 	"github.com/b42labs/northwatch/internal/events"
 )
@@ -77,7 +78,7 @@ func extractDatapath(row map[string]any) string {
 				return *v
 			}
 		default:
-			log.Printf("flowdiff: unexpected logical_datapath type: %T", dp)
+			slog.Warn("flowdiff unexpected logical_datapath type", "type", fmt.Sprintf("%T", dp))
 		}
 	}
 	return ""
