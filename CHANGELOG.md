@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--log-level` (`NORTHWATCH_LOG_LEVEL`, `debug`/`info`/`warn`/`error`) and
+  `--log-format` (`NORTHWATCH_LOG_FORMAT`, `text`/`json`) flags. Logs are now
+  emitted as structured, leveled records on stderr.
 - `--version` flag: prints the build version and exits. Release builds
   inject the tag via `-ldflags "-X main.version=<tag>"`; other builds
   report `dev`.
@@ -209,6 +212,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact string comparison flagged every router port in every deployment.
 
 ### Changed
+- Malformed boolean/integer environment variables (`NORTHWATCH_WRITE_ENABLED`,
+  `NORTHWATCH_KUBE_ENRICHMENT`, `NORTHWATCH_WRITE_RATE_LIMIT`,
+  `NORTHWATCH_EVENT_MAX_COUNT`) now fail startup instead of silently
+  defaulting. Booleans additionally accept `false`/`0`/`no` and the
+  case-insensitive `strconv.ParseBool` forms, so `NORTHWATCH_WRITE_ENABLED=True`
+  correctly means true (previously it silently meant false).
 - Write **rollback** is scoped to restoring changed fields on rows that still
   exist. Rows deleted since the snapshot are reported in a new plan `warnings`
   field rather than recreated (recreation would assign new UUIDs and dangle
