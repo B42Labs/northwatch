@@ -55,11 +55,7 @@ func handleSetRuleEnabled(engine *alert.Engine) http.HandlerFunc {
 
 func handleListSilences(engine *alert.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		silences := engine.ListSilences()
-		if silences == nil {
-			silences = []alert.Silence{}
-		}
-		api.WriteJSON(w, http.StatusOK, silences)
+		api.WriteJSONList(w, http.StatusOK, engine.ListSilences())
 	}
 }
 

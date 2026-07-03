@@ -271,10 +271,7 @@ func handleAuditLog(engine *write.Engine) http.HandlerFunc {
 			api.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if entries == nil {
-			entries = []write.AuditEntry{}
-		}
-		api.WriteJSON(w, http.StatusOK, entries)
+		api.WriteJSONList(w, http.StatusOK, entries)
 	}
 }
 

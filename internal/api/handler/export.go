@@ -262,10 +262,6 @@ func handleExportTrace(store *TraceStore) http.HandlerFunc {
 
 func handleListTraces(store *TraceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		traces := store.List()
-		if traces == nil {
-			traces = []StoredTrace{}
-		}
-		api.WriteJSON(w, http.StatusOK, traces)
+		api.WriteJSONList(w, http.StatusOK, store.List())
 	}
 }

@@ -169,12 +169,8 @@ func buildTopology(
 	// Guarantee non-nil slices so a deployment with no logical topology
 	// marshals to {"nodes":[],"edges":[]} rather than {"nodes":null,...}.
 	// null would crash array-assuming clients (see issue #3).
-	if nodes == nil {
-		nodes = []TopologyNode{}
-	}
-	if edges == nil {
-		edges = []TopologyEdge{}
-	}
+	nodes = api.NonNil(nodes)
+	edges = api.NonNil(edges)
 	return TopologyResponse{Nodes: nodes, Edges: edges}
 }
 
