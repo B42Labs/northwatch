@@ -395,7 +395,7 @@ func run() error {
 // metadata (for the UI mode indicator) and a function that shuts the servers
 // down, which must be called on exit.
 func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error) {
-	slog.Info("loading snapshot", "file", cfg.SnapshotFile)
+	slog.Info("loading snapshot", "file", cfg.SnapshotFile) // #nosec G706 -- operator-supplied CLI path, not untrusted input
 	// The snapshot path is an operator-provided CLI argument (like --config-file),
 	// not untrusted input, so reading it directly is intentional.
 	data, err := os.ReadFile(cfg.SnapshotFile) // #nosec G703
@@ -439,7 +439,7 @@ func setupSnapshotMode(cfg *config.Config) (*handler.SnapshotInfo, func(), error
 		info.SBAddr = snap.Source.SBAddr
 	}
 
-	slog.Info("snapshot loaded, serving offline copy", "nb_rows", snap.NB.RowCount(), "sb_rows", snap.SB.RowCount())
+	slog.Info("snapshot loaded, serving offline copy", "nb_rows", snap.NB.RowCount(), "sb_rows", snap.SB.RowCount()) // #nosec G706 -- integer row counts from an operator-supplied snapshot, not untrusted input
 	return info, servers.Close, nil
 }
 
@@ -512,7 +512,7 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 	if urls := alert.ParseWebhookURLs(cfg.AlertWebhookURLs); len(urls) > 0 {
 		notifier := alert.NewWebhookNotifier(urls)
 		alertEngine.SetNotifier(notifier.Notifier())
-		slog.Info("alert webhook notifications enabled", "cluster", cc.Name, "endpoints", len(urls))
+		slog.Info("alert webhook notifications enabled", "cluster", cc.Name, "endpoints", len(urls)) // #nosec G706 -- operator-supplied cluster name, not untrusted input
 	}
 
 	// Pause alert evaluation and flowdiff collection while this cluster's live
