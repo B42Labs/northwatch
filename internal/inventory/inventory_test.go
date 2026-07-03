@@ -258,6 +258,59 @@ func TestBuilderListCachesWithinTTL(t *testing.T) {
 	require.Len(t, fresh, 2, "after the TTL expires the inventory is recomputed")
 }
 
+// TestBuilderDetailCachesWithinTTL pins that Detail serves the SB-lookup
+// snapshot from the shared short-TTL cache instead of re-materializing all port
+// bindings on every call: a port added within the window is invisible until the
+// TTL elapses.
+func TestBuilderDetailCachesWithinTTL(t *testing.T) {
+	c := testutil.SetupSBTestClient(t)
+
+	testutil.InsertSBGlobal(t, c, 1)
+	chUUID := testutil.InsertChassis(t, c, "node-1", "host-1", "10.0.0.1")
+	testutil.InsertPortBindingWithUp(t, c, "vif-a", "", &chUUID, boolPtr(true))
+
+	nowMs := t0
+	b := &inventory.Builder{
+		SB:             c,
+		StaleThreshold: 60 * time.Second,
+		Now:            func() time.Time { return time.UnixMilli(nowMs) },
+	}
+
+	first, err := b.Detail(context.Background(), "node-1")
+	require.NoError(t, err)
+	require.Len(t, first.BoundPorts, 1)
+
+	// A port added within the TTL is not yet visible: the cached snapshot is used.
+	testutil.InsertPortBindingWithUp(t, c, "vif-b", "", &chUUID, boolPtr(true))
+	cached, err := b.Detail(context.Background(), "node-1")
+	require.NoError(t, err)
+	require.Len(t, cached.BoundPorts, 1, "within the TTL Detail reuses the cached SB snapshot")
+
+	// Past the TTL, Detail recomputes and the new port appears.
+	nowMs += (10 * time.Second).Milliseconds()
+	fresh, err := b.Detail(context.Background(), "node-1")
+	require.NoError(t, err)
+	require.Len(t, fresh.BoundPorts, 2, "after the TTL expires Detail recomputes")
+}
+
+// TestChassisByUUID covers the shared UUID->Chassis point lookup, including the
+// empty-input and not-found edges.
+func TestChassisByUUID(t *testing.T) {
+	c := testutil.SetupSBTestClient(t)
+	chUUID := testutil.InsertChassis(t, c, "node-1", "host-1", "10.0.0.1")
+
+	got, ok := inventory.ChassisByUUID(context.Background(), c, chUUID)
+	require.True(t, ok)
+	require.NotNil(t, got)
+	assert.Equal(t, "node-1", got.Name)
+
+	_, ok = inventory.ChassisByUUID(context.Background(), c, "00000000-0000-0000-0000-000000000000")
+	assert.False(t, ok, "unknown UUID must miss")
+
+	_, ok = inventory.ChassisByUUID(context.Background(), c, "")
+	assert.False(t, ok, "empty UUID must miss")
+}
+
 // TestBuilderListEmpty verifies the empty-cache edge: no chassis yields an
 // empty (non-nil) list and no error, even with no SB_Global row present.
 func TestBuilderListEmpty(t *testing.T) {
