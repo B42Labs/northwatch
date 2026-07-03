@@ -208,10 +208,6 @@ func escapeXML(s string) string {
 func handleExportTrace(store *TraceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if id == "" {
-			api.WriteError(w, http.StatusBadRequest, "trace id is required")
-			return
-		}
 
 		trace, ok := store.Get(id)
 		if !ok {

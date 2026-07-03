@@ -155,11 +155,6 @@ func TestOpenStackProvider_EnrichNAT(t *testing.T) {
 	})
 }
 
-func TestOpenStackProvider_Name(t *testing.T) {
-	p := &OpenStackProvider{}
-	assert.Equal(t, "openstack", p.Name())
-}
-
 func TestCACertHTTPClient(t *testing.T) {
 	t.Run("missing file", func(t *testing.T) {
 		_, err := caCertHTTPClient(filepath.Join(t.TempDir(), "nope.pem"))

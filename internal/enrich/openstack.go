@@ -112,8 +112,6 @@ func caCertHTTPClient(caCertPath string) (*http.Client, error) {
 	}, nil
 }
 
-func (*OpenStackProvider) Name() string { return "openstack" }
-
 func (p *OpenStackProvider) EnrichPort(ctx context.Context, externalIDs map[string]string) (*Info, error) {
 	info := &Info{}
 

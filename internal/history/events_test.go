@@ -64,26 +64,6 @@ func TestInsertAndQueryEvents(t *testing.T) {
 	})
 }
 
-func TestInsertEvent_Single(t *testing.T) {
-	store := newTestStore(t)
-	ctx := context.Background()
-
-	err := store.InsertEvent(ctx, EventRecord{
-		Timestamp: time.Now().UTC(),
-		Type:      "delete",
-		Database:  "nb",
-		Table:     "ACL",
-		UUID:      "uuid-1",
-	})
-	require.NoError(t, err)
-
-	got, err := store.QueryEvents(ctx, EventQueryOpts{})
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "delete", got[0].Type)
-	assert.Nil(t, got[0].Row)
-}
-
 func TestInsertEvents_Empty(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

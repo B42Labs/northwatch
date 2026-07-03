@@ -25,10 +25,6 @@ func RegisterOVSCorrelation(mux *http.ServeMux, pool *ovndb.OVSPool, sbClient cl
 			return
 		}
 		uuid := r.PathValue("uuid")
-		if uuid == "" {
-			api.WriteError(w, http.StatusBadRequest, "uuid is required")
-			return
-		}
 
 		var ifaces []vs.Interface
 		if err := c.WhereCache(func(i *vs.Interface) bool {

@@ -29,10 +29,6 @@ func RegisterInventory(mux *http.ServeMux, sbClient client.Client, staleThreshol
 
 	mux.HandleFunc("GET /api/v1/sb/chassis-inventory/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
-		if name == "" {
-			api.WriteError(w, http.StatusBadRequest, "name is required")
-			return
-		}
 		detail, err := b.Detail(r.Context(), name)
 		if err != nil {
 			if errors.Is(err, inventory.ErrNotFound) {

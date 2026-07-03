@@ -192,10 +192,6 @@ func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 			return
 		}
 		uuid := r.PathValue("uuid")
-		if uuid == "" {
-			api.WriteError(w, http.StatusBadRequest, "uuid is required")
-			return
-		}
 		row, found, err := access.get(r.Context(), c, uuid)
 		if err != nil {
 			api.WriteError(w, http.StatusInternalServerError, "internal error")

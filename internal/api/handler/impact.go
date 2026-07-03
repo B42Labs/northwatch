@@ -19,11 +19,6 @@ func handleImpact(resolver *impact.Resolver) http.HandlerFunc {
 		table := r.PathValue("table")
 		uuid := r.PathValue("uuid")
 
-		if db == "" || table == "" || uuid == "" {
-			api.WriteError(w, http.StatusBadRequest, "db, table, and uuid are required")
-			return
-		}
-
 		result, err := resolver.Resolve(r.Context(), db, table, uuid)
 		if err != nil {
 			switch {

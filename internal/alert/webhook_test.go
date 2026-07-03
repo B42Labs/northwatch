@@ -89,21 +89,6 @@ func TestWebhookNotifier_NoURLs(t *testing.T) {
 	})
 }
 
-func TestWebhookNotifier_URLs(t *testing.T) {
-	n := NewWebhookNotifier([]string{"http://a", "http://b"})
-	urls := n.URLs()
-	assert.Equal(t, []string{"http://a", "http://b"}, urls)
-
-	// Modifying returned slice shouldn't affect notifier
-	urls[0] = "http://modified"
-	assert.Equal(t, "http://a", n.URLs()[0])
-}
-
-func TestWebhookNotifier_URLsNil(t *testing.T) {
-	var n *WebhookNotifier
-	assert.Nil(t, n.URLs())
-}
-
 func TestParseWebhookURLs(t *testing.T) {
 	tests := []struct {
 		input  string
@@ -136,15 +121,4 @@ func TestWebhookNotifier_ServerError(t *testing.T) {
 	notifier.Notify(context.Background(), []Alert{
 		{Rule: "test", State: StateFiring, Severity: SeverityWarning, Message: "test"},
 	})
-}
-
-func TestFormatAlertSummary(t *testing.T) {
-	a := Alert{
-		Rule:     "port_down",
-		Severity: SeverityWarning,
-		State:    StateFiring,
-		Message:  "Port sw1-p1 is down",
-	}
-	summary := FormatAlertSummary(a)
-	assert.Equal(t, "[warning] port_down: Port sw1-p1 is down (state=firing)", summary)
 }

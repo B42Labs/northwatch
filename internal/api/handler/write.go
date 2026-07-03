@@ -153,10 +153,6 @@ type planView struct {
 func handleGetPlan(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if id == "" {
-			api.WriteError(w, http.StatusBadRequest, "plan id is required")
-			return
-		}
 
 		plan, ok := engine.GetPlan(id)
 		if !ok {
@@ -181,10 +177,6 @@ func handleGetPlan(engine *write.Engine) http.HandlerFunc {
 func handleApply(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if id == "" {
-			api.WriteError(w, http.StatusBadRequest, "plan id is required")
-			return
-		}
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
@@ -214,10 +206,6 @@ func handleApply(engine *write.Engine) http.HandlerFunc {
 func handleCancelPlan(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if id == "" {
-			api.WriteError(w, http.StatusBadRequest, "plan id is required")
-			return
-		}
 
 		if !engine.CancelPlan(id) {
 			api.WriteError(w, http.StatusNotFound, "plan not found or expired")

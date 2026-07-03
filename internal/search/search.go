@@ -33,9 +33,8 @@ type Result struct {
 
 // TableDef registers a single OVSDB table for searching.
 type TableDef struct {
-	Name      string
-	ListFunc  func(ctx context.Context) (any, error)
-	ModelType reflect.Type
+	Name     string
+	ListFunc func(ctx context.Context) (any, error)
 }
 
 // DatabaseTables groups the searchable tables of a single database under its
@@ -83,10 +82,8 @@ func ClassifyQuery(q string) QueryType {
 
 // RegisterTable creates a TableDef for use with the search engine.
 func RegisterTable[T any](name string, c client.Client) TableDef {
-	var zero T
 	return TableDef{
-		Name:      name,
-		ModelType: reflect.TypeOf(zero),
+		Name: name,
 		ListFunc: func(ctx context.Context) (any, error) {
 			var results []T
 			if err := c.List(ctx, &results); err != nil {
