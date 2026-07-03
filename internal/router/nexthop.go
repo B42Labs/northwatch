@@ -36,14 +36,15 @@ import (
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/severity"
 )
 
 // Severity mirrors debug.DiagnosticSeverity and gateway.Severity so the
 // existing frontend severity rendering (lib/status.ts) is reused verbatim.
 const (
-	SeverityHealthy = "healthy"
-	SeverityWarning = "warning"
-	SeverityError   = "error"
+	SeverityHealthy = severity.Healthy
+	SeverityWarning = severity.Warning
+	SeverityError   = severity.Error
 )
 
 // Status values are machine-readable and more specific than Severity.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/severity"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
@@ -90,7 +91,7 @@ func (d *StaleDetector) detectStaleMACBindings(ctx context.Context, maxAge time.
 			age := now.Sub(bindingTime)
 			entries = append(entries, StaleEntry{
 				Type:     "mac_binding",
-				Severity: "warning",
+				Severity: severity.Warning,
 				UUID:     m.UUID,
 				Table:    "MAC_Binding",
 				Message:  fmt.Sprintf("MAC binding %s -> %s is %.0f hours old", m.IP, m.MAC, age.Hours()),
@@ -128,7 +129,7 @@ func (d *StaleDetector) detectOrphanedFDB(ctx context.Context) ([]StaleEntry, er
 		if !validPortKeys[f.PortKey] {
 			entries = append(entries, StaleEntry{
 				Type:     "fdb",
-				Severity: "warning",
+				Severity: severity.Warning,
 				UUID:     f.UUID,
 				Table:    "FDB",
 				Message:  fmt.Sprintf("FDB entry for MAC %s references port key %d which has no port binding", f.MAC, f.PortKey),
@@ -175,7 +176,7 @@ func (d *StaleDetector) detectOrphanedPortBindings(ctx context.Context) ([]Stale
 		if !knownPorts[pb.LogicalPort] {
 			entries = append(entries, StaleEntry{
 				Type:     "port_binding",
-				Severity: "error",
+				Severity: severity.Error,
 				UUID:     pb.UUID,
 				Table:    "Port_Binding",
 				Message:  fmt.Sprintf("Port binding %q has no corresponding NB entity", pb.LogicalPort),

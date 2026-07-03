@@ -8,6 +8,7 @@ import (
 	"github.com/b42labs/northwatch/internal/inventory"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/severity"
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
@@ -15,9 +16,9 @@ import (
 type DiagnosticSeverity string
 
 const (
-	SeverityHealthy DiagnosticSeverity = "healthy"
-	SeverityWarning DiagnosticSeverity = "warning"
-	SeverityError   DiagnosticSeverity = "error"
+	SeverityHealthy DiagnosticSeverity = severity.Healthy
+	SeverityWarning DiagnosticSeverity = severity.Warning
+	SeverityError   DiagnosticSeverity = severity.Error
 )
 
 // DiagnosticCheck is a single diagnostic result for a port.
