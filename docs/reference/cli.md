@@ -130,9 +130,23 @@ See [Enable write operations](/how-to/enable-write-operations).
 | `--alert-webhook-urls` | `NORTHWATCH_ALERT_WEBHOOK_URLS` | *(none)* | Comma-separated webhook URLs for alert notifications. |
 | `--ws-allowed-origins` | `NORTHWATCH_WS_ALLOWED_ORIGINS` | *(none)* | Comma-separated allowed `Origin` host patterns for WebSocket connections. Empty disables the origin check (suitable behind an operator-controlled reverse proxy). |
 
+## Logging
+
+| Flag | Env var | Default | Description |
+|---|---|---|---|
+| `--log-level` | `NORTHWATCH_LOG_LEVEL` | `info` | Minimum log level: `debug`, `info`, `warn` or `error`. |
+| `--log-format` | `NORTHWATCH_LOG_FORMAT` | `text` | Structured log output format on stderr: `text` or `json`. |
+
+Logs are emitted as structured, leveled records on **stderr**. An unrecognized
+level or format value fails startup.
+
 ## Boolean and duration formats
 
-- **Booleans** read from environment variables accept `true`, `1` or `yes`.
+- **Booleans** read from environment variables accept `true`/`false`, `1`/`0`
+  or `yes`/`no` (case-insensitive). A non-empty value that is none of these
+  **fails startup** rather than silently defaulting.
+- **Integers** read from environment variables must parse as integers; a
+  malformed value fails startup.
 - **Durations** use Go's format: `200ms`, `5m`, `1h`, `24h`.
 
 ## The `snapshot` subcommand

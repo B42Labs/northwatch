@@ -2,9 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -112,12 +114,21 @@ type Config struct {
 	SnapshotInterval time.Duration
 	EventRetention   time.Duration
 	EventMaxCount    int64 // max number of events to retain (0 = unlimited)
+
+	// Logging. LogLevel is one of debug|info|warn|error; LogFormat is text|json.
+	LogLevel  string // --log-level / NORTHWATCH_LOG_LEVEL
+	LogFormat string // --log-format / NORTHWATCH_LOG_FORMAT
 }
 
 func Parse(args []string) (*Config, error) {
 	fs := flag.NewFlagSet("northwatch", flag.ContinueOnError)
 
 	cfg := &Config{}
+	// Malformed environment defaults are collected here and reported together
+	// after flag parsing, mirroring the strict duration paths below, so a typo
+	// like NORTHWATCH_WRITE_ENABLED=True fails loudly instead of silently
+	// meaning false.
+	var envErrs []error
 	fs.StringVar(&cfg.Listen, "listen", envOrDefault("NORTHWATCH_LISTEN", ":8080"), "HTTP listen address")
 	fs.StringVar(&cfg.OVNNBAddr, "ovn-nb-addr", os.Getenv("NORTHWATCH_OVN_NB_ADDR"), "OVN Northbound DB address, comma-separated for failover (e.g. tcp:10.0.0.1:6641,tcp:10.0.0.2:6641)")
 	fs.StringVar(&cfg.OVNSBAddr, "ovn-sb-addr", os.Getenv("NORTHWATCH_OVN_SB_ADDR"), "OVN Southbound DB address, comma-separated for failover (e.g. tcp:10.0.0.1:6642,tcp:10.0.0.2:6642)")
@@ -144,7 +155,7 @@ func Parse(args []string) (*Config, error) {
 	fs.StringVar(&cfg.OpenStackCACert, "os-cacert", os.Getenv("OS_CACERT"), "Path to a PEM CA bundle for verifying the OpenStack API (maps to clouds.yaml `cacert`)")
 
 	// Kubernetes enrichment flags
-	fs.BoolVar(&cfg.KubeEnrichment, "kube-enrichment", envOrDefaultBool("NORTHWATCH_KUBE_ENRICHMENT", false), "Enable Kubernetes enrichment")
+	fs.BoolVar(&cfg.KubeEnrichment, "kube-enrichment", envOrDefaultBool("NORTHWATCH_KUBE_ENRICHMENT", false, &envErrs), "Enable Kubernetes enrichment")
 	fs.StringVar(&cfg.Kubeconfig, "kubeconfig", os.Getenv("KUBECONFIG"), "Path to kubeconfig file")
 	fs.StringVar(&cfg.KubeContext, "kube-context", os.Getenv("NORTHWATCH_KUBE_CONTEXT"), "Kubeconfig context to use")
 
@@ -168,11 +179,15 @@ func Parse(args []string) (*Config, error) {
 	// WebSocket flags
 	fs.StringVar(&cfg.WSAllowedOrigins, "ws-allowed-origins", os.Getenv("NORTHWATCH_WS_ALLOWED_ORIGINS"), "Comma-separated allowed Origin host patterns for WebSocket connections (empty = disable origin check)")
 
+	// Logging flags
+	fs.StringVar(&cfg.LogLevel, "log-level", envOrDefault("NORTHWATCH_LOG_LEVEL", "info"), "Log level: debug, info, warn or error")
+	fs.StringVar(&cfg.LogFormat, "log-format", envOrDefault("NORTHWATCH_LOG_FORMAT", "text"), "Log output format: text or json")
+
 	// Write operation flags
-	fs.BoolVar(&cfg.WriteEnabled, "write-enabled", envOrDefaultBool("NORTHWATCH_WRITE_ENABLED", false), "Enable write operations to OVN NB")
+	fs.BoolVar(&cfg.WriteEnabled, "write-enabled", envOrDefaultBool("NORTHWATCH_WRITE_ENABLED", false, &envErrs), "Enable write operations to OVN NB")
 	var writePlanTTLStr string
 	fs.StringVar(&writePlanTTLStr, "write-plan-ttl", envOrDefault("NORTHWATCH_WRITE_PLAN_TTL", "10m"), "TTL for write operation plans (e.g. 10m, 1h)")
-	fs.IntVar(&cfg.WriteRateLimit, "write-rate-limit", envOrDefaultInt("NORTHWATCH_WRITE_RATE_LIMIT", 30), "Maximum write operations per minute")
+	fs.IntVar(&cfg.WriteRateLimit, "write-rate-limit", envOrDefaultInt("NORTHWATCH_WRITE_RATE_LIMIT", 30, &envErrs), "Maximum write operations per minute")
 
 	// History flags
 	fs.StringVar(&cfg.HistoryDBPath, "history-db-path", envOrDefault("NORTHWATCH_HISTORY_DB_PATH", "northwatch-history.db"), "Path to SQLite history database")
@@ -180,9 +195,21 @@ func Parse(args []string) (*Config, error) {
 	fs.StringVar(&snapshotIntervalStr, "snapshot-interval", envOrDefault("NORTHWATCH_SNAPSHOT_INTERVAL", "5m"), "Automatic snapshot interval (e.g. 5m, 1h)")
 	var eventRetentionStr string
 	fs.StringVar(&eventRetentionStr, "event-retention", envOrDefault("NORTHWATCH_EVENT_RETENTION", "24h"), "Event log retention duration (e.g. 24h, 7d)")
-	fs.Int64Var(&cfg.EventMaxCount, "event-max-count", envOrDefaultInt64("NORTHWATCH_EVENT_MAX_COUNT", 0), "Maximum number of events to retain (0 = unlimited)")
+	fs.Int64Var(&cfg.EventMaxCount, "event-max-count", envOrDefaultInt64("NORTHWATCH_EVENT_MAX_COUNT", 0, &envErrs), "Maximum number of events to retain (0 = unlimited)")
 
 	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	// Fail on any malformed environment default (collected above) before doing
+	// any further work, so a bad NORTHWATCH_* value never silently defaults.
+	if err := errors.Join(envErrs...); err != nil {
+		return nil, err
+	}
+
+	if err := validateLogLevel(cfg.LogLevel); err != nil {
+		return nil, err
+	}
+	if err := validateLogFormat(cfg.LogFormat); err != nil {
 		return nil, err
 	}
 
@@ -402,34 +429,77 @@ func envOrDefault(key, defaultVal string) string {
 	return defaultVal
 }
 
-func envOrDefaultBool(key string, defaultVal bool) bool {
+// envOrDefaultBool parses a boolean environment default strictly. It accepts the
+// strconv.ParseBool forms (1/t/T/TRUE/true/True/0/f/F/FALSE/false/False) plus
+// yes/no for backwards compatibility. A non-empty but unparseable value appends a
+// descriptive error to errs (so it fails Parse) instead of silently defaulting.
+func envOrDefaultBool(key string, defaultVal bool, errs *[]error) bool {
 	v := os.Getenv(key)
 	if v == "" {
 		return defaultVal
 	}
-	return v == "true" || v == "1" || v == "yes"
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "yes":
+		return true
+	case "no":
+		return false
+	}
+	b, err := strconv.ParseBool(strings.TrimSpace(v))
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("invalid %s %q: want a boolean (true/false/1/0/yes/no)", key, v))
+		return defaultVal
+	}
+	return b
 }
 
-func envOrDefaultInt(key string, defaultVal int) int {
+// envOrDefaultInt parses an integer environment default strictly, appending an
+// error to errs on a non-empty unparseable value rather than silently defaulting.
+func envOrDefaultInt(key string, defaultVal int, errs *[]error) int {
 	v := os.Getenv(key)
 	if v == "" {
 		return defaultVal
 	}
-	var result int
-	if _, err := fmt.Sscanf(v, "%d", &result); err != nil {
+	result, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("invalid %s %q: want an integer", key, v))
 		return defaultVal
 	}
 	return result
 }
 
-func envOrDefaultInt64(key string, defaultVal int64) int64 {
+// envOrDefaultInt64 parses a 64-bit integer environment default strictly,
+// appending an error to errs on a non-empty unparseable value.
+func envOrDefaultInt64(key string, defaultVal int64, errs *[]error) int64 {
 	v := os.Getenv(key)
 	if v == "" {
 		return defaultVal
 	}
-	var result int64
-	if _, err := fmt.Sscanf(v, "%d", &result); err != nil {
+	result, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("invalid %s %q: want an integer", key, v))
 		return defaultVal
 	}
 	return result
+}
+
+// validateLogLevel rejects any --log-level / NORTHWATCH_LOG_LEVEL outside the
+// supported set.
+func validateLogLevel(level string) error {
+	switch level {
+	case "debug", "info", "warn", "error":
+		return nil
+	default:
+		return fmt.Errorf("invalid log-level %q: want debug, info, warn or error", level)
+	}
+}
+
+// validateLogFormat rejects any --log-format / NORTHWATCH_LOG_FORMAT outside the
+// supported set.
+func validateLogFormat(format string) error {
+	switch format {
+	case "text", "json":
+		return nil
+	default:
+		return fmt.Errorf("invalid log-format %q: want text or json", format)
+	}
 }

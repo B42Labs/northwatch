@@ -233,6 +233,73 @@ func TestSplitCSV(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, SplitCSV(" a, b ,c, "))
 }
 
+func baseAddrs() []string {
+	return []string{"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642"}
+}
+
+func TestParse_WriteEnabledEnvCapitalTrue(t *testing.T) {
+	// Regression: the old contains-check treated "True" as false. strconv.ParseBool
+	// (and thus strict parsing) treats it as true.
+	t.Setenv("NORTHWATCH_WRITE_ENABLED", "True")
+	cfg, err := Parse(baseAddrs())
+	require.NoError(t, err)
+	assert.True(t, cfg.WriteEnabled)
+}
+
+func TestParse_WriteEnabledEnvYesNo(t *testing.T) {
+	t.Setenv("NORTHWATCH_WRITE_ENABLED", "no")
+	cfg, err := Parse(baseAddrs())
+	require.NoError(t, err)
+	assert.False(t, cfg.WriteEnabled)
+}
+
+func TestParse_InvalidBoolEnvFailsLoudly(t *testing.T) {
+	t.Setenv("NORTHWATCH_WRITE_ENABLED", "bogus")
+	_, err := Parse(baseAddrs())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "NORTHWATCH_WRITE_ENABLED")
+}
+
+func TestParse_InvalidIntEnvFailsLoudly(t *testing.T) {
+	t.Setenv("NORTHWATCH_WRITE_RATE_LIMIT", "abc")
+	_, err := Parse(baseAddrs())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "NORTHWATCH_WRITE_RATE_LIMIT")
+}
+
+func TestParse_InvalidInt64EnvFailsLoudly(t *testing.T) {
+	t.Setenv("NORTHWATCH_EVENT_MAX_COUNT", "1.5")
+	_, err := Parse(baseAddrs())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "NORTHWATCH_EVENT_MAX_COUNT")
+}
+
+func TestParse_LogDefaults(t *testing.T) {
+	cfg, err := Parse(baseAddrs())
+	require.NoError(t, err)
+	assert.Equal(t, "info", cfg.LogLevel)
+	assert.Equal(t, "text", cfg.LogFormat)
+}
+
+func TestParse_LogFlags(t *testing.T) {
+	cfg, err := Parse(append(baseAddrs(), "--log-level", "debug", "--log-format", "json"))
+	require.NoError(t, err)
+	assert.Equal(t, "debug", cfg.LogLevel)
+	assert.Equal(t, "json", cfg.LogFormat)
+}
+
+func TestParse_InvalidLogLevel(t *testing.T) {
+	_, err := Parse(append(baseAddrs(), "--log-level", "trace"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "log-level")
+}
+
+func TestParse_InvalidLogFormat(t *testing.T) {
+	_, err := Parse(append(baseAddrs(), "--log-format", "yaml"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "log-format")
+}
+
 func TestParse_NoOpenStack(t *testing.T) {
 	cfg, err := Parse([]string{
 		"--ovn-nb-addr", "tcp:127.0.0.1:6641",
