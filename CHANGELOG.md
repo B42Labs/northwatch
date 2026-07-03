@@ -145,6 +145,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `internal/search`, and `internal/api`.
 
 ### Fixed
+- OpenAPI spec now conforms to the 3.1.0 version it declares: nullable schema
+  fields emit `"type": ["T", "null"]` instead of the 3.0-only `nullable`
+  keyword, `Builder.AddOperation` panics on an unknown HTTP method instead of
+  silently dropping the operation, and the never-populated `servers` field was
+  removed.
 - Write operations touching non-scalar columns (`external_ids`, `options`,
   set/reference fields) now round-trip correctly: row construction is routed
   through the typed hydrator plus libovsdb's mapper, so map/set/UUID fields are

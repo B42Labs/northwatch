@@ -32,6 +32,17 @@ func TestBuilder_AddOperation_MultipleMethodsSamePath(t *testing.T) {
 	assert.NotNil(t, doc.Paths["/items"].Post)
 }
 
+func TestBuilder_AddOperation_UnknownMethodPanics(t *testing.T) {
+	b := NewBuilder()
+	assert.Panics(t, func() {
+		b.AddOperation("/test", "patch", &Operation{OperationID: "x", Responses: jsonOK("OK")})
+	})
+	// Wrong case is also unsupported (methods are lowercase).
+	assert.Panics(t, func() {
+		b.AddOperation("/test", "GET", &Operation{OperationID: "x", Responses: jsonOK("OK")})
+	})
+}
+
 func TestBuilder_AddSchema(t *testing.T) {
 	b := NewBuilder()
 	ref := b.AddSchema("Foo", &Schema{Type: "object"})

@@ -40,7 +40,12 @@ func goTypeToSchema(t reflect.Type, tagName string) *Schema {
 	// Handle pointer types
 	if t.Kind() == reflect.Pointer {
 		inner := goTypeToSchema(t.Elem(), tagName)
-		inner.Nullable = true
+		// OpenAPI 3.1 expresses nullability as a type array (["T","null"]),
+		// not the 3.0-only "nullable" keyword. Only a plain type name can be
+		// widened this way; a $ref cannot carry "null" directly.
+		if s, ok := inner.Type.(string); ok && inner.Ref == "" {
+			inner.Type = []string{s, "null"}
+		}
 		return inner
 	}
 

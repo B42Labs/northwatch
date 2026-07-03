@@ -4,7 +4,6 @@ package openapi
 type Document struct {
 	OpenAPI    string               `json:"openapi"`
 	Info       Info                 `json:"info"`
-	Servers    []Server             `json:"servers,omitempty"`
 	Paths      map[string]*PathItem `json:"paths"`
 	Components *Components          `json:"components,omitempty"`
 }
@@ -13,11 +12,6 @@ type Info struct {
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
 	Version     string `json:"version"`
-}
-
-type Server struct {
-	URL         string `json:"url"`
-	Description string `json:"description,omitempty"`
 }
 
 type PathItem struct {
@@ -46,14 +40,16 @@ type Parameter struct {
 }
 
 type Schema struct {
-	Type                 string             `json:"type,omitempty"`
+	// Type is a string (e.g. "string") for a plain type, or a []string such as
+	// ["string","null"] for a nullable type. OpenAPI 3.1 expresses nullability
+	// with a type array; the 3.0-only "nullable" keyword is not emitted.
+	Type                 any                `json:"type,omitempty"`
 	Format               string             `json:"format,omitempty"`
 	Items                *Schema            `json:"items,omitempty"`
 	Properties           map[string]*Schema `json:"properties,omitempty"`
 	Ref                  string             `json:"$ref,omitempty"`
 	Description          string             `json:"description,omitempty"`
 	AdditionalProperties *Schema            `json:"additionalProperties,omitempty"`
-	Nullable             bool               `json:"nullable,omitempty"`
 }
 
 type RequestBody struct {

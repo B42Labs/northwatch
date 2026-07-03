@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,11 +41,19 @@ func TestSchemaFromModel_LogicalSwitch(t *testing.T) {
 	require.NotNil(t, eids.AdditionalProperties)
 	assert.Equal(t, "string", eids.AdditionalProperties.Type)
 
-	// Optional pointer field (copp is *string)
+	// Optional pointer field (copp is *string): OpenAPI 3.1 nullability is a
+	// type array, not the 3.0-only "nullable" keyword.
 	copp := schema.Properties["copp"]
 	require.NotNil(t, copp)
-	assert.Equal(t, "string", copp.Type)
-	assert.True(t, copp.Nullable)
+	assert.Equal(t, []string{"string", "null"}, copp.Type)
+}
+
+func TestSchemaFromModel_NullableMarshalsWithoutNullableKeyword(t *testing.T) {
+	schema := SchemaFromModel(nb.LogicalSwitch{})
+	data, err := json.Marshal(schema.Properties["copp"])
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "nullable")
+	assert.Contains(t, string(data), `"type":["string","null"]`)
 }
 
 func TestSchemaFromModel_IgnoresUntagged(t *testing.T) {

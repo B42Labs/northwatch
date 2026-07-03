@@ -41,6 +41,11 @@ func (b *Builder) AddOperation(path, method string, op *Operation) {
 		pi.Put = op
 	case "delete":
 		pi.Delete = op
+	default:
+		// Spec building runs at init time, so a mistyped or unsupported method
+		// must fail loudly (in tests/CI) rather than silently drop the operation
+		// and diverge the spec from the live routes.
+		panic(fmt.Sprintf("openapi: unknown method %q for %s", method, path))
 	}
 }
 
