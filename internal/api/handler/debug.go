@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/b42labs/northwatch/internal/api"
 	"github.com/b42labs/northwatch/internal/debug"
@@ -18,11 +19,45 @@ func RegisterDebug(mux *http.ServeMux, checker *debug.ConnectivityChecker, diagn
 
 func handlePortDiagnostics(diagnoser *debug.PortDiagnoser) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		severity := r.URL.Query().Get("severity")
+		switch severity {
+		case "", "healthy", "warning", "error":
+		default:
+			api.WriteError(w, http.StatusBadRequest, "severity must be one of: healthy, warning, error")
+			return
+		}
+
+		limit := -1
+		if s := r.URL.Query().Get("limit"); s != "" {
+			n, err := strconv.Atoi(s)
+			if err != nil || n < 0 {
+				api.WriteError(w, http.StatusBadRequest, "limit must be a non-negative integer")
+				return
+			}
+			limit = n
+		}
+
 		summary, err := diagnoser.DiagnoseAll(r.Context())
 		if err != nil {
 			api.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
+		// The Total/Healthy/Warning/Error counts always reflect the full
+		// diagnosis; severity and limit only filter and cap the returned Ports.
+		if severity != "" {
+			filtered := make([]debug.PortDiagnostic, 0, len(summary.Ports))
+			for _, p := range summary.Ports {
+				if string(p.Overall) == severity {
+					filtered = append(filtered, p)
+				}
+			}
+			summary.Ports = filtered
+		}
+		if limit >= 0 && len(summary.Ports) > limit {
+			summary.Ports = summary.Ports[:limit]
+		}
+
 		api.WriteJSON(w, http.StatusOK, summary)
 	}
 }
