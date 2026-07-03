@@ -159,6 +159,37 @@ func TestPropagationStore_EmptyStore(t *testing.T) {
 	assert.Empty(t, store.Summary(0))
 }
 
+func TestPropagationStore_Wraparound(t *testing.T) {
+	// Fill well past capacity so the circular buffer wraps multiple times, and
+	// verify the retained window is the newest maxSize events, in order.
+	const cap = 4
+	store := NewPropagationStore(cap, 0)
+
+	now := time.Now().UnixMilli()
+	for i := 0; i < 100; i++ {
+		store.Add(PropagationEvent{Generation: i, Chassis: "ch-1", RecordedAt: now + int64(i)})
+	}
+
+	all := store.Query("", 0)
+	require.Len(t, all, cap)
+	for i, e := range all {
+		assert.Equal(t, 96+i, e.Generation, "events must be oldest-to-newest of the last cap entries")
+	}
+}
+
+func BenchmarkPropagationStoreAddAtCapacity(b *testing.B) {
+	store := NewPropagationStore(50000, 0)
+	now := time.Now().UnixMilli()
+	// Fill to capacity so every measured Add overwrites the oldest entry.
+	for i := 0; i < 50000; i++ {
+		store.Add(PropagationEvent{Generation: i, Chassis: "ch-1", RecordedAt: now + int64(i)})
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		store.Add(PropagationEvent{Generation: i, Chassis: "ch-1", RecordedAt: now + int64(50000+i)})
+	}
+}
+
 func TestPercentile(t *testing.T) {
 	tests := []struct {
 		name   string

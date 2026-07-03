@@ -31,39 +31,58 @@ type ChassisSummary struct {
 	MinMs    int64   `json:"min_ms"`
 }
 
-// PropagationStore is a bounded ring buffer for propagation events with time-based pruning.
+// PropagationStore is a fixed-capacity circular buffer for propagation events
+// with time-based pruning. The backing array is preallocated once; adding an
+// event at capacity overwrites the oldest entry in place, so a steady stream of
+// events costs O(1) per Add instead of reallocating and copying the whole
+// buffer on every insert.
 type PropagationStore struct {
 	mu      sync.RWMutex
-	events  []PropagationEvent
+	buf     []PropagationEvent // fixed capacity == maxSize
+	start   int                // index of the oldest event
+	count   int                // number of valid events, 0 <= count <= maxSize
 	maxSize int
 	maxAge  time.Duration
 }
 
-// NewPropagationStore creates a PropagationStore with the given capacity and max age.
+// NewPropagationStore creates a PropagationStore with the given capacity and max
+// age. maxSize is clamped to a minimum of 1 so the ring buffer is always valid.
 func NewPropagationStore(maxSize int, maxAge time.Duration) *PropagationStore {
+	if maxSize < 1 {
+		maxSize = 1
+	}
 	return &PropagationStore{
-		events:  make([]PropagationEvent, 0, maxSize),
+		buf:     make([]PropagationEvent, maxSize),
 		maxSize: maxSize,
 		maxAge:  maxAge,
 	}
 }
 
-// Add appends an event and prunes old entries.
+// Add stores an event, overwriting the oldest entry when at capacity, and prunes
+// entries past maxAge from the front.
 func (s *PropagationStore) Add(event PropagationEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.events = append(s.events, event)
-	s.pruneLocked()
+	s.buf[(s.start+s.count)%s.maxSize] = event
+	if s.count < s.maxSize {
+		s.count++
+	} else {
+		// Full: the write above overwrote the oldest entry; advance start.
+		s.start = (s.start + 1) % s.maxSize
+	}
+	s.pruneAgeLocked()
 }
 
-// Query returns events matching the optional chassis filter and since timestamp.
+// Query returns events matching the optional chassis filter and since timestamp,
+// in oldest-to-newest order.
 func (s *PropagationStore) Query(chassis string, since int64) []PropagationEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	var result []PropagationEvent
-	for _, e := range s.events {
+	for i := 0; i < s.count; i++ {
+		e := s.buf[(s.start+i)%s.maxSize]
 		if since > 0 && e.RecordedAt < since {
 			continue
 		}
@@ -87,7 +106,8 @@ func (s *PropagationStore) Summary(since int64) []ChassisSummary {
 	}
 	groups := make(map[string]*chassisData)
 
-	for _, e := range s.events {
+	for i := 0; i < s.count; i++ {
+		e := s.buf[(s.start+i)%s.maxSize]
 		if since > 0 && e.RecordedAt < since {
 			continue
 		}
@@ -148,27 +168,16 @@ func percentile(sorted []int64, p int) int64 {
 	return sorted[idx]
 }
 
-func (s *PropagationStore) pruneLocked() {
-	start := 0
-
-	// Prune by age
-	if s.maxAge > 0 {
-		cutoff := time.Now().UnixMilli() - s.maxAge.Milliseconds()
-		for start < len(s.events) && s.events[start].RecordedAt < cutoff {
-			start++
-		}
+// pruneAgeLocked drops events older than maxAge from the front of the ring. Size
+// pruning is inherent to the fixed-capacity buffer (Add overwrites the oldest
+// entry), so only age pruning needs an explicit pass.
+func (s *PropagationStore) pruneAgeLocked() {
+	if s.maxAge <= 0 {
+		return
 	}
-
-	// Prune by size
-	remaining := len(s.events) - start
-	if s.maxSize > 0 && remaining > s.maxSize {
-		start = len(s.events) - s.maxSize
-	}
-
-	// Copy to a new slice to release the old backing array
-	if start > 0 {
-		pruned := make([]PropagationEvent, len(s.events)-start)
-		copy(pruned, s.events[start:])
-		s.events = pruned
+	cutoff := time.Now().UnixMilli() - s.maxAge.Milliseconds()
+	for s.count > 0 && s.buf[s.start].RecordedAt < cutoff {
+		s.start = (s.start + 1) % s.maxSize
+		s.count--
 	}
 }
