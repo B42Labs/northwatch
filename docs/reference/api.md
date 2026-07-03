@@ -205,7 +205,7 @@ Northbound entities joined to their Southbound counterpart and enrichment contex
 | GET | `/api/v1/debug/trace` | Packet path trace. |
 | GET | `/api/v1/debug/traces` | Recent traces. |
 | GET | `/api/v1/debug/connectivity` | Path analysis between two ports. |
-| GET | `/api/v1/debug/port-diagnostics` · `/{uuid}` | Unbound / mismatched ports. |
+| GET | `/api/v1/debug/port-diagnostics` · `/{uuid}` | Unbound / mismatched ports. The list form accepts `?severity=healthy\|warning\|error` and `?limit=<n>` to filter and cap the returned `ports` (the summary counts stay totals); an invalid value returns `400`. |
 | GET | `/api/v1/debug/nexthop-mac` | Next-hop MAC resolution. |
 | GET | `/api/v1/debug/acl-audit` | Shadowed / conflicting ACLs, compared only within the same attachment scope (owning switch or port group). The response sets `truncated: true` when the finding cap is reached. |
 | GET | `/api/v1/debug/stale-entries` | Stale MAC/FDB and orphaned bindings. |

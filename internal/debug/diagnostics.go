@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/b42labs/northwatch/internal/inventory"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
 	"github.com/ovn-kubernetes/libovsdb/client"
@@ -59,7 +60,8 @@ func (d *PortDiagnoser) DiagnosePort(ctx context.Context, portUUID string) (*Por
 	}
 
 	switchName := d.findParentSwitchName(ctx, portUUID)
-	return d.diagnose(ctx, *lsp, switchName), nil
+	pb := d.findPortBinding(ctx, lsp.Name)
+	return d.diagnose(ctx, *lsp, switchName, pb), nil
 }
 
 // DiagnoseAll runs diagnostics on all logical switch ports and returns an aggregate summary.
@@ -69,8 +71,10 @@ func (d *PortDiagnoser) DiagnoseAll(ctx context.Context) (*PortDiagnosticsSummar
 		return nil, fmt.Errorf("listing logical switch ports: %w", err)
 	}
 
-	// Build switch name lookup
+	// Build switch name and port-binding lookups once, so per-port diagnosis is a
+	// map hit instead of a full WhereCache scan of SB Port_Binding per port.
 	switchNames := d.buildSwitchNameMap(ctx)
+	pbByPort := d.buildPortBindingMap(ctx)
 
 	summary := &PortDiagnosticsSummary{
 		Total: len(lsps),
@@ -79,7 +83,7 @@ func (d *PortDiagnoser) DiagnoseAll(ctx context.Context) (*PortDiagnosticsSummar
 
 	for _, lsp := range lsps {
 		switchName := switchNames[lsp.UUID]
-		diag := d.diagnose(ctx, lsp, switchName)
+		diag := d.diagnose(ctx, lsp, switchName, pbByPort[lsp.Name])
 		switch diag.Overall {
 		case SeverityHealthy:
 			summary.Healthy++
@@ -110,7 +114,7 @@ func severityOrder(s DiagnosticSeverity) int {
 	}
 }
 
-func (d *PortDiagnoser) diagnose(ctx context.Context, lsp nb.LogicalSwitchPort, switchName string) *PortDiagnostic {
+func (d *PortDiagnoser) diagnose(ctx context.Context, lsp nb.LogicalSwitchPort, switchName string, pb *sb.PortBinding) *PortDiagnostic {
 	diag := &PortDiagnostic{
 		PortUUID:   lsp.UUID,
 		PortName:   lsp.Name,
@@ -119,7 +123,14 @@ func (d *PortDiagnoser) diagnose(ctx context.Context, lsp nb.LogicalSwitchPort, 
 		Overall:    SeverityHealthy,
 	}
 
-	pb := d.findPortBinding(ctx, lsp.Name)
+	// Resolve the bound chassis once and share it across the chassis-health and
+	// stale-chassis checks, instead of each Get-ing the same chassis.
+	var boundChassis *sb.Chassis
+	if pb != nil && pb.Chassis != nil && *pb.Chassis != "" {
+		if ch, ok := inventory.ChassisByUUID(ctx, d.SB, *pb.Chassis); ok {
+			boundChassis = ch
+		}
+	}
 
 	// 1. Binding status
 	diag.addCheck(d.checkBinding(lsp, pb))
@@ -129,7 +140,7 @@ func (d *PortDiagnoser) diagnose(ctx context.Context, lsp nb.LogicalSwitchPort, 
 
 	// 3. Chassis health
 	if pb != nil {
-		diag.addCheck(d.checkChassisHealth(ctx, lsp, pb))
+		diag.addCheck(d.checkChassisHealth(lsp, pb, boundChassis))
 	}
 
 	// 4. Type consistency
@@ -152,7 +163,7 @@ func (d *PortDiagnoser) diagnose(ctx context.Context, lsp nb.LogicalSwitchPort, 
 
 	// 8. Stale binding chassis
 	if pb != nil && pb.Chassis != nil && *pb.Chassis != "" {
-		diag.addCheck(d.checkStaleChassis(ctx, pb))
+		diag.addCheck(checkStaleChassis(pb, boundChassis))
 	}
 
 	return diag
@@ -212,7 +223,7 @@ func (d *PortDiagnoser) checkPortState(lsp nb.LogicalSwitchPort) DiagnosticCheck
 	}
 }
 
-func (d *PortDiagnoser) checkChassisHealth(ctx context.Context, lsp nb.LogicalSwitchPort, pb *sb.PortBinding) DiagnosticCheck {
+func (d *PortDiagnoser) checkChassisHealth(lsp nb.LogicalSwitchPort, pb *sb.PortBinding, ch *sb.Chassis) DiagnosticCheck {
 	if pb.Chassis == nil || *pb.Chassis == "" {
 		// VIF ports should be bound to a chassis
 		if lsp.Type == "" {
@@ -229,8 +240,7 @@ func (d *PortDiagnoser) checkChassisHealth(ctx context.Context, lsp nb.LogicalSw
 		}
 	}
 
-	ch := &sb.Chassis{UUID: *pb.Chassis}
-	if err := d.SB.Get(ctx, ch); err != nil {
+	if ch == nil {
 		return DiagnosticCheck{
 			Name:    "chassis_health",
 			Status:  SeverityError,
@@ -360,9 +370,11 @@ func (d *PortDiagnoser) checkPatchPeer(ctx context.Context, lsp nb.LogicalSwitch
 	}
 }
 
-func (d *PortDiagnoser) checkStaleChassis(ctx context.Context, pb *sb.PortBinding) DiagnosticCheck {
-	ch := &sb.Chassis{UUID: *pb.Chassis}
-	if err := d.SB.Get(ctx, ch); err != nil {
+// checkStaleChassis reports whether the port binding's chassis reference still
+// resolves. ch is the chassis pre-resolved by diagnose (nil when the referenced
+// UUID no longer exists).
+func checkStaleChassis(pb *sb.PortBinding, ch *sb.Chassis) DiagnosticCheck {
+	if ch == nil {
 		return DiagnosticCheck{
 			Name:    "stale_chassis",
 			Status:  SeverityError,
@@ -405,6 +417,21 @@ func (d *PortDiagnoser) findParentSwitchName(ctx context.Context, lspUUID string
 		return switches[0].Name
 	}
 	return ""
+}
+
+// buildPortBindingMap lists SB Port_Binding once and indexes it by logical_port,
+// so DiagnoseAll resolves a port's binding with a map hit instead of a full
+// WhereCache scan per port.
+func (d *PortDiagnoser) buildPortBindingMap(ctx context.Context) map[string]*sb.PortBinding {
+	result := make(map[string]*sb.PortBinding)
+	var pbs []sb.PortBinding
+	if err := d.SB.List(ctx, &pbs); err != nil {
+		return result
+	}
+	for i := range pbs {
+		result[pbs[i].LogicalPort] = &pbs[i]
+	}
+	return result
 }
 
 func (d *PortDiagnoser) buildSwitchNameMap(ctx context.Context) map[string]string {
