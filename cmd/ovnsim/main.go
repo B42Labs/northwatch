@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -164,7 +165,7 @@ func cmdRun(args []string) error {
 
 		log.Printf("simulating every %s (target %d switches); Ctrl-C to stop", *interval, *target)
 		err := sim.Run(ctx, *interval)
-		if err != nil && err != context.Canceled {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}
 		return nil
