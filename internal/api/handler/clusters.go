@@ -45,9 +45,6 @@ func RegisterClusters(mux *http.ServeMux, reg *cluster.Registry) {
 			}
 			list = append(list, ci)
 		}
-		if list == nil {
-			list = []clusterInfo{}
-		}
-		api.WriteJSON(w, http.StatusOK, map[string]any{"clusters": list})
+		api.WriteJSON(w, http.StatusOK, map[string]any{"clusters": api.NonNil(list)})
 	})
 }

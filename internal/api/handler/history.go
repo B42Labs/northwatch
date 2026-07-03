@@ -31,10 +31,7 @@ func handleListSnapshots(store *history.Store) http.HandlerFunc {
 			api.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if list == nil {
-			list = []history.SnapshotMeta{}
-		}
-		api.WriteJSON(w, http.StatusOK, list)
+		api.WriteJSONList(w, http.StatusOK, list)
 	}
 }
 
@@ -127,10 +124,7 @@ func handleGetSnapshotRows(store *history.Store) http.HandlerFunc {
 			api.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if rows == nil {
-			rows = []history.SnapshotRow{}
-		}
-		api.WriteJSON(w, http.StatusOK, rows)
+		api.WriteJSONList(w, http.StatusOK, rows)
 	}
 }
 
@@ -194,10 +188,7 @@ func handleQueryEvents(store *history.Store) http.HandlerFunc {
 			api.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if events == nil {
-			events = []history.EventRecord{}
-		}
-		api.WriteJSON(w, http.StatusOK, events)
+		api.WriteJSONList(w, http.StatusOK, events)
 	}
 }
 

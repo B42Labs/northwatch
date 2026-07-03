@@ -32,10 +32,7 @@ func handleFlowDiff(store *flowdiff.Store) http.HandlerFunc {
 			since = parsed
 		}
 
-		changes := store.Query(datapath, since)
-		if changes == nil {
-			changes = []flowdiff.FlowChange{}
-		}
+		changes := api.NonNil(store.Query(datapath, since))
 
 		api.WriteJSON(w, http.StatusOK, FlowDiffResponse{
 			Changes: changes,

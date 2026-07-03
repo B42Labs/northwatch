@@ -101,12 +101,8 @@ func handleLBTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 				Routers:     lbRouters[lb.UUID],
 				Switches:    lbSwitches[lb.UUID],
 			}
-			if view.Routers == nil {
-				view.Routers = []string{}
-			}
-			if view.Switches == nil {
-				view.Switches = []string{}
-			}
+			view.Routers = api.NonNil(view.Routers)
+			view.Switches = api.NonNil(view.Switches)
 
 			view.VIPs = make([]LBVIP, 0)
 			for vip, backends := range lb.Vips {
