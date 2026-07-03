@@ -2,10 +2,13 @@ package ovnsim
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/ovn-kubernetes/libovsdb/client"
+	"github.com/ovn-kubernetes/libovsdb/model"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
 )
 
@@ -20,101 +23,21 @@ import (
 func Clean(ctx context.Context, c client.Client) (int, error) {
 	total := 0
 	steps := []func() (int, error){
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.LogicalSwitch) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.LogicalSwitch{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.LogicalRouter) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.LogicalRouter{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.LoadBalancer) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.LoadBalancer{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.PortGroup) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.PortGroup{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.AddressSet) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.AddressSet{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.Meter) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.Meter{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.DHCPOptions) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.DHCPOptions{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.DNS) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.DNS{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.Copp) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.Copp{UUID: id}).Delete())
-			})
-		},
-		func() (int, error) {
-			u, err := ownedUUIDs(ctx, c, func(r *nb.HAChassisGroup) (map[string]string, string) { return r.ExternalIDs, r.UUID })
-			if err != nil {
-				return 0, err
-			}
-			return deleteEach(ctx, c, u, func(id string) []ovsdb.Operation {
-				return must(c.Where(&nb.HAChassisGroup{UUID: id}).Delete())
-			})
-		},
+		cleanTable[nb.LogicalSwitch](ctx, c),
+		cleanTable[nb.LogicalRouter](ctx, c),
+		cleanTable[nb.LoadBalancer](ctx, c),
+		cleanTable[nb.PortGroup](ctx, c),
+		cleanTable[nb.AddressSet](ctx, c),
+		cleanTable[nb.Meter](ctx, c),
+		cleanTable[nb.DHCPOptions](ctx, c),
+		cleanTable[nb.DNS](ctx, c),
+		cleanTable[nb.Copp](ctx, c),
+		cleanTable[nb.HAChassisGroup](ctx, c),
 		func() (int, error) {
 			// Load_Balancer_Group has no external_ids; match by name prefix.
 			var rows []nb.LoadBalancerGroup
 			if err := c.List(ctx, &rows); err != nil {
-				return 0, err
+				return 0, fmt.Errorf("listing load balancer groups: %w", err)
 			}
 			var u []string
 			for i := range rows {
@@ -138,30 +61,52 @@ func Clean(ctx context.Context, c client.Client) (int, error) {
 	return total, nil
 }
 
+// cleanTable returns a step that deletes every simulator-owned row of table T.
+// Ownership is read from the row's ExternalIDs field and the delete is keyed by
+// its UUID; both are accessed via reflection because Go generics cannot name a
+// struct field, but every generated NB model carries `ExternalIDs` and `UUID`.
+func cleanTable[T any](ctx context.Context, c client.Client) func() (int, error) {
+	return func() (int, error) {
+		var rows []T
+		if err := c.List(ctx, &rows); err != nil {
+			return 0, fmt.Errorf("listing %T: %w", *new(T), err)
+		}
+		n := 0
+		for i := range rows {
+			extIDs, _ := reflect.ValueOf(rows[i]).FieldByName("ExternalIDs").Interface().(map[string]string)
+			if !owned(extIDs) {
+				continue
+			}
+			// Build a minimal &T{UUID: ...} so Where matches by UUID, mirroring
+			// the original per-type delete.
+			del := new(T)
+			reflect.ValueOf(del).Elem().FieldByName("UUID").SetString(
+				reflect.ValueOf(rows[i]).FieldByName("UUID").String())
+			m, ok := any(del).(model.Model)
+			if !ok {
+				return n, fmt.Errorf("%T is not an OVSDB model", *new(T))
+			}
+			ops, err := c.Where(m).Delete()
+			if err != nil {
+				return n, fmt.Errorf("building delete for %T: %w", *new(T), err)
+			}
+			if err := transact(ctx, c, ops); err != nil {
+				return n, fmt.Errorf("deleting owned %T: %w", *new(T), err)
+			}
+			n++
+		}
+		return n, nil
+	}
+}
+
 // deleteEach transacts a delete for every uuid and returns how many succeeded.
 func deleteEach(ctx context.Context, c client.Client, uuids []string, del func(string) []ovsdb.Operation) (int, error) {
 	n := 0
 	for _, u := range uuids {
 		if err := transact(ctx, c, del(u)); err != nil {
-			return n, err
+			return n, fmt.Errorf("deleting row %s: %w", u, err)
 		}
 		n++
 	}
 	return n, nil
-}
-
-// ownedUUIDs returns the UUIDs of all simulator-owned rows of table T.
-func ownedUUIDs[T any](ctx context.Context, c client.Client, get func(*T) (map[string]string, string)) ([]string, error) {
-	var rows []T
-	if err := c.List(ctx, &rows); err != nil {
-		return nil, err
-	}
-	var out []string
-	for i := range rows {
-		ids, uuid := get(&rows[i])
-		if owned(ids) {
-			out = append(out, uuid)
-		}
-	}
-	return out, nil
 }
