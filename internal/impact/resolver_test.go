@@ -183,6 +183,70 @@ func TestResolve_ReverseRefs(t *testing.T) {
 	assert.True(t, foundReverse, "expected Port_Group reverse reference")
 }
 
+func TestResolve_ReverseRefs_SetColumn(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	resolver := NewResolver(nbClient, nil)
+	ctx := context.Background()
+
+	// A Load_Balancer referenced by one switch via the set-typed `load_balancer`
+	// column, alongside a second switch that does NOT reference it. This pins
+	// valueContainsUUID on the non-scalar ([]string set) path, including the
+	// negative case where a non-referencing row must be excluded.
+	namedLB := "lb_1"
+
+	uuids := transact(t, nbClient,
+		&nb.LoadBalancer{UUID: namedLB, Name: "test-lb", ExternalIDs: map[string]string{}},
+		&nb.LogicalSwitch{Name: "lb-user", LoadBalancer: []string{namedLB}, ExternalIDs: map[string]string{}},
+		&nb.LogicalSwitch{Name: "no-lb-switch", LoadBalancer: []string{}, ExternalIDs: map[string]string{}},
+	)
+
+	lbUUID := uuids[0]
+	require.Eventually(t, func() bool {
+		return nbClient.Get(ctx, &nb.LoadBalancer{UUID: lbUUID}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+
+	result, err := resolver.Resolve(ctx, "nb", "Load_Balancer", lbUUID)
+	require.NoError(t, err)
+
+	var reverseSwitches []string
+	for _, child := range result.Root.Children {
+		if child.Table == "Logical_Switch" && child.RefType == RefReverse {
+			reverseSwitches = append(reverseSwitches, child.Name)
+		}
+	}
+	assert.Contains(t, reverseSwitches, "lb-user", "switch referencing the LB via its set column must appear as a reverse ref")
+	assert.NotContains(t, reverseSwitches, "no-lb-switch", "switch that does not reference the LB must be excluded")
+}
+
+func TestValueContainsUUID(t *testing.T) {
+	const uuid = "target-uuid"
+
+	tests := []struct {
+		name string
+		val  any
+		want bool
+	}{
+		{name: "scalar string match", val: uuid, want: true},
+		{name: "scalar string mismatch", val: "other", want: false},
+		{name: "pointer string match", val: strPtr(uuid), want: true},
+		{name: "pointer string mismatch", val: strPtr("other"), want: false},
+		{name: "nil pointer", val: (*string)(nil), want: false},
+		{name: "set contains", val: []string{"a", uuid, "b"}, want: true},
+		{name: "set missing", val: []string{"a", "b"}, want: false},
+		{name: "empty set", val: []string{}, want: false},
+		{name: "nil value", val: nil, want: false},
+		// Maps are not a reference shape the original helper matched; preserve
+		// that so the filter-first path returns the same set as before.
+		{name: "map value never matches", val: map[string]string{"k": uuid}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, valueContainsUUID(tt.val, uuid))
+		})
+	}
+}
+
 func TestResolve_SBCorr(t *testing.T) {
 	nbClient := testutil.SetupNBTestClient(t)
 	sbClient := testutil.SetupSBTestClient(t)

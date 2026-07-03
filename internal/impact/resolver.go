@@ -273,13 +273,33 @@ func (r *Resolver) listEntitiesReferencing(ctx context.Context, db, sourceTable,
 		return nil, err
 	}
 
+	// Resolve the struct field backing the reference column once, matching on the
+	// ovsdb struct tag the same way ovndb.ModelToMap does. This lets us inspect a
+	// single field per row and skip the reflection-heavy ModelToMap conversion for
+	// the (usually large) majority of rows that don't reference targetUUID.
+	fieldIndex := -1
+	for i := 0; i < modelType.NumField(); i++ {
+		tag := modelType.Field(i).Tag.Get("ovsdb")
+		if idx := strings.Index(tag, ","); idx != -1 {
+			tag = tag[:idx]
+		}
+		if tag == column {
+			fieldIndex = i
+			break
+		}
+	}
+
 	slice := slicePtr.Elem()
 	var results []map[string]any
+	if fieldIndex < 0 {
+		return results, nil
+	}
 	for i := 0; i < slice.Len(); i++ {
-		m := ovndb.ModelToMap(slice.Index(i).Interface())
-		if containsUUID(m, column, targetUUID) {
-			results = append(results, m)
+		row := slice.Index(i)
+		if !valueContainsUUID(row.Field(fieldIndex).Interface(), targetUUID) {
+			continue
 		}
+		results = append(results, ovndb.ModelToMap(row.Interface()))
 	}
 	return results, nil
 }
@@ -328,24 +348,22 @@ func extractUUIDs(fields map[string]any, column string) []string {
 	return nil
 }
 
-// containsUUID checks whether fields[column] contains the given UUID.
-func containsUUID(fields map[string]any, column, uuid string) bool {
-	val, ok := fields[column]
-	if !ok || val == nil {
-		return false
-	}
-
-	switch v := val.(type) {
+// valueContainsUUID reports whether a single OVSDB column value contains uuid.
+// It preserves the exact matching semantics of the original containsUUID helper:
+// it matches a scalar string, an optional *string, or any element of a []string
+// set. Any other shape (including maps) never matches.
+func valueContainsUUID(v any, uuid string) bool {
+	switch val := v.(type) {
 	case []string:
-		for _, s := range v {
+		for _, s := range val {
 			if s == uuid {
 				return true
 			}
 		}
 	case *string:
-		return v != nil && *v == uuid
+		return val != nil && *val == uuid
 	case string:
-		return v == uuid
+		return val == uuid
 	}
 	return false
 }
