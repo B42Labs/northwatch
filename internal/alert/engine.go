@@ -3,7 +3,7 @@ package alert
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -182,7 +182,7 @@ func (e *Engine) evaluate(ctx context.Context) {
 			// A rule that cannot determine current state (e.g. an OVSDB reconnect
 			// blip) must not look like "no alerts": record it so the resolve pass
 			// below skips its active alerts, preventing resolve/re-fire flapping.
-			log.Printf("alert: rule %q check failed: %v", rule.Name, err)
+			slog.Error("alert rule check failed", "rule", rule.Name, "err", err)
 			failed[rule.Name] = true
 			continue
 		}

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -59,7 +59,7 @@ func (w *WebhookNotifier) Notify(ctx context.Context, alerts []Alert) {
 	for _, payload := range payloads {
 		body, err := json.Marshal(payload)
 		if err != nil {
-			log.Printf("alert webhook: failed to marshal payload: %v", err)
+			slog.Error("marshaling alert webhook payload failed", "err", err)
 			continue
 		}
 		for _, url := range w.urls {
@@ -71,7 +71,7 @@ func (w *WebhookNotifier) Notify(ctx context.Context, alerts []Alert) {
 func (w *WebhookNotifier) post(ctx context.Context, url string, body []byte) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("alert webhook: failed to create request for %s: %v", url, err)
+		slog.Error("creating alert webhook request failed", "url", url, "err", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -79,13 +79,13 @@ func (w *WebhookNotifier) post(ctx context.Context, url string, body []byte) {
 
 	resp, err := w.client.Do(req)
 	if err != nil {
-		log.Printf("alert webhook: failed to send to %s: %v", url, err)
+		slog.Error("sending alert webhook failed", "url", url, "err", err)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
-		log.Printf("alert webhook: %s returned status %d", url, resp.StatusCode)
+		slog.Warn("alert webhook returned non-2xx status", "url", url, "status", resp.StatusCode)
 	}
 }
 

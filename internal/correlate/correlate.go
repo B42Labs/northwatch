@@ -2,7 +2,7 @@ package correlate
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
@@ -157,7 +157,7 @@ func (c *Correlator) LSPDetail(ctx context.Context, lspUUID string) (*PortBindin
 		}
 		return false
 	}).List(ctx, &switches); err != nil {
-		log.Printf("correlate: listing switches for LSP %s: %v", lspUUID, err)
+		slog.Error("correlate listing switches for LSP failed", "lsp", lspUUID, "err", err)
 	}
 	if len(switches) > 0 {
 		chain.ParentSwitch = ovndb.ModelToMap(switches[0])
@@ -185,7 +185,7 @@ func (c *Correlator) LRPDetail(ctx context.Context, lrpUUID string) (*PortBindin
 		}
 		return false
 	}).List(ctx, &routers); err != nil {
-		log.Printf("correlate: listing routers for LRP %s: %v", lrpUUID, err)
+		slog.Error("correlate listing routers for LRP failed", "lrp", lrpUUID, "err", err)
 	}
 	if len(routers) > 0 {
 		chain.ParentRouter = ovndb.ModelToMap(routers[0])
@@ -224,7 +224,7 @@ func (c *Correlator) ChassisDetail(ctx context.Context, chassisUUID string) (*Ch
 	if err := c.SB.WhereCache(func(cp *sb.ChassisPrivate) bool {
 		return cp.Name == ch.Name
 	}).List(ctx, &cps); err != nil {
-		log.Printf("correlate: listing ChassisPrivate for %s: %v", ch.Name, err)
+		slog.Error("correlate listing ChassisPrivate failed", "chassis", ch.Name, "err", err)
 	}
 	if len(cps) > 0 {
 		result.ChassisPrivate = ovndb.ModelToMap(cps[0])
@@ -243,7 +243,7 @@ func (c *Correlator) ChassisDetail(ctx context.Context, chassisUUID string) (*Ch
 	if err := c.SB.WhereCache(func(pb *sb.PortBinding) bool {
 		return pb.Chassis != nil && *pb.Chassis == chassisUUID
 	}).List(ctx, &pbs); err != nil {
-		log.Printf("correlate: listing PortBindings for chassis %s: %v", chassisUUID, err)
+		slog.Error("correlate listing PortBindings for chassis failed", "chassis", chassisUUID, "err", err)
 	}
 	for _, pb := range pbs {
 		result.PortBindings = append(result.PortBindings, ovndb.ModelToMap(pb))
@@ -270,7 +270,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 	if err := c.NB.WhereCache(func(lsp *nb.LogicalSwitchPort) bool {
 		return lsp.Name == pb.LogicalPort
 	}).List(ctx, &lsps); err != nil {
-		log.Printf("correlate: listing LSPs for port %s: %v", pb.LogicalPort, err)
+		slog.Error("correlate listing LSPs for port failed", "port", pb.LogicalPort, "err", err)
 	}
 	if len(lsps) > 0 {
 		chain.LSP = ovndb.ModelToMap(lsps[0])
@@ -285,7 +285,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 			}
 			return false
 		}).List(ctx, &switches); err != nil {
-			log.Printf("correlate: listing switches for LSP %s: %v", lspUUID, err)
+			slog.Error("correlate listing switches for LSP failed", "lsp", lspUUID, "err", err)
 		}
 		if len(switches) > 0 {
 			chain.ParentSwitch = ovndb.ModelToMap(switches[0])
@@ -296,7 +296,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 		if err := c.NB.WhereCache(func(lrp *nb.LogicalRouterPort) bool {
 			return lrp.Name == pb.LogicalPort
 		}).List(ctx, &lrps); err != nil {
-			log.Printf("correlate: listing LRPs for port %s: %v", pb.LogicalPort, err)
+			slog.Error("correlate listing LRPs for port failed", "port", pb.LogicalPort, "err", err)
 		}
 		if len(lrps) > 0 {
 			chain.LRP = ovndb.ModelToMap(lrps[0])
@@ -310,7 +310,7 @@ func (c *Correlator) PortBindingDetail(ctx context.Context, pbUUID string) (*Por
 				}
 				return false
 			}).List(ctx, &routers); err != nil {
-				log.Printf("correlate: listing routers for LRP %s: %v", lrpUUID, err)
+				slog.Error("correlate listing routers for LRP failed", "lrp", lrpUUID, "err", err)
 			}
 			if len(routers) > 0 {
 				chain.ParentRouter = ovndb.ModelToMap(routers[0])
@@ -381,7 +381,7 @@ func (c *Correlator) findPortBinding(ctx context.Context, logicalPort string) *s
 	if err := c.SB.WhereCache(func(pb *sb.PortBinding) bool {
 		return pb.LogicalPort == logicalPort
 	}).List(ctx, &pbs); err != nil {
-		log.Printf("correlate: finding PortBinding for %s: %v", logicalPort, err)
+		slog.Error("correlate finding PortBinding failed", "port", logicalPort, "err", err)
 		return nil
 	}
 	if len(pbs) == 0 {
@@ -395,7 +395,7 @@ func (c *Correlator) findDatapathForSwitch(ctx context.Context, switchUUID strin
 	if err := c.SB.WhereCache(func(dp *sb.DatapathBinding) bool {
 		return dp.ExternalIDs["logical-switch"] == switchUUID
 	}).List(ctx, &dps); err != nil {
-		log.Printf("correlate: finding DatapathBinding for switch %s: %v", switchUUID, err)
+		slog.Error("correlate finding DatapathBinding for switch failed", "switch", switchUUID, "err", err)
 		return nil
 	}
 	if len(dps) == 0 {
@@ -409,7 +409,7 @@ func (c *Correlator) findDatapathForRouter(ctx context.Context, routerUUID strin
 	if err := c.SB.WhereCache(func(dp *sb.DatapathBinding) bool {
 		return dp.ExternalIDs["logical-router"] == routerUUID
 	}).List(ctx, &dps); err != nil {
-		log.Printf("correlate: finding DatapathBinding for router %s: %v", routerUUID, err)
+		slog.Error("correlate finding DatapathBinding for router failed", "router", routerUUID, "err", err)
 		return nil
 	}
 	if len(dps) == 0 {

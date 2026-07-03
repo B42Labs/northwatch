@@ -2,7 +2,7 @@ package history
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/b42labs/northwatch/internal/events"
@@ -64,7 +64,7 @@ func (c *Collector) TakeSnapshot(ctx context.Context, trigger, label string) (*S
 	for _, src := range c.sources {
 		data, err := src.ListFunc(ctx)
 		if err != nil {
-			log.Printf("history: snapshot source %s.%s failed: %v", src.Database, src.Table, err)
+			slog.Error("history snapshot source failed", "database", src.Database, "table", src.Table, "err", err)
 			continue
 		}
 		for _, d := range data {
@@ -96,7 +96,7 @@ func (c *Collector) TakeSnapshotIfChanged(ctx context.Context, trigger, label st
 	for _, src := range c.sources {
 		data, err := src.ListFunc(ctx)
 		if err != nil {
-			log.Printf("history: snapshot source %s.%s failed: %v", src.Database, src.Table, err)
+			slog.Error("history snapshot source failed", "database", src.Database, "table", src.Table, "err", err)
 			continue
 		}
 		key := src.Database + "." + src.Table
@@ -116,7 +116,7 @@ func (c *Collector) TakeSnapshotIfChanged(ctx context.Context, trigger, label st
 	currentHash := computeContentHash(rows)
 	lastHash, err := c.store.LatestSnapshotContentHash(ctx)
 	if err != nil {
-		log.Printf("history: failed to get latest snapshot hash: %v", err)
+		slog.Error("getting latest snapshot hash failed", "err", err)
 		// Fall through and create the snapshot anyway
 	} else if lastHash == currentHash {
 		return nil, nil // no changes
@@ -139,9 +139,9 @@ func (c *Collector) Start(ctx context.Context) func() {
 			case <-ticker.C:
 				meta, err := c.TakeSnapshotIfChanged(ctx, "auto", "")
 				if err != nil {
-					log.Printf("history: auto-snapshot failed: %v", err)
+					slog.Error("history auto-snapshot failed", "err", err)
 				} else if meta == nil {
-					log.Printf("history: auto-snapshot skipped (no changes)")
+					slog.Debug("history auto-snapshot skipped (no changes)")
 				}
 			case <-ctx.Done():
 				return
@@ -163,7 +163,7 @@ func (c *Collector) Start(ctx context.Context) func() {
 				return
 			}
 			if err := c.store.InsertEvents(ctx, batch); err != nil {
-				log.Printf("history: event persistence failed: %v", err)
+				slog.Error("history event persistence failed", "err", err)
 			}
 			batch = batch[:0]
 		}
@@ -211,17 +211,17 @@ func (c *Collector) Start(ctx context.Context) func() {
 			case <-ticker.C:
 				// Time-based pruning
 				if n, err := c.store.PruneEvents(ctx, c.retention); err != nil {
-					log.Printf("history: event pruning failed: %v", err)
+					slog.Error("history event pruning failed", "err", err)
 				} else if n > 0 {
-					log.Printf("history: pruned %d old events", n)
+					slog.Info("history pruned old events", "count", n)
 				}
 
 				// Count-based pruning
 				if c.eventMaxCount > 0 {
 					if n, err := c.store.PruneEventsByCount(ctx, c.eventMaxCount); err != nil {
-						log.Printf("history: event count pruning failed: %v", err)
+						slog.Error("history event count pruning failed", "err", err)
 					} else if n > 0 {
-						log.Printf("history: pruned %d events (count limit %d)", n, c.eventMaxCount)
+						slog.Info("history pruned events over count limit", "count", n, "limit", c.eventMaxCount)
 					}
 				}
 			case <-ctx.Done():

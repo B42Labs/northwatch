@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -62,7 +62,7 @@ func handleWS(hub *events.Hub) http.HandlerFunc {
 		}
 		conn, err := websocket.Accept(w, r, opts)
 		if err != nil {
-			log.Printf("ws: accept error: %v", err)
+			slog.Error("ws accept failed", "err", err)
 			return
 		}
 		defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()

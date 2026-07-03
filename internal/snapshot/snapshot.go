@@ -13,13 +13,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/go-logr/stdr"
 	"github.com/google/uuid"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/database"
@@ -166,7 +166,7 @@ func (s *Servers) Close() {
 // listening on unix sockets, and returns their addresses. Connect a normal
 // libovsdb client to Servers.NBAddr / Servers.SBAddr to work on the offline copy.
 func Serve(f *File, nbClientModel, sbClientModel model.ClientDBModel, nbSchema, sbSchema ovsdb.DatabaseSchema) (*Servers, error) {
-	logger := stdr.New(nil)
+	logger := logr.FromSlogHandler(slog.Default().Handler())
 
 	dir, err := os.MkdirTemp("", "northwatch-snapshot-*")
 	if err != nil {

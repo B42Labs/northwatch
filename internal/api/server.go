@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -85,7 +86,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-	fmt.Printf("Northwatch listening on %s\n", ln.Addr().String())
+	slog.Info("northwatch listening", "addr", ln.Addr().String())
 	return s.httpServer.Serve(ln)
 }
 

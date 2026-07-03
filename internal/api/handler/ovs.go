@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -224,7 +224,7 @@ func ovsFleetHealth(ctx context.Context, pool ovsPool, tracker *ovshealth.Tracke
 			if err := listChassisCache(ctx, c, &cc); err != nil {
 				// Exclude just this chassis: reset its partially-filled cache so
 				// it aggregates as unreachable (connected=false, zero counts).
-				log.Printf("ovs: health: excluding chassis %s: %v", m.SystemID, err)
+				slog.Error("ovs health excluding chassis", "system_id", m.SystemID, "err", err)
 				cc = ovshealth.ChassisCache{SystemID: m.SystemID}
 			} else {
 				cc.Connected = true
