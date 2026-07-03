@@ -53,6 +53,7 @@ make schema-download # Download pinned OVN schemas
 - `debug/` — connectivity, port diagnostics, ACL audit, stale detection
 - `gateway/` — gateway / HA-chassis health
 - `router/` — routing helpers (next-hop, static routes)
+- `severity/` — shared healthy/warning/error status vocabulary
 - `impact/` — impact analysis for an entity
 - `flowdiff/` — real-time logical-flow diffing
 - `telemetry/` — Prometheus collector, propagation tracking
