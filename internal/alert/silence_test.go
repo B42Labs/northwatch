@@ -145,12 +145,6 @@ func TestEngine_SilencedAlertsNotReturned(t *testing.T) {
 	// ActiveAlerts should not include silenced alerts
 	active := engine.ActiveAlerts()
 	assert.Empty(t, active)
-
-	// AllAlerts should include them with Silenced=true
-	all := engine.AllAlerts()
-	require.Len(t, all, 1)
-	assert.True(t, all[0].Silenced)
-	assert.Equal(t, "silenced_rule", all[0].Rule)
 }
 
 func TestEngine_ExpiredSilencesCleanedUp(t *testing.T) {

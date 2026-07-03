@@ -29,11 +29,6 @@ type EventQueryOpts struct {
 	Limit    int // default 1000, max 10000
 }
 
-// InsertEvent persists a single event.
-func (s *Store) InsertEvent(ctx context.Context, e EventRecord) error {
-	return s.InsertEvents(ctx, []EventRecord{e})
-}
-
 // InsertEvents persists a batch of events in a single transaction.
 func (s *Store) InsertEvents(ctx context.Context, events []EventRecord) error {
 	if len(events) == 0 {
@@ -191,14 +186,4 @@ func (s *Store) PruneEventsByCount(ctx context.Context, maxCount int64) (int64, 
 		return 0, fmt.Errorf("pruning events by count: %w", err)
 	}
 	return res.RowsAffected()
-}
-
-// EventCount returns the total number of persisted events.
-func (s *Store) EventCount(ctx context.Context) (int64, error) {
-	var count int64
-	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM events").Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("counting events: %w", err)
-	}
-	return count, nil
 }

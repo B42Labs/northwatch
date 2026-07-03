@@ -48,10 +48,6 @@ func (h *correlatedHandler) listSwitches(w http.ResponseWriter, r *http.Request)
 
 func (h *correlatedHandler) getSwitch(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if uuid == "" {
-		api.WriteError(w, http.StatusBadRequest, "uuid is required")
-		return
-	}
 
 	result, err := h.correlator.SwitchDetail(r.Context(), uuid)
 	if err != nil {
@@ -80,10 +76,6 @@ func (h *correlatedHandler) listRouters(w http.ResponseWriter, r *http.Request) 
 
 func (h *correlatedHandler) getRouter(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if uuid == "" {
-		api.WriteError(w, http.StatusBadRequest, "uuid is required")
-		return
-	}
 
 	result, err := h.correlator.RouterDetail(r.Context(), uuid)
 	if err != nil {
@@ -97,10 +89,6 @@ func (h *correlatedHandler) getRouter(w http.ResponseWriter, r *http.Request) {
 
 func (h *correlatedHandler) getLSP(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if uuid == "" {
-		api.WriteError(w, http.StatusBadRequest, "uuid is required")
-		return
-	}
 
 	chain, err := h.correlator.LSPDetail(r.Context(), uuid)
 	if err != nil {
@@ -114,10 +102,6 @@ func (h *correlatedHandler) getLSP(w http.ResponseWriter, r *http.Request) {
 
 func (h *correlatedHandler) getLRP(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if uuid == "" {
-		api.WriteError(w, http.StatusBadRequest, "uuid is required")
-		return
-	}
 
 	chain, err := h.correlator.LRPDetail(r.Context(), uuid)
 	if err != nil {
@@ -146,10 +130,6 @@ func (h *correlatedHandler) listChassis(w http.ResponseWriter, r *http.Request) 
 
 func (h *correlatedHandler) getChassis(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if uuid == "" {
-		api.WriteError(w, http.StatusBadRequest, "uuid is required")
-		return
-	}
 
 	result, err := h.correlator.ChassisDetail(r.Context(), uuid)
 	if err != nil {
@@ -162,10 +142,6 @@ func (h *correlatedHandler) getChassis(w http.ResponseWriter, r *http.Request) {
 
 func (h *correlatedHandler) getPortBinding(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if uuid == "" {
-		api.WriteError(w, http.StatusBadRequest, "uuid is required")
-		return
-	}
 
 	chain, err := h.correlator.PortBindingDetail(r.Context(), uuid)
 	if err != nil {

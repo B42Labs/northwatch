@@ -213,14 +213,14 @@ func TestHistory_QueryEvents(t *testing.T) {
 	store, _, mux := newTestHistorySetup(t)
 	ctx := context.Background()
 
-	err := store.InsertEvent(ctx, history.EventRecord{
+	err := store.InsertEvents(ctx, []history.EventRecord{{
 		Timestamp: time.Now().UTC(),
 		Type:      "insert",
 		Database:  "nb",
 		Table:     "Logical_Switch",
 		UUID:      "uuid-1",
 		Row:       map[string]any{"name": "sw1"},
-	})
+	}})
 	require.NoError(t, err)
 
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/events", nil)

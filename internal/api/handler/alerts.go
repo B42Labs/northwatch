@@ -28,10 +28,6 @@ func RegisterAlerts(mux *http.ServeMux, engine *alert.Engine) {
 func handleSetRuleEnabled(engine *alert.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
-		if name == "" {
-			api.WriteError(w, http.StatusBadRequest, "rule name is required")
-			return
-		}
 
 		var body struct {
 			Enabled bool `json:"enabled"`
@@ -106,10 +102,6 @@ func handleCreateSilence(engine *alert.Engine) http.HandlerFunc {
 func handleDeleteSilence(engine *alert.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if id == "" {
-			api.WriteError(w, http.StatusBadRequest, "silence id is required")
-			return
-		}
 
 		if err := engine.RemoveSilence(id); err != nil {
 			api.WriteError(w, http.StatusNotFound, err.Error())

@@ -16,16 +16,6 @@ type Options struct {
 	Chassis        []string // chassis names used for Gateway_Chassis / HA_Chassis_Group
 }
 
-// DefaultOptions returns a small but representative baseline.
-func DefaultOptions() Options {
-	return Options{
-		Switches:       6,
-		Routers:        3,
-		PortsPerSwitch: 5,
-		Chassis:        []string{"chassis-1", "chassis-2", "chassis-3"},
-	}
-}
-
 func (o Options) withDefaults() Options {
 	if o.Switches <= 0 {
 		o.Switches = 1

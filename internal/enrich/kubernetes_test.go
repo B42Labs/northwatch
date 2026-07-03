@@ -22,16 +22,6 @@ func newTestKubernetesProvider() *KubernetesProvider {
 			}
 			return nil, fmt.Errorf("not found")
 		},
-		LookupService: func(_ context.Context, namespace, name string) (*ServiceInfo, error) {
-			if namespace == "default" && name == "nginx-svc" {
-				return &ServiceInfo{
-					Name:      "nginx-svc",
-					Namespace: "default",
-					ClusterIP: "10.96.0.10",
-				}, nil
-			}
-			return nil, fmt.Errorf("not found")
-		},
 	}
 }
 
@@ -149,9 +139,4 @@ func TestKubernetesProvider_EnrichNAT(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Nil(t, info, "NAT enrichment should always return nil for Kubernetes")
-}
-
-func TestKubernetesProvider_Name(t *testing.T) {
-	p := &KubernetesProvider{}
-	assert.Equal(t, "kubernetes", p.Name())
 }

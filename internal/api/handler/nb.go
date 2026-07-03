@@ -64,10 +64,6 @@ func handleList[T any](c client.Client) http.HandlerFunc {
 func handleGet[T any](c client.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uuid := r.PathValue("uuid")
-		if uuid == "" {
-			api.WriteError(w, http.StatusBadRequest, "uuid is required")
-			return
-		}
 
 		var results []T
 		if err := c.WhereCache(func(m *T) bool {

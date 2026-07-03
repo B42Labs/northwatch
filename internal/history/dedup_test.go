@@ -48,25 +48,6 @@ func TestPruneEventsByCount_Zero(t *testing.T) {
 	assert.Equal(t, int64(0), pruned)
 }
 
-func TestEventCount(t *testing.T) {
-	store := newTestStore(t)
-	ctx := context.Background()
-
-	count, err := store.EventCount(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), count)
-
-	err = store.InsertEvents(ctx, []EventRecord{
-		{Timestamp: time.Now(), Type: "insert", Database: "nb", Table: "Logical_Switch", UUID: "uuid-1"},
-		{Timestamp: time.Now(), Type: "insert", Database: "nb", Table: "Logical_Switch", UUID: "uuid-2"},
-	})
-	require.NoError(t, err)
-
-	count, err = store.EventCount(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, int64(2), count)
-}
-
 func TestSnapshotDeduplication(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

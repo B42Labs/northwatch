@@ -18,7 +18,6 @@ type mockProvider struct {
 	err         error
 }
 
-func (m *mockProvider) Name() string { return "mock" }
 func (m *mockProvider) EnrichPort(_ context.Context, _ map[string]string) (*Info, error) {
 	return m.portInfo, m.err
 }

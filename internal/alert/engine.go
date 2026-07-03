@@ -303,29 +303,6 @@ func (e *Engine) ActiveAlerts() []Alert {
 	return alerts
 }
 
-// AllAlerts returns all currently firing alerts including silenced ones,
-// with a "silenced" field set accordingly.
-func (e *Engine) AllAlerts() []AlertWithStatus {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	var alerts []AlertWithStatus
-	for _, a := range e.active {
-		if a.State == StateFiring {
-			alerts = append(alerts, AlertWithStatus{
-				Alert:    a,
-				Silenced: e.isSilenced(a),
-			})
-		}
-	}
-	return alerts
-}
-
-// AlertWithStatus wraps an Alert with additional status information.
-type AlertWithStatus struct {
-	Alert
-	Silenced bool `json:"silenced"`
-}
-
 // Rules returns summaries of all registered rules including enabled state.
 func (e *Engine) Rules() []RuleSummary {
 	e.mu.RLock()

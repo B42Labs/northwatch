@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -90,21 +89,6 @@ func (w *WebhookNotifier) post(ctx context.Context, url string, body []byte) {
 	}
 }
 
-// URLs returns the configured webhook URLs.
-func (w *WebhookNotifier) URLs() []string {
-	if w == nil {
-		return nil
-	}
-	result := make([]string, len(w.urls))
-	copy(result, w.urls)
-	return result
-}
-
-// SetClient allows overriding the HTTP client (useful for testing).
-func (w *WebhookNotifier) SetClient(c *http.Client) {
-	w.client = c
-}
-
 // parseWebhookURLs splits a comma-separated list of webhook URLs.
 func ParseWebhookURLs(s string) []string {
 	if s == "" {
@@ -138,9 +122,4 @@ func (w *WebhookNotifier) Notifier() NotifierFunc {
 	return func(ctx context.Context, alerts []Alert) {
 		w.Notify(ctx, alerts)
 	}
-}
-
-// FormatAlertSummary returns a human-readable one-line summary for logging.
-func FormatAlertSummary(a Alert) string {
-	return fmt.Sprintf("[%s] %s: %s (state=%s)", a.Severity, a.Rule, a.Message, a.State)
 }

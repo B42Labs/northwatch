@@ -18,7 +18,6 @@ type Info struct {
 
 // Provider enriches OVN entities with external information.
 type Provider interface {
-	Name() string
 	EnrichPort(ctx context.Context, externalIDs map[string]string) (*Info, error)
 	EnrichNetwork(ctx context.Context, externalIDs map[string]string) (*Info, error)
 	EnrichRouter(ctx context.Context, externalIDs map[string]string) (*Info, error)

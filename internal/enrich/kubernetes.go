@@ -18,17 +18,10 @@ type PodInfo struct {
 	NodeName  string
 }
 
-type ServiceInfo struct {
-	Name      string
-	Namespace string
-	ClusterIP string
-}
-
 // KubernetesProvider enriches OVN entities with Kubernetes metadata.
 // Function fields allow testing without a real Kubernetes API.
 type KubernetesProvider struct {
-	LookupPod     func(ctx context.Context, namespace, name string) (*PodInfo, error)
-	LookupService func(ctx context.Context, namespace, name string) (*ServiceInfo, error)
+	LookupPod func(ctx context.Context, namespace, name string) (*PodInfo, error)
 }
 
 // NewKubernetesProvider creates a KubernetesProvider with a real Kubernetes client.
@@ -70,21 +63,8 @@ func NewKubernetesProvider(_ context.Context, kubeconfig, kubeContext string) (*
 				NodeName:  pod.Spec.NodeName,
 			}, nil
 		},
-		LookupService: func(ctx context.Context, namespace, name string) (*ServiceInfo, error) {
-			svc, err := clientset.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			return &ServiceInfo{
-				Name:      svc.Name,
-				Namespace: svc.Namespace,
-				ClusterIP: svc.Spec.ClusterIP,
-			}, nil
-		},
 	}, nil
 }
-
-func (*KubernetesProvider) Name() string { return "kubernetes" }
 
 func (p *KubernetesProvider) EnrichPort(ctx context.Context, externalIDs map[string]string) (*Info, error) {
 	podRef := externalIDs["k8s.ovn.org/pod"]

@@ -11,6 +11,9 @@ import (
 	"github.com/ovn-kubernetes/libovsdb/client"
 )
 
+// defaultStaleMaxAge is the age past which a MAC binding is considered stale.
+const defaultStaleMaxAge = 24 * time.Hour
+
 // StaleEntry represents a single stale entry finding.
 type StaleEntry struct {
 	Type       string         `json:"type"`
@@ -33,21 +36,15 @@ type StaleEntriesResult struct {
 
 // StaleDetector finds stale entries across NB and SB databases.
 type StaleDetector struct {
-	NB     client.Client
-	SB     client.Client
-	MaxAge time.Duration
+	NB client.Client
+	SB client.Client
 }
 
 // DetectAll runs all stale entry checks.
 func (d *StaleDetector) DetectAll(ctx context.Context) (*StaleEntriesResult, error) {
 	result := &StaleEntriesResult{Entries: []StaleEntry{}}
 
-	maxAge := d.MaxAge
-	if maxAge == 0 {
-		maxAge = 24 * time.Hour
-	}
-
-	staleMacs, err := d.detectStaleMACBindings(ctx, maxAge)
+	staleMacs, err := d.detectStaleMACBindings(ctx, defaultStaleMaxAge)
 	if err != nil {
 		return nil, fmt.Errorf("checking MAC bindings: %w", err)
 	}
