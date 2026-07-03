@@ -19,11 +19,13 @@ func TestGatewayHealth(t *testing.T) {
 	nbc := testutil.SetupNBTestClient(t)
 	sbc := testutil.SetupSBTestClient(t)
 
-	mux := http.NewServeMux()
-	RegisterGatewayHealth(mux, nbc, sbc, 60*time.Second)
-
+	// Each call registers a fresh analyzer so the short-TTL memoization cache
+	// (exercised directly by gateway.TestAnalyze_Memoized) does not serve a
+	// stale snapshot to a later subtest that has changed the DB within the TTL.
 	getReport := func(t *testing.T) gateway.Report {
 		t.Helper()
+		mux := http.NewServeMux()
+		RegisterGatewayHealth(mux, nbc, sbc, 60*time.Second)
 		req := httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
