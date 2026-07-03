@@ -34,7 +34,7 @@ func handleExportTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 			return
 		}
 
-		topo := buildTopology(data.switches, data.routers, data.lsps, data.lrps, data.chassisList, data.portBindings, data.datapaths, false)
+		topo := buildTopology(data, false)
 
 		if format == "json" {
 			w.Header().Set("Content-Disposition", "attachment; filename=topology.json")

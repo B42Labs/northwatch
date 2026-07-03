@@ -131,7 +131,7 @@ func handleTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 
 		// Build topology
 		includeVMs := r.URL.Query().Get("vms") == "true"
-		resp := buildTopology(data.switches, data.routers, data.lsps, data.lrps, data.chassisList, data.portBindings, data.datapaths, includeVMs)
+		resp := buildTopology(data, includeVMs)
 
 		if r.URL.Query().Get("format") == "download" {
 			w.Header().Set("Content-Disposition", "attachment; filename=topology.json")
@@ -141,25 +141,8 @@ func handleTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 	}
 }
 
-func buildTopology(
-	switches []nb.LogicalSwitch,
-	routers []nb.LogicalRouter,
-	lsps []nb.LogicalSwitchPort,
-	lrps []nb.LogicalRouterPort,
-	chassisList []sb.Chassis,
-	portBindings []sb.PortBinding,
-	datapaths []sb.DatapathBinding,
-	includeVMs bool,
-) TopologyResponse {
-	input := topologyData{
-		switches:     switches,
-		routers:      routers,
-		lsps:         lsps,
-		lrps:         lrps,
-		chassisList:  chassisList,
-		portBindings: portBindings,
-		datapaths:    datapaths,
-	}
+func buildTopology(data *topologyData, includeVMs bool) TopologyResponse {
+	input := *data
 	idx := buildTopologyIndex(input)
 	nodes := buildTopologyNodes(input, idx)
 	edges := buildTopologyEdges(input, idx)
