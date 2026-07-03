@@ -40,9 +40,10 @@
     databases.map((db) => ({
       key: db.key,
       label: db.label,
-      links: db.tables.map(
-        (t): NavLink => ({ label: t.label, href: `/${db.key}/${t.slug}` }),
-      ),
+      links: db.tables.map((t): NavLink => ({
+        label: t.label,
+        href: `/${db.key}/${t.slug}`,
+      })),
     })),
   );
 </script>
