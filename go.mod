@@ -13,7 +13,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.22.0
 	k8s.io/apimachinery v0.36.2
 	k8s.io/client-go v0.35.3
 	modernc.org/sqlite v1.53.0
