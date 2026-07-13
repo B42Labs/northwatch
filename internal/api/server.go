@@ -58,9 +58,16 @@ func NewServer(addr string, dbs *ovndb.OVNDatabases, wrappers ...func(http.Handl
 	}
 	s := &Server{
 		httpServer: &http.Server{
-			Addr:              addr,
-			Handler:           handler,
+			Addr:    addr,
+			Handler: handler,
+			// Bound how long a slow client may hold a connection: header read,
+			// full body read, and idle keep-alive. WriteTimeout stays unset —
+			// a blanket write deadline would also kill the long-lived WebSocket
+			// stream; DeadlineMiddleware sets a per-request one instead and
+			// exempts the WebSocket path.
 			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       120 * time.Second,
+			IdleTimeout:       120 * time.Second,
 		},
 		mux: mux,
 		dbs: dbs,
