@@ -63,6 +63,9 @@ func RegisterTelemetry(mux *http.ServeMux, querier *telemetry.Querier, registry 
 	}
 }
 
+// maxTimelineLimit caps how many propagation events one request may fetch.
+const maxTimelineLimit = 10000
+
 func handlePropagationTimeline(querier *telemetry.Querier, store *telemetry.PropagationStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		chassis := r.URL.Query().Get("chassis")
@@ -71,15 +74,16 @@ func handlePropagationTimeline(querier *telemetry.Querier, store *telemetry.Prop
 			api.WriteError(w, http.StatusBadRequest, "invalid since parameter")
 			return
 		}
-		limit, err := parseIntParam(r, "limit", 1000)
-		if err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid limit parameter")
+		// A non-positive limit used to mean "unlimited", so a client could ask the
+		// store for every event it holds in one response.
+		limit, ok := pageParam(w, r, "limit", 1000, 1, maxTimelineLimit)
+		if !ok {
 			return
 		}
 
 		events := store.Query(chassis, since)
-		if limit > 0 && len(events) > int(limit) {
-			events = events[len(events)-int(limit):]
+		if len(events) > limit {
+			events = events[len(events)-limit:]
 		}
 
 		var currentGen int

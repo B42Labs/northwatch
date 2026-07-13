@@ -500,3 +500,39 @@ func TestWriteApply_ActorAnonymousWithoutCredential(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entry))
 	assert.Equal(t, "anonymous", entry.Actor)
 }
+
+// TestWriteAuditLog_LimitClamp bounds the audit limit. An unclamped value went
+// straight to the store as a SQL LIMIT, where a negative number means "no limit"
+// and returns the whole audit table.
+func TestWriteAuditLog_LimitClamp(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	tests := []struct {
+		name  string
+		query string
+		want  int
+	}{
+		{"negative", "?limit=-1", http.StatusBadRequest},
+		{"zero", "?limit=0", http.StatusBadRequest},
+		{"not a number", "?limit=all", http.StatusBadRequest},
+		{"above the cap is clamped", fmt.Sprintf("?limit=%d", maxAuditLimit*100), http.StatusOK},
+		{"within range", "?limit=10", http.StatusOK},
+		{"absent", "", http.StatusOK},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				"/api/v1/write/audit"+tc.query, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			assert.Equal(t, tc.want, w.Code)
+			if tc.want == http.StatusBadRequest {
+				assert.Contains(t, w.Body.String(), "positive integer")
+			}
+		})
+	}
+}
