@@ -73,6 +73,9 @@ export interface SearchResponse {
   query: string;
   query_type: string;
   results: SearchResultGroup[];
+  // Set when the per-table or total match cap dropped further matches — the
+  // result set is a sample, not the whole answer.
+  truncated?: boolean;
 }
 
 export interface SearchResultGroup {

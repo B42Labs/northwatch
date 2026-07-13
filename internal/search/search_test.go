@@ -2,6 +2,8 @@ package search
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,8 +61,9 @@ func TestSearch_MatchByName(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
-	results, err := engine.Search(context.Background(), "my-switch")
+	results, truncated, err := engine.Search(context.Background(), "my-switch")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 1)
 	assert.Equal(t, "nb", results[0].Database)
 	assert.Len(t, results[0].Matches, 1)
@@ -75,8 +78,9 @@ func TestSearch_MatchByExternalID(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
-	results, err := engine.Search(context.Background(), "abc-123")
+	results, truncated, err := engine.Search(context.Background(), "abc-123")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 1)
 	assert.Len(t, results[0].Matches, 1)
 }
@@ -89,8 +93,9 @@ func TestSearch_MatchByAddress(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
-	results, err := engine.Search(context.Background(), "10.0.0.5")
+	results, truncated, err := engine.Search(context.Background(), "10.0.0.5")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 1)
 	assert.Len(t, results[0].Matches, 1)
 	assert.Equal(t, "1", results[0].Matches[0]["_uuid"])
@@ -103,15 +108,16 @@ func TestSearch_CaseInsensitive(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
-	results, err := engine.Search(context.Background(), "my-switch")
+	results, truncated, err := engine.Search(context.Background(), "my-switch")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 1)
 }
 
 func TestSearch_EmptyQuery(t *testing.T) {
 	t.Parallel()
 	engine := NewEngine(nil)
-	_, err := engine.Search(context.Background(), "")
+	_, _, err := engine.Search(context.Background(), "")
 	assert.Error(t, err)
 }
 
@@ -122,8 +128,9 @@ func TestSearch_NoMatches(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
-	results, err := engine.Search(context.Background(), "nonexistent")
+	results, truncated, err := engine.Search(context.Background(), "nonexistent")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	assert.Empty(t, results)
 }
 
@@ -140,8 +147,9 @@ func TestSearch_CrossDB(t *testing.T) {
 		{Name: "nb", Tables: nbTables},
 		{Name: "sb", Tables: sbTables},
 	})
-	results, err := engine.Search(context.Background(), "my-port")
+	results, truncated, err := engine.Search(context.Background(), "my-port")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 2)
 	assert.Equal(t, "nb", results[0].Database)
 	assert.Equal(t, "sb", results[1].Database)
@@ -156,8 +164,9 @@ func TestSearch_ArbitraryDatabaseName(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "ovs", Tables: ovsTables}})
-	results, err := engine.Search(context.Background(), "br-int")
+	results, truncated, err := engine.Search(context.Background(), "br-int")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 1)
 	assert.Equal(t, "ovs", results[0].Database)
 	assert.Equal(t, "Test_Table", results[0].Table)
@@ -170,7 +179,76 @@ func TestSearch_MatchByMapKey(t *testing.T) {
 	})}
 
 	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
-	results, err := engine.Search(context.Background(), "neutron:network_id")
+	results, truncated, err := engine.Search(context.Background(), "neutron:network_id")
 	require.NoError(t, err)
+	assert.False(t, truncated)
 	require.Len(t, results, 1)
+}
+
+// TestSearch_PerTableCap covers the per-table bound: a query matching every row
+// of a table returns at most maxMatchesPerTable of them and says so.
+func TestSearch_PerTableCap(t *testing.T) {
+	t.Parallel()
+	rows := make([]testRow, maxMatchesPerTable+50)
+	for i := range rows {
+		rows[i] = testRow{UUID: fmt.Sprintf("uuid-%d", i), Name: fmt.Sprintf("switch-%d", i)}
+	}
+
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: []TableDef{makeTestTable(rows)}}})
+
+	// "switch-" substring-matches every row, the pathological single-character
+	// case the caps exist for.
+	results, truncated, err := engine.Search(context.Background(), "switch-")
+	require.NoError(t, err)
+	assert.True(t, truncated)
+	require.Len(t, results, 1)
+	assert.Len(t, results[0].Matches, maxMatchesPerTable)
+}
+
+// TestSearch_TotalCap covers the cross-table bound: enough tables each holding
+// matches must not add up past maxTotalMatches, however many tables there are.
+func TestSearch_TotalCap(t *testing.T) {
+	t.Parallel()
+	rows := make([]testRow, maxMatchesPerTable)
+	for i := range rows {
+		rows[i] = testRow{UUID: fmt.Sprintf("uuid-%d", i), Name: fmt.Sprintf("switch-%d", i)}
+	}
+
+	// maxTotalMatches/maxMatchesPerTable tables would exactly reach the total cap;
+	// add three more so the loop must stop early.
+	tableCount := maxTotalMatches/maxMatchesPerTable + 3
+	tables := make([]TableDef, tableCount)
+	for i := range tables {
+		tables[i] = makeTestTable(rows)
+	}
+
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: tables}})
+
+	results, truncated, err := engine.Search(context.Background(), "switch-")
+	require.NoError(t, err)
+	assert.True(t, truncated)
+
+	total := 0
+	for _, r := range results {
+		total += len(r.Matches)
+	}
+	assert.Equal(t, maxTotalMatches, total)
+	assert.Less(t, len(results), tableCount, "the scan must stop once the total cap is reached")
+}
+
+func TestSearch_ListErrorPropagates(t *testing.T) {
+	t.Parallel()
+	failing := TableDef{
+		Name: "Broken_Table",
+		ListFunc: func(context.Context) (any, error) {
+			return nil, errors.New("cache read failed")
+		},
+	}
+
+	engine := NewEngine([]DatabaseTables{{Name: "nb", Tables: []TableDef{failing}}})
+
+	_, truncated, err := engine.Search(context.Background(), "anything")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "searching nb Broken_Table")
+	assert.False(t, truncated)
 }

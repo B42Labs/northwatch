@@ -19,7 +19,7 @@ func handleSearch(engine *search.Engine) http.HandlerFunc {
 			return
 		}
 
-		results, err := engine.Search(r.Context(), q)
+		results, truncated, err := engine.Search(r.Context(), q)
 		if err != nil {
 			api.WriteInternalError(w, r, err)
 			return
@@ -29,6 +29,7 @@ func handleSearch(engine *search.Engine) http.HandlerFunc {
 			"query":      q,
 			"query_type": string(search.ClassifyQuery(q)),
 			"results":    results,
+			"truncated":  truncated,
 		})
 	}
 }
