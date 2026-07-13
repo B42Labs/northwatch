@@ -20,13 +20,38 @@ func NewBuilder() *Builder {
 			Paths: make(map[string]*PathItem),
 			Components: &Components{
 				Schemas: make(map[string]*Schema),
+				SecuritySchemes: map[string]*SecurityScheme{
+					bearerScheme: {
+						Type:        "http",
+						Scheme:      "bearer",
+						Description: "API token configured with --api-tokens. Required on every mutating request; read endpoints are open.",
+					},
+				},
 			},
 		},
 	}
 }
 
+// bearerScheme is the name of the security scheme every mutating operation
+// requires.
+const bearerScheme = "bearerAuth"
+
 // AddOperation registers a single operation on a path.
+//
+// Every non-GET operation is marked as requiring the bearer token and gains a
+// 401 response. That mirrors exactly what api.AuthMiddleware enforces at
+// runtime — deriving it from the method rather than annotating each operation by
+// hand means a new mutating route cannot be added to the spec without its
+// security requirement.
 func (b *Builder) AddOperation(path, method string, op *Operation) {
+	if method != "get" {
+		op.Security = []map[string][]string{{bearerScheme: {}}}
+		if op.Responses == nil {
+			op.Responses = map[string]Response{}
+		}
+		op.Responses["401"] = Response{Description: "Authentication required"}
+	}
+
 	pi, ok := b.doc.Paths[path]
 	if !ok {
 		pi = &PathItem{}

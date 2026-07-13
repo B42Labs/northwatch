@@ -29,6 +29,9 @@ type Operation struct {
 	Parameters  []Parameter         `json:"parameters,omitempty"`
 	RequestBody *RequestBody        `json:"requestBody,omitempty"`
 	Responses   map[string]Response `json:"responses"`
+	// Security lists the schemes that authorize this operation. It is set on the
+	// mutating operations, which require a bearer token.
+	Security []map[string][]string `json:"security,omitempty"`
 }
 
 type Parameter struct {
@@ -67,5 +70,14 @@ type Response struct {
 }
 
 type Components struct {
-	Schemas map[string]*Schema `json:"schemas,omitempty"`
+	Schemas         map[string]*Schema         `json:"schemas,omitempty"`
+	SecuritySchemes map[string]*SecurityScheme `json:"securitySchemes,omitempty"`
+}
+
+// SecurityScheme describes how a client authenticates. Northwatch declares one:
+// an HTTP bearer token, required on every mutating operation.
+type SecurityScheme struct {
+	Type        string `json:"type"`
+	Scheme      string `json:"scheme,omitempty"`
+	Description string `json:"description,omitempty"`
 }
