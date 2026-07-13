@@ -52,7 +52,7 @@ func TestRoundTrip(t *testing.T) {
 	defer servers.Close()
 
 	ctx := context.Background()
-	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{})
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -134,7 +134,7 @@ func TestServePrunesDanglingReferences(t *testing.T) {
 	defer servers.Close()
 
 	ctx := context.Background()
-	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 

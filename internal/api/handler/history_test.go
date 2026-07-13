@@ -386,3 +386,77 @@ func TestHistory_ImportSnapshot_InvalidBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+// TestHistory_CreateSnapshot_ChunkedBody covers a chunked request (ContentLength
+// == -1). The old ContentLength > 0 guard skipped the decode entirely for these,
+// silently dropping the label the client sent.
+func TestHistory_CreateSnapshot_ChunkedBody(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/snapshots",
+		strings.NewReader(`{"label":"pre-upgrade"}`))
+	req.ContentLength = -1
+	req.Header.Set("Transfer-Encoding", "chunked")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var meta history.SnapshotMeta
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&meta))
+	assert.Equal(t, "pre-upgrade", meta.Label)
+}
+
+func TestHistory_CreateSnapshot_EmptyBody(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/snapshots", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var meta history.SnapshotMeta
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&meta))
+	assert.Empty(t, meta.Label)
+}
+
+func TestHistory_CreateSnapshot_OversizedBody(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	body := `{"label":"` + strings.Repeat("x", maxBodySize+1) + `"}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/snapshots",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.Contains(t, w.Body.String(), "request body too large")
+}
+
+// TestHistory_ImportSnapshot_OversizedBody drives the import cap: an import is
+// deliberately allowed far more than an ordinary request, but not unbounded —
+// the body used to be decoded fully into memory with no limit at all.
+func TestHistory_ImportSnapshot_OversizedBody(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	body := `{"meta":{"label":"` + strings.Repeat("x", maxImportBodySize+1) + `"},"rows":[]}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/snapshots/import",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
+// TestHistory_ImportSnapshot_UnderCap proves the higher import cap is real: a
+// body larger than an ordinary request's 1 MiB limit is still accepted.
+func TestHistory_ImportSnapshot_UnderCap(t *testing.T) {
+	_, _, mux := newTestHistorySetup(t)
+
+	body := `{"meta":{"trigger":"manual","label":"` + strings.Repeat("x", maxBodySize+1) + `"},"rows":[]}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/snapshots/import",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+}

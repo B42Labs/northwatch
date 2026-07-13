@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -32,8 +31,7 @@ func handleSetRuleEnabled(engine *alert.Engine) http.HandlerFunc {
 		var body struct {
 			Enabled bool `json:"enabled"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 
@@ -63,8 +61,7 @@ func handleCreateSilence(engine *alert.Engine) http.HandlerFunc {
 			Duration string            `json:"duration"`
 			Comment  string            `json:"comment"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 

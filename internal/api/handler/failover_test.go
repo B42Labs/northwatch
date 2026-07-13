@@ -170,3 +170,17 @@ func TestFailoverHandler_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+func TestFailover_OversizedBody(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterFailover(mux, engine)
+
+	body := `{"chassis_name":"` + strings.Repeat("x", maxBodySize+1) + `"}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/evacuate",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}

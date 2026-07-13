@@ -69,7 +69,7 @@ func TestBuildFromRows(t *testing.T) {
 	defer servers.Close()
 
 	ctx := context.Background()
-	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -118,7 +118,7 @@ func TestBuildFromRows_PrunesDanglingRefs(t *testing.T) {
 	defer servers.Close()
 
 	ctx := context.Background()
-	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -158,7 +158,7 @@ func TestSuspendResumeMonitors(t *testing.T) {
 	defer servers.Close()
 
 	ctx := context.Background()
-	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 

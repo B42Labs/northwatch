@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -53,9 +52,6 @@ func applyEngineError(w http.ResponseWriter, entry *write.AuditEntry, err error)
 	}
 }
 
-// maxWriteBodySize limits the size of write request bodies to 1 MB.
-const maxWriteBodySize = 1 << 20
-
 // auditActor derives the write-audit actor from the credential that authorized
 // the request, so an audit entry names whoever presented the token rather than
 // whatever string the client typed into the request body. It falls back to
@@ -90,10 +86,8 @@ type writeRequest struct {
 // decodeWriteRequest parses and validates a write request body.
 // Returns nil and writes an error response if the request is invalid.
 func decodeWriteRequest(w http.ResponseWriter, r *http.Request) *writeRequest {
-	r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 	var body writeRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+	if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 		return nil
 	}
 
@@ -190,12 +184,10 @@ func handleApply(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
-		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			ApplyToken string `json:"apply_token"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 
@@ -228,13 +220,11 @@ func handleCancelPlan(engine *write.Engine) http.HandlerFunc {
 
 func handleRollback(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			SnapshotID int64  `json:"snapshot_id"`
 			Reason     string `json:"reason"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 		if body.SnapshotID == 0 {
