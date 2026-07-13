@@ -33,6 +33,8 @@ one specific problem.
 - [Configure alerts](/how-to/configure-alerts)
 - [Scrape Prometheus metrics](/how-to/scrape-prometheus-metrics)
 - [Explore the API](/how-to/explore-the-api)
+- [Deploy to production](/how-to/deploy-production)
+- [Cut a release](/how-to/cut-a-release)
 
 For the full surface of every flag and route, see the
 [Reference](/reference/).
