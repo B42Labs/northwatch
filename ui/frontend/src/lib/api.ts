@@ -1,4 +1,5 @@
 import { clusterPath } from './clusterStore';
+import { getApiToken } from './authStore';
 
 export class ApiError extends Error {
   constructor(
@@ -9,12 +10,35 @@ export class ApiError extends Error {
   }
 }
 
-export async function get<T>(path: string): Promise<T> {
-  const res = await fetch(clusterPath(path));
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error || res.statusText);
+/**
+ * apiFetch is the single exit point to the API. It attaches the configured
+ * bearer token, which mutating endpoints require, and turns a 401 into a
+ * message that says what to do about it rather than a bare "Unauthorized".
+ */
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const token = getApiToken();
+  if (!token) {
+    return init ? fetch(path, init) : fetch(path);
   }
+  return fetch(path, {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+  });
+}
+
+/** failed builds the ApiError for a non-2xx response. */
+async function failed(res: Response): Promise<ApiError> {
+  const body = await res.json().catch(() => ({}));
+  const message =
+    res.status === 401
+      ? 'authentication required — set an API token'
+      : body.error || res.statusText;
+  return new ApiError(res.status, message);
+}
+
+export async function get<T>(path: string): Promise<T> {
+  const res = await apiFetch(clusterPath(path));
+  if (!res.ok) throw await failed(res);
   return res.json();
 }
 
@@ -23,33 +47,24 @@ export async function get<T>(path: string): Promise<T> {
 // events, capabilities, the cluster list — which a snapshot cluster's sub-mux
 // does not serve (it would return 404 when such a cluster is active).
 async function getGlobal<T>(path: string): Promise<T> {
-  const res = await fetch(path);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error || res.statusText);
-  }
+  const res = await apiFetch(path);
+  if (!res.ok) throw await failed(res);
   return res.json();
 }
 
 async function postGlobal<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, b.error || res.statusText);
-  }
+  if (!res.ok) throw await failed(res);
   return res.json();
 }
 
 async function delGlobal(path: string): Promise<void> {
-  const res = await fetch(path, { method: 'DELETE' });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, b.error || res.statusText);
-  }
+  const res = await apiFetch(path, { method: 'DELETE' });
+  if (!res.ok) throw await failed(res);
 }
 
 // Raw table endpoints
@@ -599,24 +614,18 @@ export function listLogicalSwitchPorts(): Promise<Record<string, unknown>[]> {
 // --- History & Snapshots ---
 
 export async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(clusterPath(path), {
+  const res = await apiFetch(clusterPath(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, b.error || res.statusText);
-  }
+  if (!res.ok) throw await failed(res);
   return res.json();
 }
 
 export async function del(path: string): Promise<void> {
-  const res = await fetch(clusterPath(path), { method: 'DELETE' });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, b.error || res.statusText);
-  }
+  const res = await apiFetch(clusterPath(path), { method: 'DELETE' });
+  if (!res.ok) throw await failed(res);
 }
 
 export interface SnapshotMeta {
@@ -714,20 +723,18 @@ export interface LoadedSnapshot {
 // always targets the main mux. They deliberately bypass clusterPath() so they
 // are not rewritten onto whichever cluster happens to be active.
 export async function loadSnapshot(id: number): Promise<LoadedSnapshot> {
-  const res = await fetch(`/api/v1/snapshots/${id}/load`, { method: 'POST' });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, b.error || res.statusText);
-  }
+  const res = await apiFetch(`/api/v1/snapshots/${id}/load`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw await failed(res);
   return res.json();
 }
 
 export async function unloadSnapshot(id: number): Promise<void> {
-  const res = await fetch(`/api/v1/snapshots/${id}/unload`, { method: 'POST' });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, b.error || res.statusText);
-  }
+  const res = await apiFetch(`/api/v1/snapshots/${id}/unload`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw await failed(res);
 }
 
 export function diffSnapshots(
