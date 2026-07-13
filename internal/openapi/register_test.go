@@ -126,3 +126,38 @@ func TestBuildSpec_UniqueOperationIDs(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildSpec_MutatingOperationsRequireBearer pins the spec to the runtime
+// rule enforced by api.AuthMiddleware: every non-GET operation needs a token.
+// A new mutating route cannot reach the spec without its security requirement.
+func TestBuildSpec_MutatingOperationsRequireBearer(t *testing.T) {
+	spec := BuildSpec()
+
+	require.NotNil(t, spec.Components)
+	scheme := spec.Components.SecuritySchemes["bearerAuth"]
+	require.NotNil(t, scheme, "the spec must declare the bearer scheme clients need")
+	assert.Equal(t, "http", scheme.Type)
+	assert.Equal(t, "bearer", scheme.Scheme)
+
+	mutating := 0
+	for path, item := range spec.Paths {
+		for method, op := range map[string]*Operation{
+			"post": item.Post, "put": item.Put, "delete": item.Delete,
+		} {
+			if op == nil {
+				continue
+			}
+			mutating++
+			assert.Equal(t, []map[string][]string{{"bearerAuth": {}}}, op.Security,
+				"%s %s must require the bearer token", method, path)
+			assert.Contains(t, op.Responses, "401", "%s %s must document its 401", method, path)
+		}
+
+		// Read endpoints stay open, so they must not claim to need a token.
+		if item.Get != nil {
+			assert.Nil(t, item.Get.Security, "GET %s must not require a token", path)
+			assert.NotContains(t, item.Get.Responses, "401", "GET %s must not document a 401", path)
+		}
+	}
+	assert.Positive(t, mutating, "the spec must contain mutating operations")
+}
