@@ -9,64 +9,16 @@ import (
 
 	"github.com/b42labs/northwatch/internal/history"
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
-	"github.com/go-logr/stdr"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/ovn-kubernetes/libovsdb/client"
-	"github.com/ovn-kubernetes/libovsdb/database/inmemory"
-	"github.com/ovn-kubernetes/libovsdb/model"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
-	"github.com/ovn-kubernetes/libovsdb/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func setupTestNBClient(t *testing.T) client.Client {
 	t.Helper()
-
-	clientModel, err := nb.FullDatabaseModel()
-	require.NoError(t, err)
-	schema := nb.Schema()
-
-	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
-	require.Empty(t, errs)
-
-	logger := stdr.New(nil)
-	db := inmemory.NewDatabase(map[string]model.ClientDBModel{
-		schema.Name: clientModel,
-	}, &logger)
-
-	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
-	require.NoError(t, err)
-
-	sockPath := filepath.Join(t.TempDir(), "nb.sock")
-	go func() {
-		_ = ovsdbServer.Serve("unix", sockPath)
-	}()
-
-	require.Eventually(t, func() bool {
-		return ovsdbServer.Ready()
-	}, 5*time.Second, 10*time.Millisecond)
-
-	t.Cleanup(func() {
-		ovsdbServer.Close()
-	})
-
-	c, err := client.NewOVSDBClient(
-		clientModel,
-		client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)),
-	)
-	require.NoError(t, err)
-
-	err = c.Connect(context.Background())
-	require.NoError(t, err)
-
-	_, err = c.MonitorAll(context.Background())
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		c.Close()
-	})
-
-	return c
+	return testutil.SetupNBTestClient(t)
 }
 
 func setupTestEngine(t *testing.T, nbClient client.Client) *Engine {
