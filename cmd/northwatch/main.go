@@ -52,6 +52,11 @@ import (
 // non-release binaries report "dev".
 var version = "dev"
 
+// httpWriteTimeout bounds how long a single non-WebSocket response may take to
+// write, so a slow-reading client cannot pin a connection indefinitely. It is
+// generous enough for the largest capped list response.
+const httpWriteTimeout = 60 * time.Second
+
 func main() {
 	// "northwatch --version" (also -version / version) prints the build version
 	// and exits. This is intercepted before run(), because config.Parse rejects
@@ -330,10 +335,15 @@ func run() error {
 	promRegistry.MustRegister(metricsCollector)
 	httpMetrics := telemetry.NewMiddleware(promRegistry)
 
-	// Wrappers apply in slice order, so the last one is outermost: metrics label
-	// requests with the pattern the mux matched, and authentication rejects a
-	// mutating request before any of it runs.
-	wrappers := []func(http.Handler) http.Handler{httpMetrics.Wrap}
+	// Wrappers apply in slice order, so the last one is outermost. The resulting
+	// chain is auth → deadline → metrics → recovery → stale-marker → mux:
+	// authentication rejects a mutating request before any work happens, and
+	// recovery sits inside the metrics wrapper so a panic-500 is still counted.
+	wrappers := []func(http.Handler) http.Handler{
+		api.RecoverMiddleware,
+		httpMetrics.Wrap,
+		api.DeadlineMiddleware(httpWriteTimeout),
+	}
 	if !cfg.InsecureNoAuth {
 		wrappers = append(wrappers, api.AuthMiddleware(cfg.APITokens))
 	}
