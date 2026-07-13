@@ -16,6 +16,9 @@ type TraceStore struct {
 	traces      map[string]StoredTrace
 	maxAge      time.Duration
 	storesSince int
+	// now returns the current time; a field so tests can drive expiry
+	// deterministically. It defaults to time.Now and is read under mu.
+	now func() time.Time
 }
 
 // StoredTrace wraps a TraceResponse with metadata.
@@ -30,6 +33,7 @@ func NewTraceStore(maxAge time.Duration) *TraceStore {
 	return &TraceStore{
 		traces: make(map[string]StoredTrace),
 		maxAge: maxAge,
+		now:    time.Now,
 	}
 }
 
@@ -38,7 +42,7 @@ func (s *TraceStore) Store(id string, trace TraceResponse) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	now := time.Now()
+	now := s.now()
 	s.storesSince++
 	if s.storesSince >= cleanupEvery {
 		s.storesSince = 0
@@ -61,7 +65,7 @@ func (s *TraceStore) Get(id string) (StoredTrace, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	t, ok := s.traces[id]
-	if ok && time.Since(t.CreatedAt) > s.maxAge {
+	if ok && s.now().Sub(t.CreatedAt) > s.maxAge {
 		return StoredTrace{}, false
 	}
 	return t, ok
@@ -71,7 +75,7 @@ func (s *TraceStore) Get(id string) (StoredTrace, bool) {
 func (s *TraceStore) List() []StoredTrace {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	now := time.Now()
+	now := s.now()
 	var result []StoredTrace
 	for _, t := range s.traces {
 		if now.Sub(t.CreatedAt) <= s.maxAge {

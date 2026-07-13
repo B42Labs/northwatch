@@ -14,6 +14,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// pingBarrier sends a ping and reads the pong. Control messages are processed
+// in order per connection, so a returned pong proves every message written
+// before the ping — subscribe/unsubscribe — has already been applied. It
+// replaces sleeping to "give the server a moment", making the tests
+// deterministic, and doubles as a check that no unexpected event was queued
+// ahead of the pong.
+func pingBarrier(ctx context.Context, t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+	require.NoError(t, wsjson.Write(ctx, conn, events.SubscribeMessage{Action: "ping"}))
+	var pong map[string]string
+	require.NoError(t, wsjson.Read(ctx, conn, &pong))
+	require.Equal(t, "pong", pong["action"])
+}
+
 func TestWebSocket_FullLifecycle(t *testing.T) {
 	hub := events.NewHub()
 	mux := http.NewServeMux()
@@ -42,8 +56,8 @@ func TestWebSocket_FullLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Give the server a moment to process the subscribe message
-	time.Sleep(50 * time.Millisecond)
+	// Barrier: the subscribe is applied by the time the pong returns.
+	pingBarrier(ctx, t, conn)
 
 	// Publish an event
 	hub.Publish(events.NewEvent(events.EventInsert, "nb", "Logical_Switch", "test-uuid",
@@ -59,18 +73,9 @@ func TestWebSocket_FullLifecycle(t *testing.T) {
 	assert.Equal(t, "Logical_Switch", received.Table)
 	assert.Equal(t, "test-uuid", received.UUID)
 
-	// SB events should not arrive
+	// SB events should not arrive; the next pong (not an event) proves it.
 	hub.Publish(events.NewEvent(events.EventInsert, "sb", "Chassis", "sb-uuid", nil, nil))
-
-	// Send a ping
-	err = wsjson.Write(ctx, conn, events.SubscribeMessage{Action: "ping"})
-	require.NoError(t, err)
-
-	// Read the pong
-	var pong map[string]string
-	err = wsjson.Read(ctx, conn, &pong)
-	require.NoError(t, err)
-	assert.Equal(t, "pong", pong["action"])
+	pingBarrier(ctx, t, conn)
 
 	// Unsubscribe
 	err = wsjson.Write(ctx, conn, events.SubscribeMessage{
@@ -80,19 +85,13 @@ func TestWebSocket_FullLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	time.Sleep(50 * time.Millisecond)
+	// Barrier: the unsubscribe is applied by the time the pong returns, so the
+	// next publish cannot be routed to this subscriber.
+	pingBarrier(ctx, t, conn)
 
-	// After unsubscribe, events should not arrive
+	// After unsubscribe, events should not arrive; the next pong proves it.
 	hub.Publish(events.NewEvent(events.EventInsert, "nb", "Logical_Switch", "uuid-2", nil, nil))
-
-	// Send another ping to verify connection is still alive
-	err = wsjson.Write(ctx, conn, events.SubscribeMessage{Action: "ping"})
-	require.NoError(t, err)
-
-	var pong2 map[string]string
-	err = wsjson.Read(ctx, conn, &pong2)
-	require.NoError(t, err)
-	assert.Equal(t, "pong", pong2["action"])
+	pingBarrier(ctx, t, conn)
 }
 
 func TestWebSocket_UpdateEvent(t *testing.T) {
@@ -119,7 +118,7 @@ func TestWebSocket_UpdateEvent(t *testing.T) {
 		Tables:   []string{"*"},
 	})
 	require.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
+	pingBarrier(ctx, t, conn)
 
 	hub.Publish(events.NewEvent(events.EventUpdate, "nb", "Logical_Switch", "uuid-1",
 		map[string]any{"name": "new"}, map[string]any{"name": "old"}))

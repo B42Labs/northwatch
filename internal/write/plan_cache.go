@@ -11,6 +11,9 @@ type PlanCache struct {
 	mu    sync.Mutex
 	plans map[string]*Plan
 	ttl   time.Duration
+	// now returns the current time; a field so tests can drive expiry
+	// deterministically. It defaults to time.Now and is read under mu.
+	now func() time.Time
 }
 
 // NewPlanCache creates a new PlanCache with the given TTL for plans.
@@ -18,6 +21,7 @@ func NewPlanCache(ttl time.Duration) *PlanCache {
 	return &PlanCache{
 		plans: make(map[string]*Plan),
 		ttl:   ttl,
+		now:   time.Now,
 	}
 }
 
@@ -25,7 +29,7 @@ func NewPlanCache(ttl time.Duration) *PlanCache {
 func (c *PlanCache) Store(plan *Plan) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	plan.ExpiresAt = time.Now().Add(c.ttl)
+	plan.ExpiresAt = c.now().Add(c.ttl)
 	c.plans[plan.ID] = plan
 }
 
@@ -42,7 +46,7 @@ func (c *PlanCache) Get(id string) (*Plan, bool) {
 	if !ok {
 		return nil, false
 	}
-	if time.Now().After(plan.ExpiresAt) {
+	if c.now().After(plan.ExpiresAt) {
 		delete(c.plans, id)
 		return nil, false
 	}
@@ -61,7 +65,7 @@ func (c *PlanCache) Delete(id string) {
 func (c *PlanCache) Cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	now := time.Now()
+	now := c.now()
 	for id, plan := range c.plans {
 		if now.After(plan.ExpiresAt) {
 			delete(c.plans, id)

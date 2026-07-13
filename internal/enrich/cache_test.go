@@ -29,14 +29,18 @@ func TestCache_Miss(t *testing.T) {
 }
 
 func TestCache_Expiration(t *testing.T) {
-	c := NewCache(10 * time.Millisecond)
+	c := NewCache(1 * time.Minute)
+	base := time.Now()
+	current := base
+	c.now = func() time.Time { return current }
 
 	c.Set("key", &Info{DisplayName: "expiring"})
 
 	_, ok := c.Get("key")
 	require.True(t, ok)
 
-	time.Sleep(20 * time.Millisecond)
+	// Advance past the TTL instead of sleeping.
+	current = base.Add(2 * time.Minute)
 	_, ok = c.Get("key")
 	assert.False(t, ok)
 }
