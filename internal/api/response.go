@@ -26,6 +26,10 @@ func WriteError(w http.ResponseWriter, status int, msg string) {
 // "internal error" and dropping err made production 500s undebuggable. Every 5xx
 // goes through here so neither happens again.
 func WriteInternalError(w http.ResponseWriter, r *http.Request, err error) {
+	// The request fields are attacker-controlled, so they are passed as slog
+	// attributes (which quote them) rather than interpolated into the message —
+	// and without them the log entry cannot be tied back to a request.
+	// #nosec G706 -- structured slog attributes, not an interpolated message
 	slog.Error("internal server error", "method", r.Method, "path", r.URL.Path, "err", err)
 	WriteError(w, http.StatusInternalServerError, "internal server error")
 }

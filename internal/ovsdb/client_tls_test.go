@@ -79,6 +79,8 @@ func serveTLSFront(t *testing.T, unixAddr, certPath, keyPath string) string {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	sockPath := strings.TrimPrefix(unixAddr, "unix:")
+	dialer := &net.Dialer{}
+	ctx := t.Context()
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -87,7 +89,7 @@ func serveTLSFront(t *testing.T, unixAddr, certPath, keyPath string) string {
 			}
 			go func() {
 				defer func() { _ = conn.Close() }()
-				backend, err := net.Dial("unix", sockPath)
+				backend, err := dialer.DialContext(ctx, "unix", sockPath)
 				if err != nil {
 					return
 				}

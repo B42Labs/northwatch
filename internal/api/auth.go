@@ -72,6 +72,11 @@ func AuthMiddleware(tokens map[string]string) func(http.Handler) http.Handler {
 			name, ok := lookupActor(digests, bearerToken(r.Header.Get("Authorization")))
 			if !ok {
 				throttle.fail(ip)
+				// Rejections are logged with the request that caused them, which is
+				// what makes credential-stuffing visible. The values are
+				// attacker-controlled, so they are passed as slog attributes (which
+				// quote them) rather than interpolated into the message.
+				// #nosec G706 -- structured slog attributes, not an interpolated message
 				slog.Warn("rejected unauthenticated mutating request",
 					"method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
 				w.Header().Set("WWW-Authenticate", `Bearer realm="northwatch"`)

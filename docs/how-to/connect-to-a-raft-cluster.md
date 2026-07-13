@@ -26,6 +26,27 @@ export NORTHWATCH_OVN_SB_ADDR=tcp:10.0.0.1:6642,tcp:10.0.0.2:6642,tcp:10.0.0.3:6
 ./bin/northwatch
 ```
 
+## Use TLS-protected endpoints
+
+`ssl:` endpoints need client TLS material — an `ssl:` address without it is a
+startup error rather than a connection that can never complete a handshake:
+
+```bash
+./bin/northwatch \
+  --ovn-nb-addr ssl:10.0.0.1:6641,ssl:10.0.0.2:6641,ssl:10.0.0.3:6641 \
+  --ovn-sb-addr ssl:10.0.0.1:6642,ssl:10.0.0.2:6642,ssl:10.0.0.3:6642 \
+  --ovn-nb-tls-cert /etc/northwatch/nb.pem \
+  --ovn-nb-tls-key  /etc/northwatch/nb-key.pem \
+  --ovn-nb-tls-ca   /etc/northwatch/nb-ca.pem \
+  --ovn-sb-tls-cert /etc/northwatch/sb.pem \
+  --ovn-sb-tls-key  /etc/northwatch/sb-key.pem \
+  --ovn-sb-tls-ca   /etc/northwatch/sb-ca.pem
+```
+
+Each trio is all-or-none, and the material is also used for the per-member
+`_Server` monitors that back the Raft health view below. It applies to every
+cluster in a `--config-file`.
+
 ## Watch cluster health
 
 Northwatch tracks per-member Raft state through the `_Server` database and

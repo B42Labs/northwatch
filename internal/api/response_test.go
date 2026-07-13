@@ -43,7 +43,7 @@ func TestWriteInternalError(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/snapshots", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/snapshots", nil)
 	WriteInternalError(w, r, errors.New(`opening /var/lib/northwatch/history.db: permission denied`))
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)

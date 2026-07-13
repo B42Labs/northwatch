@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+Phase 1 of the production-readiness work. Until this release, Northwatch was
+unsafe to expose on a network: there was no authentication on any endpoint, no
+TLS for the NB/SB connections, and several unauthenticated paths through which a
+client could exhaust memory or fill the disk.
+
+- **Authentication on every mutating endpoint.** `POST`/`PUT`/`DELETE` under
+  `/api/` now require a bearer token configured with `--api-tokens` /
+  `--api-tokens-file`. Tokens are matched as SHA-256 digests in constant time and
+  accepted from the `Authorization` header only. With no tokens configured the
+  gate fails closed: every mutating endpoint answers `401`. Read endpoints stay
+  open — a reverse proxy remains the way to protect them.
+- **The write-audit `actor` is derived from the token**, not from the request
+  body, so a caller can no longer forge who made a change.
+- **The docs page no longer trusts a public CDN.** `/api/v1/docs` pins the Scalar
+  bundle to an exact version with an SRI hash and serves it under a
+  Content-Security-Policy.
+- Panics in a handler are recovered, logged and answered with a clean `500`
+  instead of dropping the connection silently.
+
+### Added
+
+- `--api-tokens` / `NORTHWATCH_API_TOKENS` and `--api-tokens-file` /
+  `NORTHWATCH_API_TOKENS_FILE` — bearer tokens authorizing mutating requests. The
+  token name becomes the write-audit actor. `--insecure-no-auth` disables the
+  gate for deployments where a proxy authenticates every mutating request.
+- `--tls-cert` / `--tls-key` — serve the API over HTTPS (TLS 1.2 minimum).
+- `--ovn-nb-tls-cert` / `--ovn-nb-tls-key` / `--ovn-nb-tls-ca` and the `--ovn-sb-*`
+  equivalents — connect to `ssl:` Northbound/Southbound endpoints. Previously only
+  `tcp:` was wired, so a TLS-only OVN deployment could not be monitored at all.
+  The same flags work for the `northwatch snapshot` subcommand. An `ssl:` address
+  without TLS material is now a startup error.
+- `--snapshot-max-count` / `NORTHWATCH_SNAPSHOT_MAX_COUNT` (default `500`) — cap
+  on retained automatic snapshots.
+- `limit` and `offset` query parameters on every table-list endpoint, with
+  `X-Total-Count` and `X-Truncated` response headers.
+- A `truncated` field on `GET /api/v1/search` reporting whether the match caps
+  dropped results.
+- An API-token control in the web UI, so the write, HA, snapshot and silence
+  flows keep working once mutations are gated.
+
+### Changed
+
+- **`--listen` now defaults to `127.0.0.1:8080`** instead of `:8080` (all
+  interfaces). Binding a non-loopback address requires `--api-tokens` or
+  `--insecure-no-auth`; Northwatch refuses to start otherwise. Container
+  deployments that set `NORTHWATCH_LISTEN=0.0.0.0:8080` must now also configure
+  tokens.
+- **`5xx` responses no longer include the error text.** They return a generic
+  `{"error": "internal server error"}` and the cause is logged server-side with
+  the request that triggered it. Previously 25 endpoints leaked filesystem paths
+  and SQL text to unauthenticated clients, while 17 others discarded the error
+  entirely and were undebuggable.
+- Table lists are capped at 5000 rows per response (`GET /api/v1/sb/logical-flows`
+  previously serialized the entire cache — potentially millions of rows).
+- Search is capped at 100 matches per table and 500 in total.
+- Traces are retained for later export only when requested with `?store=true`,
+  and the store holds at most 200 of them.
+- HTTP metrics label requests with the matched route pattern rather than the raw
+  path; unmatched requests collapse onto a single `unmatched` label. A 404 scan
+  could previously mint unbounded time series.
+- Request bodies are capped at 1 MiB (100 MiB for snapshot import) and answer
+  `413` when exceeded.
+- `ReadTimeout` and `IdleTimeout` are set on the HTTP server; non-WebSocket
+  requests get a write deadline.
+- Automatic snapshots are pruned to `--snapshot-max-count`. Manual, labeled and
+  imported snapshots are never pruned.
+- The `actor` field in the write apply/rollback request body is ignored, and the
+  UI no longer sends one.
+
+### Fixed
+
+- **SQLite pragmas were applied to only one pooled connection.** `foreign_keys`
+  and `busy_timeout` were executed once against an unbounded pool, so every other
+  connection ran with foreign keys off — which made `DeleteSnapshot`'s
+  `ON DELETE CASCADE` a no-op whenever it landed on one of them, silently
+  orphaning `snapshot_rows` forever. The pragmas now travel in the DSN.
+- `POST /api/v1/snapshots` dropped the `label` of a chunked request
+  (`Content-Length: -1`), because the decode was gated on `ContentLength > 0`.
+- `GET /api/v1/debug/trace` reported a cache failure as `404` ("port binding not
+  found"), which told callers a port did not exist when the cache was broken.
+- `GET /api/v1/topology/load-balancers` discarded three `List` errors and served
+  degraded data as complete: a failed read produced a load balancer with no
+  backend health, no routers and no switches — indistinguishable from one that
+  genuinely has none.
+- The audit-log `limit` reached SQLite as a raw `LIMIT`, where a negative value
+  means "no limit" and returned the whole table. It and the propagation-timeline
+  limit are now clamped.
+- Snapshot-row decompression is bounded at 10 MiB, so an imported snapshot cannot
+  expand into an unbounded allocation.
+
 ## [0.6.0] - 2026-07-13
 
 ### Added

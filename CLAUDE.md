@@ -73,11 +73,16 @@ make schema-download # Download pinned OVN schemas
 ## API Routes
 
 Read routes follow `GET /api/v1/{db}/{table}` for list and
-`GET /api/v1/{db}/{table}/{uuid}` for detail. Mutating routes also exist: the
-write API under `/api/v1/write/*` (including failover/evacuate/restore),
-registered only with `--write-enabled`; and alert rule/silence mutations,
-history operations, and snapshot create/delete/import/load/unload, registered
-unconditionally.
+`GET /api/v1/{db}/{table}/{uuid}` for detail; lists are paginated (`limit` /
+`offset`, hard cap 5000). Mutating routes also exist: the write API under
+`/api/v1/write/*` (including failover/evacuate/restore), registered only with
+`--write-enabled`; and alert rule/silence mutations, history operations, and
+snapshot create/delete/import/load/unload, registered unconditionally.
+
+Every mutating route (any non-GET under `/api/`) requires a bearer token from
+`--api-tokens`; `api.AuthMiddleware` fails closed when none is configured. Read
+routes are open. All 5xx responses go through `api.WriteInternalError`, which
+logs the cause and returns a generic body.
 
 ## Testing
 

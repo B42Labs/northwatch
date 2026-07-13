@@ -156,7 +156,8 @@ func TestServer_ServeTLS(t *testing.T) {
 
 	// Bind a listener first so the test knows the port, then hand its address to
 	// the server (ListenAndServe binds Addr itself).
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	addr := ln.Addr().String()
 	require.NoError(t, ln.Close())
@@ -175,20 +176,27 @@ func TestServer_ServeTLS(t *testing.T) {
 		TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
 	}}
 
-	var resp *http.Response
+	// Poll until the serve goroutine has the listener up, closing every response
+	// (including the ones from failed attempts) as we go.
+	var (
+		status  int
+		tlsInfo *tls.ConnectionState
+	)
 	require.Eventually(t, func() bool {
-		r, err := client.Get("https://" + addr + "/ping")
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+addr+"/ping", nil)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
 		if err != nil {
 			return false
 		}
-		resp = r
+		defer func() { _ = resp.Body.Close() }()
+		status, tlsInfo = resp.StatusCode, resp.TLS
 		return true
 	}, 5*time.Second, 20*time.Millisecond)
-	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	require.NotNil(t, resp.TLS)
-	assert.GreaterOrEqual(t, resp.TLS.Version, uint16(tls.VersionTLS12))
+	assert.Equal(t, http.StatusOK, status)
+	require.NotNil(t, tlsInfo, "the connection must be TLS")
+	assert.GreaterOrEqual(t, tlsInfo.Version, uint16(tls.VersionTLS12))
 }
 
 func TestServer_ServeTLS_MissingCertFile(t *testing.T) {

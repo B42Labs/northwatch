@@ -8,31 +8,62 @@ OVN databases, bounding disk growth, and wiring up health checks and metrics.
 Northwatch is read-only by default and stays that way unless you opt in, so most
 of this guide is about exposure and resource limits rather than the API itself.
 
+## Authenticate every mutating request
+
+Mutating endpoints require a bearer token. Configure one or more with
+`--api-tokens` (env `NORTHWATCH_API_TOKENS`), as comma-separated `name=token`
+pairs:
+
+```bash
+./bin/northwatch \
+  --api-tokens "ops=$(openssl rand -hex 32),ci=$(openssl rand -hex 32)" \
+  --ovn-nb-addr tcp:10.0.0.1:6641 \
+  --ovn-sb-addr tcp:10.0.0.1:6642
+```
+
+Keep the tokens out of the process table with `--api-tokens-file` (env
+`NORTHWATCH_API_TOKENS_FILE`), a JSON object mapping name to token:
+
+```json
+{ "ops": "…", "ci": "…" }
+```
+
+Clients present the token in the `Authorization` header:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/snapshots \
+  -H 'Authorization: Bearer <token>' \
+  -d '{"label": "pre-upgrade"}'
+```
+
+The name is not a secret — it is the identity recorded as the `actor` on every
+write-audit entry, so give each caller its own token. Tokens must be at least 16
+characters; the server refuses to start otherwise.
+
+Without tokens, **every mutating endpoint answers 401** — including on loopback.
+Read endpoints stay open either way (see the next section).
+
 ## Front it with an authenticating, TLS-terminating proxy
 
-Northwatch has **no built-in authentication or authorization and terminates no
-TLS of its own**. The API and UI it serves are plain HTTP, and anyone who can
-reach the listen socket can read your entire OVN deployment. A
-TLS-terminating, authenticating reverse proxy (nginx, Caddy, an ingress
-controller, an identity-aware proxy, …) in front of Northwatch is **mandatory**
-for any exposure beyond the loopback interface.
+The built-in tokens gate mutations. They do **not** protect the read surface:
+anyone who can reach the listen socket can still read your entire OVN
+deployment, the UI, the WebSocket stream and `/metrics`. A reverse proxy (nginx,
+Caddy, an ingress controller, an identity-aware proxy, …) that authenticates
+users remains **mandatory** for any exposure beyond loopback.
 
-The proxy is responsible for:
-
-- **TLS termination** — Northwatch speaks plain HTTP; the proxy presents the
-  certificate and encrypts the client connection.
-- **Authentication and authorization** — Northwatch trusts every request it
-  receives, so the proxy must decide who may reach it (and, if you enable
-  writes, who may mutate OVN).
-
-Built-in authentication and API TLS are tracked work, not a shipped feature —
-see [issue #41](https://github.com/B42Labs/northwatch/issues/41). Until it
-lands, the proxy is the security boundary.
+If the proxy already authenticates every request — including mutating ones —
+you can disable the token gate with `--insecure-no-auth`. That is the only way
+to run mutating endpoints unauthenticated, it is logged loudly at startup, and
+audit entries are then recorded as `anonymous` because there is no credential to
+attribute them to.
 
 ## Bind the listen socket to loopback
 
-`--listen` (env `NORTHWATCH_LISTEN`) defaults to `:8080`, which binds **every**
-interface. In production, bind loopback so the proxy is the only reachable path:
+`--listen` (env `NORTHWATCH_LISTEN`) defaults to `127.0.0.1:8080`, so an
+unconfigured binary is not reachable from the network. Binding any other address
+requires a deliberate decision about authentication: Northwatch **refuses to
+start** on a non-loopback address unless you configure `--api-tokens` or pass
+`--insecure-no-auth`.
 
 ```bash
 ./bin/northwatch \
@@ -41,31 +72,57 @@ interface. In production, bind loopback so the proxy is the only reachable path:
   --ovn-sb-addr tcp:10.0.0.1:6642,tcp:10.0.0.2:6642,tcp:10.0.0.3:6642
 ```
 
+Container images typically need `NORTHWATCH_LISTEN=0.0.0.0:8080` to be reachable
+at all; set tokens (or `--insecure-no-auth`) alongside it, or the container will
+exit at startup.
+
 With the `.deb` package, set `NORTHWATCH_LISTEN=127.0.0.1:8080` in
 `/etc/default/northwatch` instead — see [Install on
 Debian/Ubuntu](/how-to/install-debian).
 
+## Serve HTTPS directly (optional)
+
+Northwatch can terminate TLS itself with `--tls-cert` and `--tls-key` (env
+`NORTHWATCH_TLS_CERT` / `NORTHWATCH_TLS_KEY`), which is useful when there is no
+proxy to do it — for instance when only the token-gated API is exposed. Both must
+be set together, and the minimum protocol version is TLS 1.2. A proxy remains the
+better place for certificate lifecycle and user authentication.
+
 ## Keep the write API off unless you need it
 
 Write operations are off until you pass `--write-enabled`. Leave them off unless
-you have a concrete need. When you do enable them, the same rule applies, harder:
-an open API with `--write-enabled` is open OVN mutation. Only enable writes when
-the instance is fronted by an authenticating proxy that restricts who can call
-`/api/v1/write/*`. See [Enable write operations](/how-to/enable-write-operations)
-for the workflow and [Write safety](/explanation/write-safety) for why it is
-built the way it is.
+you have a concrete need. When you do enable them, every `/api/v1/write/*` call
+needs a token, and the audit trail records which token made each change. See
+[Enable write operations](/how-to/enable-write-operations) for the workflow and
+[Write safety](/explanation/write-safety) for why it is built the way it is.
 
-## Understand the NB/SB transport
+## Encrypt the NB/SB transport
 
-Northwatch connects to the OVN Northbound and Southbound databases over
-plaintext `tcp:` today. There is no OVSDB TLS (`ssl:`) for the NB/SB
-connections yet — it is tracked in [issue
-#41](https://github.com/B42Labs/northwatch/issues/41). Run those connections on
-a trusted management network, not across an untrusted one.
+Northwatch dials `ssl:` Northbound and Southbound endpoints when you give it the
+client TLS material:
 
-(Per-chassis OVS visibility, a separate opt-in feature, does support `ssl:`
-management addresses via `--ovs-tls-cert`/`--ovs-tls-key`/`--ovs-tls-ca`; that
-is unrelated to the NB/SB transport.)
+```bash
+./bin/northwatch \
+  --ovn-nb-addr ssl:10.0.0.1:6641,ssl:10.0.0.2:6641 \
+  --ovn-sb-addr ssl:10.0.0.1:6642,ssl:10.0.0.2:6642 \
+  --ovn-nb-tls-cert /etc/northwatch/nb.pem \
+  --ovn-nb-tls-key  /etc/northwatch/nb-key.pem \
+  --ovn-nb-tls-ca   /etc/northwatch/nb-ca.pem \
+  --ovn-sb-tls-cert /etc/northwatch/sb.pem \
+  --ovn-sb-tls-key  /etc/northwatch/sb-key.pem \
+  --ovn-sb-tls-ca   /etc/northwatch/sb-ca.pem
+```
+
+Each trio is all-or-none, and an `ssl:` address without TLS material is a startup
+error rather than a connection that can never complete a handshake. The same
+flags apply to the `northwatch snapshot` subcommand. On a plaintext `tcp:`
+deployment, run those connections on a trusted management network.
+
+The TLS material applies to every cluster in a `--config-file`; per-cluster
+material is not supported.
+
+(Per-chassis OVS visibility, a separate opt-in feature, has its own
+`--ovs-tls-cert`/`--ovs-tls-key`/`--ovs-tls-ca` trio.)
 
 ## Size for the deployment
 
@@ -95,11 +152,12 @@ differently:
   `--event-max-count` (default `0`, meaning unlimited). Set a count cap on a busy
   deployment so a churn spike cannot grow the database without bound.
 - **Auto-snapshots** run every `--snapshot-interval` (default `5m`) whenever the
-  data has changed. They have **no retention cap yet** — the store keeps every
-  snapshot until you delete it. Prune old snapshots manually through the history
-  API (`DELETE /api/v1/snapshots/{id}`). An automatic cap is tracked in [issue
-  #41](https://github.com/B42Labs/northwatch/issues/41). Budget disk accordingly,
-  or lengthen the interval on a large deployment.
+  data has changed. Northwatch keeps the newest `--snapshot-max-count` of them
+  (default `500`, `0` disables pruning) and deletes the rest. Snapshots you took
+  deliberately — manual, labeled or imported ones — are **never** pruned; remove
+  those through the history API (`DELETE /api/v1/snapshots/{id}`). Lower the cap
+  or lengthen the interval on a large deployment, where each snapshot is a full
+  copy of the database.
 
 Put the history database on persistent storage. The `.deb` preconfigures it under
 the systemd `StateDirectory` at `/var/lib/northwatch/history.db`.

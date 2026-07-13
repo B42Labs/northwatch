@@ -22,7 +22,8 @@ Connect once to the live databases and write both to a file:
 ```
 
 Capture is a live monitor, so the initial-load flags apply — see
-[Tune the initial load](/how-to/tune-the-initial-load).
+[Tune the initial load](/how-to/tune-the-initial-load). For `ssl:` databases,
+pass the same `--ovn-nb-tls-*` / `--ovn-sb-tls-*` flags the server takes.
 
 ## Serve a file snapshot offline
 

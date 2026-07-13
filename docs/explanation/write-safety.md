@@ -89,20 +89,24 @@ gateway failover, chassis evacuation, rollback and restore — so common procedu
 are first-class and benefit from the same audit and safeguards instead of being
 hand-assembled from individual writes.
 
-## Authentication is still external
+## Authentication gates the write API
 
-Write safety is about *containing* and *recording* mutations, not about deciding
-*who* may make them. As with everything else, Northwatch has no built-in auth — an
-open API with `--write-enabled` means open OVN mutation. Put it behind an
-authenticating reverse proxy. See [The capability
+Write safety is about *containing* and *recording* mutations. Deciding *who* may
+make them is the job of the bearer tokens configured with `--api-tokens`: every
+`/api/v1/write/*` call must present one, or it is rejected with 401 before the
+engine sees it.
+
+The `apply_token` returned by `POST /api/v1/write/preview` is **not**
+authentication. It proves the caller previewed the exact plan it is about to
+apply — a guard against applying a stale or different plan — and it is handed out
+to whoever asked for the preview. The bearer token is what decides whether they
+were allowed to ask.
+
+The audit `actor` is derived from the bearer token's name, not from the request
+body, so a caller cannot forge who made a change. (A deployment running with
+`--insecure-no-auth` has no credential to attribute a change to, and records
+`anonymous` instead.) See [The capability
 model](/explanation/capability-model).
-
-This is also why the `actor` recorded on each apply is **client-supplied**: the
-caller states who it is, and the audit log records that claim, but Northwatch has
-no way to verify it. Trustworthy actor attribution depends on the authenticating
-proxy in front (and on built-in identity, tracked in [issue
-#41](https://github.com/B42Labs/northwatch/issues/41)). Treat the audit `actor`
-as a self-declared label until then.
 
 ## Related
 

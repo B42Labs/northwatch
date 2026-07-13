@@ -45,6 +45,22 @@ process collectors. Highlights:
 
 For the complete list, see [Prometheus metrics](/reference/metrics).
 
+::: warning /metrics is unauthenticated
+`/metrics` is served on the main mux and needs **no** API token — the bearer
+tokens gate mutation, not reading. With the default loopback bind only a local
+scraper reaches it; when you expose Northwatch, restrict `/metrics` at the same
+reverse proxy that protects the rest of the read surface. See [Deploy to
+production](/how-to/deploy-production).
+:::
+
+::: info The `path` label is the route pattern
+`northwatch_http_requests_total` and `northwatch_http_request_duration_seconds`
+label requests with the route pattern the server matched (e.g.
+`/api/v1/nb/logical-switches/{uuid}`), not the raw URL, and collapse unmatched
+requests onto a single `unmatched` label. This keeps the number of time series
+bounded by the number of routes.
+:::
+
 ::: info Single-cluster scope
 Metrics are exported for the **default** cluster only. Per-cluster routes do not
 register their own Prometheus collectors.

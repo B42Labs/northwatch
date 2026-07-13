@@ -26,6 +26,10 @@ func RecoverMiddleware(next http.Handler) http.Handler {
 			if rec == http.ErrAbortHandler {
 				panic(rec)
 			}
+			// The request fields are attacker-controlled, so they are passed as
+			// slog attributes (which quote them) rather than interpolated into the
+			// message — and without them a panic report is not actionable.
+			// #nosec G706 -- structured slog attributes, not an interpolated message
 			slog.Error("panic serving request",
 				"method", r.Method, "path", r.URL.Path,
 				"panic", rec, "stack", string(debug.Stack()))
