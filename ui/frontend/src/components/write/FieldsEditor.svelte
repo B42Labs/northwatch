@@ -301,8 +301,7 @@
                   rows="3"
                   placeholder={row.type ? `(${row.type})` : 'value'}
                   bind:value={row.value}
-                  oninput={handleRowChange}
-                ></textarea>
+                  oninput={handleRowChange}></textarea>
               {:else}
                 <input
                   type="text"
@@ -359,7 +358,6 @@
       rows="6"
       placeholder={'{"name": "my-switch", "external_ids": {"owner": "admin"}}'}
       {value}
-      oninput={(e) => onChange(e.currentTarget.value)}
-    ></textarea>
+      oninput={(e) => onChange(e.currentTarget.value)}></textarea>
   {/if}
 </div>
