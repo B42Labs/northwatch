@@ -14,6 +14,7 @@ lab. This page lists the targets; the lab targets are covered in detail in
 | `make build-all` | `build-ui` then `build`. |
 | `make dev-ui` | Run the frontend dev server. |
 | `make test` | Run all Go tests with the race detector (`go test -race ./...`). |
+| `make coverage-check` | Build the merged coverage profile (same `-coverpkg` set as CI) and enforce the per-package 85% floor for the core packages via `scripts/covcheck.sh`. |
 | `make lint` | Run `golangci-lint`. |
 | `make vet` | Run `go vet ./...`. |
 | `make docs-check` | Fail if a CLI flag or make target is undocumented in `docs/reference/`. |

@@ -69,6 +69,8 @@ jobs:
             echo "Coverage ${total}% is below threshold ${threshold}%"
             exit 1
           fi
+      - name: Check per-package coverage
+        run: bash scripts/covcheck.sh coverage.out
 
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})

@@ -1,4 +1,4 @@
-.PHONY: build test lint docs-check generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export deb \
+.PHONY: build test lint docs-check coverage-check generate schema-download clean vet unquarantine build-ui dev-ui build-all ensure-ui-dist openapi-export deb \
 	ovnsim lab-images lab-up lab-down lab lab-seed lab-reseed lab-sim lab-bind lab-unbind lab-clean lab-nbctl lab-sbctl lab-install-tools lab-multi-up lab-multi-down \
 	lab-compose-up lab-compose-build lab-compose-down lab-compose testbed testbed-ovs-map
 
@@ -52,6 +52,14 @@ ensure-ui-dist:
 
 test:
 	go test -race ./...
+
+# coverage-check mirrors CI: it builds the merged coverage profile with the
+# same -coverpkg set (the generated nb/sb/vs packages excluded) and enforces the
+# per-package 85% floor for the core packages via scripts/covcheck.sh.
+coverage-check:
+	@COVERPKGS=$$(go list ./internal/... | grep -v '/ovsdb/nb$$' | grep -v '/ovsdb/sb$$' | grep -v '/ovsdb/vs$$' | paste -sd, -); \
+	go test -race -coverprofile=coverage.out -coverpkg="$$COVERPKGS" ./...; \
+	scripts/covcheck.sh coverage.out
 
 lint:
 	golangci-lint run
