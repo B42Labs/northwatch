@@ -9,6 +9,7 @@ import (
 )
 
 func TestClassifyQuery(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		query    string
@@ -51,6 +52,7 @@ func makeTestTable(rows []testRow) TableDef {
 }
 
 func TestSearch_MatchByName(t *testing.T) {
+	t.Parallel()
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "my-switch"},
 		{UUID: "2", Name: "other"},
@@ -66,6 +68,7 @@ func TestSearch_MatchByName(t *testing.T) {
 }
 
 func TestSearch_MatchByExternalID(t *testing.T) {
+	t.Parallel()
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "sw1", ExternalIDs: map[string]string{"neutron:network_id": "abc-123"}},
 		{UUID: "2", Name: "sw2", ExternalIDs: map[string]string{"other": "val"}},
@@ -79,6 +82,7 @@ func TestSearch_MatchByExternalID(t *testing.T) {
 }
 
 func TestSearch_MatchByAddress(t *testing.T) {
+	t.Parallel()
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "port1", Addresses: []string{"fa:16:3e:00:00:01 10.0.0.5"}},
 		{UUID: "2", Name: "port2", Addresses: []string{"fa:16:3e:00:00:02 10.0.0.6"}},
@@ -93,6 +97,7 @@ func TestSearch_MatchByAddress(t *testing.T) {
 }
 
 func TestSearch_CaseInsensitive(t *testing.T) {
+	t.Parallel()
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "My-Switch"},
 	})}
@@ -104,12 +109,14 @@ func TestSearch_CaseInsensitive(t *testing.T) {
 }
 
 func TestSearch_EmptyQuery(t *testing.T) {
+	t.Parallel()
 	engine := NewEngine(nil)
 	_, err := engine.Search(context.Background(), "")
 	assert.Error(t, err)
 }
 
 func TestSearch_NoMatches(t *testing.T) {
+	t.Parallel()
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "switch"},
 	})}
@@ -121,6 +128,7 @@ func TestSearch_NoMatches(t *testing.T) {
 }
 
 func TestSearch_CrossDB(t *testing.T) {
+	t.Parallel()
 	nbTables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "my-port"},
 	})}
@@ -140,6 +148,7 @@ func TestSearch_CrossDB(t *testing.T) {
 }
 
 func TestSearch_ArbitraryDatabaseName(t *testing.T) {
+	t.Parallel()
 	// The engine is no longer hardwired to "nb"/"sb": an arbitrary database name
 	// (e.g. a per-chassis OVS instance) flows through verbatim to Result.Database.
 	ovsTables := []TableDef{makeTestTable([]testRow{
@@ -155,6 +164,7 @@ func TestSearch_ArbitraryDatabaseName(t *testing.T) {
 }
 
 func TestSearch_MatchByMapKey(t *testing.T) {
+	t.Parallel()
 	tables := []TableDef{makeTestTable([]testRow{
 		{UUID: "1", Name: "test", ExternalIDs: map[string]string{"neutron:network_id": "some-val"}},
 	})}
