@@ -55,7 +55,7 @@ func TestDeadlineMiddleware(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			DeadlineMiddleware(60*time.Second)(next).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
+			DeadlineMiddleware(60*time.Second)(next).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tc.path, nil))
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			require.True(t, rec.writeSet, "write deadline must always be touched")
@@ -82,7 +82,7 @@ func TestDeadlineMiddleware_WriterWithoutDeadlineSupport(t *testing.T) {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	DeadlineMiddleware(60*time.Second)(next).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/nb/acls", nil))
+	DeadlineMiddleware(60*time.Second)(next).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/nb/acls", nil))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 }

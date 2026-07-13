@@ -15,7 +15,7 @@ func TestRecoverMiddleware_PanicBecomesGeneric500(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	RecoverMiddleware(panicking).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/nb/acls", nil))
+	RecoverMiddleware(panicking).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/nb/acls", nil))
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Contains(t, rec.Body.String(), "internal server error")
@@ -30,7 +30,7 @@ func TestRecoverMiddleware_PassesThroughSuccess(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	RecoverMiddleware(ok).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	RecoverMiddleware(ok).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), `"status":"ok"`)
@@ -45,6 +45,6 @@ func TestRecoverMiddleware_RepanicsErrAbortHandler(t *testing.T) {
 
 	assert.PanicsWithError(t, http.ErrAbortHandler.Error(), func() {
 		RecoverMiddleware(aborting).ServeHTTP(
-			httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/ws", nil))
+			httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/ws", nil))
 	})
 }

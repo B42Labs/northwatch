@@ -6,10 +6,18 @@ NORTHWATCH_OVN_NB_ADDR=tcp:127.0.0.1:6641
 # OVN Southbound DB (required)
 NORTHWATCH_OVN_SB_ADDR=tcp:127.0.0.1:6642
 
-# HTTP listen address (the binary's built-in default :8080 binds all interfaces).
-# Northwatch has no built-in authentication, so the package binds localhost by
-# default; change this deliberately and put authentication in front of it.
+# HTTP listen address. The binary already defaults to loopback; binding anything
+# else requires NORTHWATCH_API_TOKENS (or NORTHWATCH_INSECURE_NO_AUTH), and puts
+# the open read surface on the network — put an authenticating proxy in front.
 NORTHWATCH_LISTEN=127.0.0.1:8080
+
+# Bearer tokens authorizing mutating API requests, as comma-separated
+# name=token pairs. The name is recorded as the actor on every write-audit
+# entry. Without tokens, all mutating endpoints answer 401.
+# Generate one with: openssl rand -hex 32
+#NORTHWATCH_API_TOKENS=ops=<token>
+# Or keep them out of the process table (JSON: {"ops": "<token>"}):
+#NORTHWATCH_API_TOKENS_FILE=/etc/northwatch/tokens.json
 
 # Persisted under the systemd StateDirectory (/var/lib/northwatch)
 NORTHWATCH_HISTORY_DB_PATH=/var/lib/northwatch/history.db
@@ -26,6 +34,7 @@ NORTHWATCH_HISTORY_DB_PATH=/var/lib/northwatch/history.db
 #NORTHWATCH_SNAPSHOT_INTERVAL=5m
 #NORTHWATCH_EVENT_RETENTION=24h
 #NORTHWATCH_EVENT_MAX_COUNT=0
+#NORTHWATCH_SNAPSHOT_MAX_COUNT=500
 #NORTHWATCH_ENRICHMENT_CACHE_TTL=5m
 #NORTHWATCH_ALERT_WEBHOOK_URLS=
 #NORTHWATCH_WS_ALLOWED_ORIGINS=

@@ -37,7 +37,7 @@ These track how far each hypervisor's realized config lags the desired config
 
 | Metric | Type | Meaning |
 |---|---|---|
-| `northwatch_http_requests_total` | counter | HTTP requests served. |
+| `northwatch_http_requests_total` | counter | HTTP requests served. Labeled by `method`, `status` and `path` — where `path` is the **matched route pattern** (e.g. `/api/v1/nb/logical-switches/{uuid}`), not the raw URL. Requests that match no route collapse onto a single `unmatched` label, so the label set stays bounded. |
 | `northwatch_http_request_duration_seconds` | histogram | Request latency. |
 
 ## Standard collectors

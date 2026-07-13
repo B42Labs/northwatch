@@ -215,6 +215,7 @@ func checkAuthPosture(cfg *config.Config) error {
 
 	switch {
 	case cfg.InsecureNoAuth:
+		// #nosec G706 -- operator-supplied listen address (flag/env), not untrusted input
 		slog.Warn("API authentication is DISABLED (--insecure-no-auth): every mutating endpoint is open to any client that can reach the listen address",
 			"listen", cfg.Listen)
 	case len(cfg.APITokens) == 0 && !loopback:
@@ -222,7 +223,7 @@ func checkAuthPosture(cfg *config.Config) error {
 	case len(cfg.APITokens) == 0:
 		slog.Warn("no API tokens configured: all mutating endpoints reject requests with 401 (set --api-tokens to enable them)")
 	default:
-		slog.Info("API authentication enabled", "tokens", len(cfg.APITokens))
+		slog.Info("API authentication enabled", "tokens", len(cfg.APITokens)) // #nosec G706 -- an integer count, not untrusted input
 		if !loopback {
 			// Tokens gate mutations only; every GET stays open, including the
 			// NB/SB topology, cross-database search, the ACL audit, and the

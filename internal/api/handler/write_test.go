@@ -181,7 +181,7 @@ func TestWriteEngineErrorTaxonomy(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, "/api/v1/write/preview", nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/preview", nil)
 			writeEngineError(w, r, tc.err)
 			assert.Equal(t, tc.want, w.Code)
 			if tc.want == http.StatusInternalServerError {
@@ -212,7 +212,7 @@ func TestApplyEngineErrorTaxonomy(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, "/api/v1/write/plans/x/apply", nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/plans/x/apply", nil)
 			applyEngineError(w, r, tc.entry, tc.err)
 			assert.Equal(t, tc.want, w.Code)
 			if tc.want == http.StatusInternalServerError {
@@ -426,7 +426,7 @@ func authorized(name string) context.Context {
 	var got context.Context
 	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.Context() })
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/write/preview", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/preview", nil)
 	req.Header.Set("Authorization", "Bearer 0123456789abcdef")
 	api.AuthMiddleware(tokens)(next).ServeHTTP(httptest.NewRecorder(), req)
 	return got

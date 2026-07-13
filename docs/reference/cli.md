@@ -11,7 +11,7 @@ Run `./bin/northwatch --help` to see the same list at runtime.
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--listen` | `NORTHWATCH_LISTEN` | `:8080` | HTTP listen address. |
+| `--listen` | `NORTHWATCH_LISTEN` | `127.0.0.1:8080` | HTTP listen address. Binding a non-loopback address requires `--api-tokens` or `--insecure-no-auth`; Northwatch refuses to start otherwise. |
 | `--ovn-nb-addr` | `NORTHWATCH_OVN_NB_ADDR` | *(required)* | OVN Northbound address. Comma-separated for Raft failover, e.g. `tcp:10.0.0.1:6641,tcp:10.0.0.2:6641`. |
 | `--ovn-sb-addr` | `NORTHWATCH_OVN_SB_ADDR` | *(required)* | OVN Southbound address. Comma-separated for Raft failover. |
 | `--config-file` | `NORTHWATCH_CONFIG_FILE` | *(none)* | Path to a JSON multi-cluster config file. When set, `--ovn-nb-addr` / `--ovn-sb-addr` are ignored. |
@@ -20,6 +20,39 @@ Run `./bin/northwatch --help` to see the same list at runtime.
 
 Exactly one connection source is required: a snapshot, a config file, or both
 flat NB/SB addresses.
+
+## Authentication
+
+Every mutating endpoint (`POST`/`PUT`/`DELETE` under `/api/`) requires a bearer
+token. Read endpoints are open — protect those with a reverse proxy, see [Deploy
+to production](/how-to/deploy-production).
+
+| Flag | Env var | Default | Description |
+|---|---|---|---|
+| `--api-tokens` | `NORTHWATCH_API_TOKENS` | *(none)* | Comma-separated `name=token` pairs authorizing mutating requests. The name becomes the write-audit `actor`. Tokens must be at least 16 characters. |
+| `--api-tokens-file` | `NORTHWATCH_API_TOKENS_FILE` | *(none)* | Path to a JSON object mapping token name to token (`{"ops": "…"}`), merged with `--api-tokens`. Keeps secrets out of the process table. |
+| `--insecure-no-auth` | `NORTHWATCH_INSECURE_NO_AUTH` | `false` | Disable the token gate entirely. Only safe behind a proxy that authenticates every mutating request; audit entries are then recorded as `anonymous`. Cannot be combined with `--api-tokens`. |
+
+With no tokens configured, mutating endpoints answer `401` — including on
+loopback.
+
+## TLS
+
+| Flag | Env var | Default | Description |
+|---|---|---|---|
+| `--tls-cert` | `NORTHWATCH_TLS_CERT` | *(none)* | Server certificate (PEM). Serves the API over HTTPS (TLS 1.2 minimum). |
+| `--tls-key` | `NORTHWATCH_TLS_KEY` | *(none)* | Server private key (PEM). Must be set together with `--tls-cert`. |
+| `--ovn-nb-tls-cert` | `NORTHWATCH_OVN_NB_TLS_CERT` | *(none)* | Client certificate (PEM) for `ssl:` Northbound connections. |
+| `--ovn-nb-tls-key` | `NORTHWATCH_OVN_NB_TLS_KEY` | *(none)* | Client private key (PEM) for `ssl:` Northbound connections. |
+| `--ovn-nb-tls-ca` | `NORTHWATCH_OVN_NB_TLS_CA` | *(none)* | CA bundle (PEM) verifying `ssl:` Northbound servers. |
+| `--ovn-sb-tls-cert` | `NORTHWATCH_OVN_SB_TLS_CERT` | *(none)* | Client certificate (PEM) for `ssl:` Southbound connections. |
+| `--ovn-sb-tls-key` | `NORTHWATCH_OVN_SB_TLS_KEY` | *(none)* | Client private key (PEM) for `ssl:` Southbound connections. |
+| `--ovn-sb-tls-ca` | `NORTHWATCH_OVN_SB_TLS_CA` | *(none)* | CA bundle (PEM) verifying `ssl:` Southbound servers. |
+
+Each NB/SB trio is all-or-none. An `ssl:` address with no TLS material for that
+database is a startup error. The same `--ovn-*-tls-*` flags are accepted by the
+`northwatch snapshot` subcommand. The material applies to every cluster in a
+`--config-file`; per-cluster material is not supported.
 
 ## Initial-load tuning
 
@@ -122,6 +155,7 @@ See [Enable write operations](/how-to/enable-write-operations).
 | `--snapshot-interval` | `NORTHWATCH_SNAPSHOT_INTERVAL` | `5m` | Automatic snapshot interval (Go duration). |
 | `--event-retention` | `NORTHWATCH_EVENT_RETENTION` | `24h` | Event-log retention duration. |
 | `--event-max-count` | `NORTHWATCH_EVENT_MAX_COUNT` | `0` | Maximum number of events to retain (0 = unlimited). |
+| `--snapshot-max-count` | `NORTHWATCH_SNAPSHOT_MAX_COUNT` | `500` | Maximum number of **automatic** snapshots to retain (0 = unlimited). Manual, labeled and imported snapshots are never pruned. |
 
 ## Alerting & WebSocket
 

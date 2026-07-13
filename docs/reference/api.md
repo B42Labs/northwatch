@@ -10,6 +10,23 @@ schemas, use the spec the server generates: Swagger UI at `/api/v1/docs`, raw
 spec at `/api/v1/openapi.json`. See [Explore the API](/how-to/explore-the-api).
 :::
 
+## Authentication
+
+Every **mutating** request (`POST`, `PUT`, `DELETE` under `/api/`) must present a
+bearer token configured with `--api-tokens`:
+
+```
+Authorization: Bearer <token>
+```
+
+Without a valid token the request is rejected with `401` and a
+`WWW-Authenticate: Bearer realm="northwatch"` header, before the handler runs.
+The token is accepted from the header only — never a query parameter. With no
+tokens configured, every mutating endpoint answers `401`.
+
+Read endpoints (`GET`) need no token; protect them with a reverse proxy. See
+[Deploy to production](/how-to/deploy-production).
+
 ## Response shape
 
 - List endpoints return a JSON **array** of objects. Each object's keys are the
@@ -17,10 +34,36 @@ spec at `/api/v1/openapi.json`. See [Explore the API](/how-to/explore-the-api).
 - Detail endpoints (`.../{uuid}`) return a single object, or `404` with
   `{"error": "not found"}`.
 - Errors return the matching HTTP status with `{"error": "<message>"}`.
+- `5xx` responses always carry the generic body `{"error": "internal server
+  error"}`. The cause is logged server-side with the request that triggered it —
+  it is deliberately not sent to the client.
 - Responses served from a cluster whose OVSDB caches are not currently
   authoritative — the client is reconnecting, or a snapshot session has suspended
   the live monitors — carry an `X-Northwatch-Stale: true` header. `/readyz`
   returns `503` in the suspended case.
+
+## Limits
+
+The API bounds what a single request can cost, so a client cannot exhaust the
+process:
+
+| Limit | Value | Applies to |
+|---|---|---|
+| Page size | `limit` / `offset` query params, default and maximum **5000** rows | Every table-list endpoint, including `/api/v1/sb/logical-flows` |
+| Request body | **1 MiB** | Every endpoint that accepts a body |
+| Request body (import) | **100 MiB** | `POST /api/v1/snapshots/import` |
+| Search matches | **100** per table, **500** total | `GET /api/v1/search` |
+
+List responses carry `X-Total-Count` (the unpaginated total) and, when rows were
+dropped, `X-Truncated: true`. Rows are ordered by UUID, so `offset` steps through
+a stable sequence. An oversized body is rejected with `413`; an invalid `limit`
+or `offset` with `400`.
+
+`GET /api/v1/search` returns a `truncated` field reporting whether the match caps
+dropped results — refine the query when it is set.
+
+`GET /api/v1/debug/trace` retains the trace for later export only when called
+with `?store=true`, and returns its `id` only then.
 
 ## System & health
 

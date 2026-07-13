@@ -90,7 +90,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, nil)
 			if tc.authHeader != "" {
 				req.Header.Set("Authorization", tc.authHeader)
 			}
@@ -109,7 +109,7 @@ func TestAuthMiddleware(t *testing.T) {
 }
 
 func TestAuthMiddleware_NoTokensFailsClosed(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/write/preview", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/write/preview", nil)
 	req.Header.Set("Authorization", "Bearer "+testToken)
 	rec := httptest.NewRecorder()
 
@@ -119,7 +119,7 @@ func TestAuthMiddleware_NoTokensFailsClosed(t *testing.T) {
 }
 
 func TestAuthMiddleware_NoTokensStillServesReads(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/nb/logical-switches", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/nb/logical-switches", nil)
 	rec := httptest.NewRecorder()
 
 	AuthMiddleware(nil)(echoActor()).ServeHTTP(rec, req)
@@ -130,7 +130,7 @@ func TestAuthMiddleware_NoTokensStillServesReads(t *testing.T) {
 func TestAuthMiddleware_QueryStringTokenRejected(t *testing.T) {
 	// RFC 6750: credentials come from the Authorization header only. A token in
 	// the query string leaks into access logs and Referer headers.
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/snapshots?access_token="+testToken, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/snapshots?access_token="+testToken, nil)
 	rec := httptest.NewRecorder()
 
 	AuthMiddleware(map[string]string{"ops": testToken})(echoActor()).ServeHTTP(rec, req)
