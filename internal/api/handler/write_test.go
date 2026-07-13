@@ -364,15 +364,18 @@ func TestWritePreview_OversizedBody(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterWrite(mux, engine)
 
-	// Create a body larger than maxWriteBodySize (1 MB)
-	big := strings.Repeat("x", 2<<20)
+	// A well-formed body over the 1 MiB cap is refused as too large. (Well-formed
+	// matters: a body of junk bytes fails as a JSON syntax error on the first
+	// byte and never reaches the size limit at all.)
+	big := `{"reason":"` + strings.Repeat("x", maxBodySize+1) + `"}`
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/preview",
 		strings.NewReader(big))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.Contains(t, w.Body.String(), "request body too large")
 }
 
 // setupApplyEngine builds a write engine with a real NB client and history

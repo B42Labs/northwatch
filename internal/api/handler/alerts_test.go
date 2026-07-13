@@ -255,3 +255,42 @@ func TestAlerts_DeleteSilence_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
+
+func TestAlerts_OversizedBodies(t *testing.T) {
+	oversized := strings.Repeat("x", maxBodySize+1)
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "set rule enabled",
+			method: http.MethodPut,
+			path:   "/api/v1/alerts/rules/stale-chassis",
+			body:   `{"comment":"` + oversized + `"}`,
+		},
+		{
+			name:   "create silence",
+			method: http.MethodPost,
+			path:   "/api/v1/alerts/silences",
+			body:   `{"rule":"stale-chassis","comment":"` + oversized + `"}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := alert.NewEngine(nil, 30*time.Second)
+			mux := http.NewServeMux()
+			RegisterAlerts(mux, engine)
+
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, strings.NewReader(tc.body))
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+			assert.Contains(t, w.Body.String(), "request body too large")
+		})
+	}
+}

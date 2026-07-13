@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -40,11 +39,8 @@ func handleCreateSnapshot(collector *history.Collector) http.HandlerFunc {
 		var body struct {
 			Label string `json:"label"`
 		}
-		if r.ContentLength > 0 {
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
-				return
-			}
+		if !decodeJSONBody(w, r, &body, maxBodySize, true) {
+			return
 		}
 
 		meta, err := collector.TakeSnapshot(r.Context(), "manual", body.Label)
@@ -217,9 +213,10 @@ func handleExportSnapshot(store *history.Store) http.HandlerFunc {
 
 func handleImportSnapshot(store *history.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// An import carries a whole database copy, so it gets a deliberately
+		// higher cap than an ordinary request rather than no cap at all.
 		var export history.SnapshotExport
-		if err := json.NewDecoder(r.Body).Decode(&export); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &export, maxImportBodySize, false) {
 			return
 		}
 

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/b42labs/northwatch/internal/api"
@@ -17,13 +16,11 @@ func RegisterFailover(mux *http.ServeMux, engine *write.Engine) {
 
 func handleFailover(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			GroupName     string `json:"group_name"`
 			TargetChassis string `json:"target_chassis"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 		if body.GroupName == "" {
@@ -47,12 +44,10 @@ func handleFailover(engine *write.Engine) http.HandlerFunc {
 
 func handleEvacuate(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			ChassisName string `json:"chassis_name"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 		if body.ChassisName == "" {
@@ -72,12 +67,10 @@ func handleEvacuate(engine *write.Engine) http.HandlerFunc {
 
 func handleRestore(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			ChassisName string `json:"chassis_name"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		if !decodeJSONBody(w, r, &body, maxBodySize, false) {
 			return
 		}
 		if body.ChassisName == "" {

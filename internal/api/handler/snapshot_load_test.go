@@ -45,7 +45,7 @@ func TestSnapshotLoadEndpoints(t *testing.T) {
 		func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
 			m1, _ := nb.FullDatabaseModel()
 			m2, _ := sb.FullDatabaseModel()
-			dbs, cErr := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+			dbs, cErr := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 			if cErr != nil {
 				return nil, nil, cErr
 			}
@@ -122,7 +122,7 @@ func TestSnapshotLoad_TooManyReturns409(t *testing.T) {
 		func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
 			m1, _ := nb.FullDatabaseModel()
 			m2, _ := sb.FullDatabaseModel()
-			dbs, cErr := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+			dbs, cErr := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 			if cErr != nil {
 				return nil, nil, cErr
 			}

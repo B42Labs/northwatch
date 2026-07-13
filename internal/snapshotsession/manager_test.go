@@ -32,7 +32,7 @@ func newTestManager(t *testing.T, store *history.Store) (*snapshotsession.Manage
 	build := func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
 		m1, _ := nb.FullDatabaseModel()
 		m2, _ := sb.FullDatabaseModel()
-		dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+		dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -157,7 +157,7 @@ func TestManagerLoadUnload(t *testing.T) {
 	build := func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
 		m1, _ := nb.FullDatabaseModel()
 		m2, _ := sb.FullDatabaseModel()
-		dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+		dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -239,7 +239,7 @@ func TestManagerConcurrentLoadUnloadResumesLive(t *testing.T) {
 	build := func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
 		m1, _ := nb.FullDatabaseModel()
 		m2, _ := sb.FullDatabaseModel()
-		dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+		dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -307,7 +307,7 @@ func TestManagerUnloadCancelledContextResumesLive(t *testing.T) {
 	build := func(name, label, nbAddr, sbAddr string) (*cluster.Cluster, []func(), error) {
 		m1, _ := nb.FullDatabaseModel()
 		m2, _ := sb.FullDatabaseModel()
-		dbs, err := ovndb.Connect(context.Background(), nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true})
+		dbs, err := ovndb.Connect(context.Background(), nbAddr, sbAddr, m1, m2, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
