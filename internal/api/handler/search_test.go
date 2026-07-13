@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -74,4 +75,39 @@ func TestSearchHandler_IPQuery(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "ipv4", body["query_type"])
+}
+
+// TestSearchHandler_TruncatedFlag proves the cap is visible to clients: a query
+// matching more rows than the engine will return is reported as truncated, so
+// the UI can say the result set is a sample rather than the whole answer.
+func TestSearchHandler_TruncatedFlag(t *testing.T) {
+	rows := make([]searchTestRow, 250)
+	for i := range rows {
+		rows[i] = searchTestRow{UUID: fmt.Sprintf("uuid-%d", i), Name: fmt.Sprintf("switch-%d", i)}
+	}
+	engine := search.NewEngine([]search.DatabaseTables{{
+		Name: "nb",
+		Tables: []search.TableDef{{
+			Name:     "Logical_Switch",
+			ListFunc: func(context.Context) (any, error) { return rows, nil },
+		}},
+	}})
+
+	mux := http.NewServeMux()
+	RegisterSearch(mux, engine)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/search?q=switch-", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		Truncated bool            `json:"truncated"`
+		Results   []search.Result `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	assert.True(t, body.Truncated)
+	require.Len(t, body.Results, 1)
+	assert.Less(t, len(body.Results[0].Matches), len(rows))
 }

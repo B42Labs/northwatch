@@ -100,25 +100,48 @@ func NewEngine(dbs []DatabaseTables) *Engine {
 	return &Engine{dbs: dbs}
 }
 
+// Match caps bounding a single search. A one-character query substring-matches
+// nearly every row of every registered table, so an uncapped search materializes
+// the whole of both databases into one response — the cheapest way for an
+// unauthenticated client to exhaust memory.
+const (
+	maxMatchesPerTable = 100
+	maxTotalMatches    = 500
+)
+
 // Search executes a query against all registered tables and returns the
 // per-table matches. The query is classified internally and matched as a
 // case-insensitive substring against every string-like field.
-func (e *Engine) Search(ctx context.Context, query string) ([]Result, error) {
+//
+// Matches are capped per table and in total; the second return value reports
+// whether the caps dropped anything, so a caller can tell a complete result set
+// from a partial one and tell the user to narrow the query.
+func (e *Engine) Search(ctx context.Context, query string) ([]Result, bool, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, fmt.Errorf("empty query")
+		return nil, false, fmt.Errorf("empty query")
 	}
 
 	queryLower := strings.ToLower(query)
 	var results []Result
+	total := 0
+	truncated := false
 
 	for _, db := range e.dbs {
 		for _, td := range db.Tables {
-			matches, err := searchTable(ctx, td, queryLower)
-			if err != nil {
-				return nil, fmt.Errorf("searching %s %s: %w", db.Name, td.Name, err)
+			if total >= maxTotalMatches {
+				return results, true, nil
 			}
+
+			remaining := min(maxMatchesPerTable, maxTotalMatches-total)
+			matches, more, err := searchTable(ctx, td, queryLower, remaining)
+			if err != nil {
+				return nil, false, fmt.Errorf("searching %s %s: %w", db.Name, td.Name, err)
+			}
+			truncated = truncated || more
+
 			if len(matches) > 0 {
+				total += len(matches)
 				results = append(results, Result{
 					Database: db.Name,
 					Table:    td.Name,
@@ -128,13 +151,15 @@ func (e *Engine) Search(ctx context.Context, query string) ([]Result, error) {
 		}
 	}
 
-	return results, nil
+	return results, truncated, nil
 }
 
-func searchTable(ctx context.Context, td TableDef, queryLower string) ([]map[string]any, error) {
+// searchTable collects at most limit matches from one table. It reports whether
+// it stopped early, i.e. whether the table holds further matches beyond limit.
+func searchTable(ctx context.Context, td TableDef, queryLower string, limit int) ([]map[string]any, bool, error) {
 	data, err := td.ListFunc(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	v := reflect.ValueOf(data)
@@ -145,11 +170,15 @@ func searchTable(ctx context.Context, td TableDef, queryLower string) ([]map[str
 	var matches []map[string]any
 	for i := 0; i < v.Len(); i++ {
 		row := v.Index(i)
-		if matchesQuery(row, queryLower) {
-			matches = append(matches, ovndb.ModelToMap(row.Interface()))
+		if !matchesQuery(row, queryLower) {
+			continue
 		}
+		if len(matches) >= limit {
+			return matches, true, nil
+		}
+		matches = append(matches, ovndb.ModelToMap(row.Interface()))
 	}
-	return matches, nil
+	return matches, false, nil
 }
 
 func matchesQuery(v reflect.Value, queryLower string) bool {

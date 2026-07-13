@@ -84,6 +84,14 @@
 >
   {#if result}
     <div class="flex flex-col gap-4">
+      {#if result.truncated}
+        <div
+          class="rounded border border-warning/40 bg-warning/10 px-3 py-2 font-mono text-xs text-base-content/80"
+        >
+          results truncated — showing the first {totalMatches} matches; refine the
+          query to narrow them down
+        </div>
+      {/if}
       {#each result.results as group (`${group.database}:${group.table}`)}
         {#if group.matches && group.matches.length > 0}
           <Card padding="none">
