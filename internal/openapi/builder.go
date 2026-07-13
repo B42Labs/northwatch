@@ -69,8 +69,9 @@ func AddTableEndpoints(b *Builder, model any, basePath, tag, schemaName string) 
 	// List
 	b.AddOperation(basePath, "get", &Operation{
 		OperationID: "list" + schemaName,
-		Summary:     "List all " + schemaName + " rows",
+		Summary:     "List " + schemaName + " rows",
 		Tags:        []string{tag},
+		Parameters:  paginationParams(),
 		Responses: map[string]Response{
 			"200": {
 				Description: "Array of " + schemaName,
@@ -132,6 +133,23 @@ func jsonCreated(description string) map[string]Response {
 func noContent() map[string]Response {
 	return map[string]Response{
 		"204": {Description: "No content"},
+	}
+}
+
+// paginationParams describes the limit/offset window every list endpoint
+// applies. Responses carry X-Total-Count, and X-Truncated when rows remain.
+func paginationParams() []Parameter {
+	return []Parameter{
+		{
+			Name: "limit", In: "query",
+			Description: "Maximum rows to return (default and hard maximum: 5000)",
+			Schema:      &Schema{Type: "integer"},
+		},
+		{
+			Name: "offset", In: "query",
+			Description: "Rows to skip, ordered by UUID (default: 0)",
+			Schema:      &Schema{Type: "integer"},
+		},
 	}
 }
 

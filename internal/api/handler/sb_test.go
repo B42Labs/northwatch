@@ -171,3 +171,53 @@ func TestHandleLogicalFlows_Filters(t *testing.T) {
 		assert.Len(t, body, 1)
 	})
 }
+
+// TestLogicalFlows_Pagination covers both branches of the logical-flows handler.
+// This is the endpoint the cap exists for: unfiltered, it used to serialize the
+// entire Logical_Flow cache — potentially millions of rows — into one response.
+func TestLogicalFlows_Pagination(t *testing.T) {
+	sbc := setupSBTestClient(t)
+	dpUUID := insertDatapath(t, sbc, map[string]string{"logical-switch": "sw-page"})
+	for i := range 8 {
+		insertLogicalFlow(t, sbc, dpUUID, "ingress", i, 100, fmt.Sprintf("ip4.dst == 10.0.0.%d", i), "next;", nil)
+	}
+
+	mux := http.NewServeMux()
+	RegisterSB(mux, sbc)
+
+	list := func(t *testing.T, query string) (*httptest.ResponseRecorder, []map[string]any) {
+		t.Helper()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/api/v1/sb/logical-flows"+query, nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var got []map[string]any
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+		return rec, got
+	}
+
+	t.Run("unfiltered branch is paged", func(t *testing.T) {
+		rec, got := list(t, "?limit=3")
+		assert.Len(t, got, 3)
+		assert.Equal(t, "8", rec.Header().Get("X-Total-Count"))
+		assert.Equal(t, "true", rec.Header().Get("X-Truncated"))
+	})
+
+	t.Run("filtered branch is paged", func(t *testing.T) {
+		rec, got := list(t, "?pipeline=ingress&limit=3")
+		assert.Len(t, got, 3)
+		assert.Equal(t, "8", rec.Header().Get("X-Total-Count"))
+		assert.Equal(t, "true", rec.Header().Get("X-Truncated"))
+	})
+
+	t.Run("filtered branch rejects a bad limit", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/api/v1/sb/logical-flows?pipeline=ingress&limit=-5", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+}

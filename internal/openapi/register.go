@@ -99,12 +99,12 @@ func registerSB(b *Builder) {
 		OperationID: "listLogicalFlows",
 		Summary:     "List logical flows with optional filtering",
 		Tags:        []string{"Southbound"},
-		Parameters: []Parameter{
+		Parameters: append([]Parameter{
 			queryParam("datapath", "Filter by datapath UUID"),
 			queryParam("pipeline", "Filter by pipeline (ingress/egress)"),
 			queryParam("table_id", "Filter by table ID"),
 			queryParam("match", "Filter by match expression substring"),
-		},
+		}, paginationParams()...),
 		Responses: jsonOK("Array of LogicalFlow"),
 	})
 	b.AddOperation("/api/v1/sb/logical-flows/{uuid}", "get", &Operation{
