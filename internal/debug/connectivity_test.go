@@ -7,13 +7,14 @@ import (
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConnectivityChecker(t *testing.T) {
-	nbClient := setupNBClient(t)
-	sbClient := setupSBClient(t)
+	nbClient := testutil.SetupNBTestClient(t)
+	sbClient := testutil.SetupSBTestClient(t)
 	ctx := context.Background()
 
 	checker := &ConnectivityChecker{NB: nbClient, SB: sbClient}

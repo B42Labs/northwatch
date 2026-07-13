@@ -2,122 +2,17 @@ package debug
 
 import (
 	"context"
-	"fmt"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
-	"github.com/go-logr/stdr"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/ovn-kubernetes/libovsdb/client"
-	"github.com/ovn-kubernetes/libovsdb/database/inmemory"
-	"github.com/ovn-kubernetes/libovsdb/model"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
-	"github.com/ovn-kubernetes/libovsdb/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func setupNBClient(t *testing.T) client.Client {
-	t.Helper()
-
-	clientModel, err := nb.FullDatabaseModel()
-	require.NoError(t, err)
-	schema := nb.Schema()
-
-	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
-	require.Empty(t, errs)
-
-	logger := stdr.New(nil)
-	db := inmemory.NewDatabase(map[string]model.ClientDBModel{
-		schema.Name: clientModel,
-	}, &logger)
-
-	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
-	require.NoError(t, err)
-
-	sockPath := filepath.Join(t.TempDir(), "nb.sock")
-	go func() {
-		_ = ovsdbServer.Serve("unix", sockPath)
-	}()
-
-	require.Eventually(t, func() bool {
-		return ovsdbServer.Ready()
-	}, 5*time.Second, 10*time.Millisecond)
-
-	t.Cleanup(func() {
-		ovsdbServer.Close()
-	})
-
-	c, err := client.NewOVSDBClient(
-		clientModel,
-		client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)),
-	)
-	require.NoError(t, err)
-
-	err = c.Connect(context.Background())
-	require.NoError(t, err)
-
-	_, err = c.MonitorAll(context.Background())
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		c.Close()
-	})
-
-	return c
-}
-
-func setupSBClient(t *testing.T) client.Client {
-	t.Helper()
-
-	clientModel, err := sb.FullDatabaseModel()
-	require.NoError(t, err)
-	schema := sb.Schema()
-
-	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
-	require.Empty(t, errs)
-
-	logger := stdr.New(nil)
-	db := inmemory.NewDatabase(map[string]model.ClientDBModel{
-		schema.Name: clientModel,
-	}, &logger)
-
-	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
-	require.NoError(t, err)
-
-	sockPath := filepath.Join(t.TempDir(), "sb.sock")
-	go func() {
-		_ = ovsdbServer.Serve("unix", sockPath)
-	}()
-
-	require.Eventually(t, func() bool {
-		return ovsdbServer.Ready()
-	}, 5*time.Second, 10*time.Millisecond)
-
-	t.Cleanup(func() {
-		ovsdbServer.Close()
-	})
-
-	c, err := client.NewOVSDBClient(
-		clientModel,
-		client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)),
-	)
-	require.NoError(t, err)
-
-	err = c.Connect(context.Background())
-	require.NoError(t, err)
-
-	_, err = c.MonitorAll(context.Background())
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		c.Close()
-	})
-
-	return c
-}
 
 func transact(t *testing.T, ctx context.Context, c client.Client, ops ...ovsdb.Operation) []ovsdb.OperationResult {
 	t.Helper()
@@ -181,8 +76,8 @@ func createSBInfra(t *testing.T, ctx context.Context, sbClient client.Client) (c
 }
 
 func TestPortDiagnoser(t *testing.T) {
-	nbClient := setupNBClient(t)
-	sbClient := setupSBClient(t)
+	nbClient := testutil.SetupNBTestClient(t)
+	sbClient := testutil.SetupSBTestClient(t)
 	ctx := context.Background()
 
 	diagnoser := &PortDiagnoser{NB: nbClient, SB: sbClient}
