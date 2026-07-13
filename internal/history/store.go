@@ -14,22 +14,23 @@ type Store struct {
 }
 
 // NewStore opens (or creates) the SQLite database and runs migrations.
+//
+// The pragmas travel in the DSN rather than as one-shot statements after Open.
+// SQLite pragmas are per-connection, and database/sql keeps an unbounded pool:
+// executing them once applied them to whichever single connection happened to
+// serve the Exec, so every other pooled connection ran with foreign_keys=OFF.
+// DeleteSnapshot's ON DELETE CASCADE then silently orphaned snapshot_rows
+// whenever it landed on one of those connections. Passing them via ?_pragma=
+// makes modernc.org/sqlite apply them to every connection it opens.
 func NewStore(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	dsn := "file:" + dbPath +
+		"?_pragma=journal_mode(WAL)" +
+		"&_pragma=foreign_keys(1)" +
+		"&_pragma=busy_timeout(5000)"
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
-	}
-
-	pragmas := []struct{ name, stmt string }{
-		{"WAL mode", "PRAGMA journal_mode=WAL"},
-		{"foreign keys", "PRAGMA foreign_keys=ON"},
-		{"busy timeout", "PRAGMA busy_timeout=5000"},
-	}
-	for _, p := range pragmas {
-		if _, err := db.ExecContext(context.Background(), p.stmt); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("setting %s: %w", p.name, err)
-		}
 	}
 
 	s := &Store{db: db}
