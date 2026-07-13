@@ -326,6 +326,112 @@ func TestCorrelated(t *testing.T) {
 	})
 }
 
+func TestCorrelated_NotFound(t *testing.T) {
+	mux, _ := setupCorrelatedTest(t)
+
+	paths := []string{
+		"/api/v1/correlated/logical-routers/does-not-exist",
+		"/api/v1/correlated/logical-switch-ports/does-not-exist",
+		"/api/v1/correlated/logical-router-ports/does-not-exist",
+		"/api/v1/correlated/chassis/does-not-exist",
+		"/api/v1/correlated/port-bindings/does-not-exist",
+	}
+	for _, p := range paths {
+		t.Run(p, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusNotFound, w.Code)
+		})
+	}
+}
+
+// routerEnrichProvider enriches routers and NATs so a router detail request
+// exercises enrichRouter's router-, port- and NAT-enrichment branches.
+type routerEnrichProvider struct{}
+
+func (routerEnrichProvider) Name() string { return "router-mock" }
+func (routerEnrichProvider) EnrichPort(context.Context, map[string]string) (*enrich.Info, error) {
+	return nil, nil
+}
+func (routerEnrichProvider) EnrichNetwork(context.Context, map[string]string) (*enrich.Info, error) {
+	return nil, nil
+}
+func (routerEnrichProvider) EnrichRouter(context.Context, map[string]string) (*enrich.Info, error) {
+	return &enrich.Info{DisplayName: "enriched-router"}, nil
+}
+func (routerEnrichProvider) EnrichNAT(context.Context, map[string]string) (*enrich.Info, error) {
+	return &enrich.Info{DisplayName: "enriched-nat"}, nil
+}
+
+func TestCorrelated_RouterEnrichment(t *testing.T) {
+	ctx := context.Background()
+	nbClient := setupNBTestClient(t)
+	sbClient := setupSBTestClient(t)
+
+	// Build the router, its port and a NAT in one transaction, all carrying
+	// non-empty external_ids. An empty OVSDB map round-trips as nil, and
+	// enrichRouter only fires when external_ids is present, so the enrichable
+	// rows must be seeded with at least one entry.
+	lrp := &nb.LogicalRouterPort{
+		UUID: "lrp_enrich", Name: "lrp-enrich", MAC: "00:00:00:00:00:01",
+		Networks: []string{"10.0.0.1/24"}, ExternalIDs: map[string]string{}, Options: map[string]string{},
+		Ipv6RaConfigs: map[string]string{}, Status: map[string]string{},
+	}
+	lrpOps, err := nbClient.Create(lrp)
+	require.NoError(t, err)
+	nat := &nb.NAT{
+		UUID: "nat_enrich", Type: nb.NATType("dnat_and_snat"), ExternalIP: "172.16.0.5",
+		LogicalIP: "192.168.0.10", ExternalIDs: map[string]string{"neutron:fip_id": "fip-1"}, Options: map[string]string{},
+	}
+	natOps, err := nbClient.Create(nat)
+	require.NoError(t, err)
+	lr := &nb.LogicalRouter{
+		Name: "router-enrich", Ports: []string{"lrp_enrich"}, Nat: []string{"nat_enrich"},
+		ExternalIDs: map[string]string{"neutron:router_name": "my-router"}, Options: map[string]string{},
+	}
+	lrOps, err := nbClient.Create(lr)
+	require.NoError(t, err)
+
+	ops := append(append(lrpOps, natOps...), lrOps...)
+	reply, err := nbClient.Transact(ctx, ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	routerUUID := reply[len(reply)-1].UUID.GoUUID
+
+	require.Eventually(t, func() bool {
+		return nbClient.Get(ctx, &nb.LogicalRouter{UUID: routerUUID}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+
+	cor := &correlate.Correlator{NB: nbClient, SB: sbClient}
+	enricher := enrich.NewEnricher(routerEnrichProvider{}, 5*time.Minute)
+
+	mux := http.NewServeMux()
+	RegisterCorrelated(mux, cor, enricher)
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/correlated/logical-routers/"+routerUUID, nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	routerMap := body["logical_router"].(map[string]any)
+	enrichment, ok := routerMap["enrichment"].(map[string]any)
+	require.True(t, ok, "router should carry enrichment")
+	assert.Equal(t, "enriched-router", enrichment["display_name"])
+
+	nats, ok := body["nats"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, nats)
+	nat0 := nats[0].(map[string]any)
+	natEnrichment, ok := nat0["enrichment"].(map[string]any)
+	require.True(t, ok, "nat should carry enrichment")
+	assert.Equal(t, "enriched-nat", natEnrichment["display_name"])
+}
+
 // mockProvider implements enrich.Provider for testing.
 type mockProvider struct{}
 

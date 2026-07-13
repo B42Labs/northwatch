@@ -257,6 +257,102 @@ func TestWriteGetAuditEntry_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestWriteSchema(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/write/schema", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Cache-Control"), "max-age=3600")
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Contains(t, body, "tables")
+}
+
+func TestWriteAuditLog_ValidLimit(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/write/audit?limit=10", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var entries []any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entries))
+	assert.Empty(t, entries)
+}
+
+func TestWriteRollback_InvalidJSON(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/rollback",
+		strings.NewReader(`{not json`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestWriteRollback_MissingSnapshotID(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/rollback",
+		strings.NewReader(`{"actor":"admin"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Contains(t, body["error"], "snapshot_id is required")
+}
+
+// TestWritePreview_InvalidOperation drives an operation that fails structural
+// validation (unknown table) before the engine touches the NB client, so it
+// exercises decodeWriteRequest's reason-propagation branch and handlePreview's
+// error path with the nil-client test engine.
+func TestWritePreview_InvalidOperation(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	body := `{"reason":"cleanup","operations":[{"action":"update","table":"No_Such_Table","uuid":"x"}]}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/preview",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestWriteDryRun_InvalidOperation(t *testing.T) {
+	engine := setupTestWriteEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	body := `{"reason":"cleanup","operations":[{"action":"update","table":"No_Such_Table","uuid":"x"}]}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/dry-run",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestWritePreview_OversizedBody(t *testing.T) {
 	engine := setupTestWriteEngine(t)
 	mux := http.NewServeMux()

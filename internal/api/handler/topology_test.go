@@ -1,14 +1,67 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHandleTopology_HTTP_Empty(t *testing.T) {
+	nbc := testutil.SetupNBTestClient(t)
+	sbc := testutil.SetupSBTestClient(t)
+
+	mux := http.NewServeMux()
+	RegisterTopology(mux, nbc, sbc)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/topology", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp TopologyResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.NotNil(t, resp.Nodes)
+	assert.NotNil(t, resp.Edges)
+	assert.Empty(t, resp.Nodes)
+}
+
+func TestHandleTopology_HTTP_WithData(t *testing.T) {
+	nbc := testutil.SetupNBTestClient(t)
+	sbc := testutil.SetupSBTestClient(t)
+
+	testutil.InsertLogicalSwitch(t, nbc, "sw-topo")
+	testutil.InsertGatewayRouter(t, nbc, "router-topo", "lrp-topo", []string{"10.0.0.1/24"}, nil)
+
+	mux := http.NewServeMux()
+	RegisterTopology(mux, nbc, sbc)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/api/v1/topology?vms=true&format=download", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "topology.json")
+
+	var resp TopologyResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.NotEmpty(t, resp.Nodes)
+
+	types := map[string]bool{}
+	for _, n := range resp.Nodes {
+		types[n.Type] = true
+	}
+	assert.True(t, types["switch"])
+	assert.True(t, types["router"])
+}
 
 func TestBuildTopology_Basic(t *testing.T) {
 	switches := []nb.LogicalSwitch{

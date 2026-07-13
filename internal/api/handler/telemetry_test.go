@@ -6,13 +6,101 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/b42labs/northwatch/internal/telemetry"
+	"github.com/b42labs/northwatch/internal/testutil"
 )
+
+func TestTelemetryRaftHealth(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	sbClient := testutil.SetupSBTestClient(t)
+
+	querier := telemetry.NewQuerier(nbClient, sbClient)
+	mux := http.NewServeMux()
+	RegisterTelemetry(mux, querier, nil, nil)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/telemetry/raft-health", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Contains(t, body, "nb")
+	assert.Contains(t, body, "sb")
+}
+
+func TestTelemetryPropagationTimelineAndHeatmap(t *testing.T) {
+	nbClient := testutil.SetupNBTestClient(t)
+	sbClient := testutil.SetupSBTestClient(t)
+
+	querier := telemetry.NewQuerier(nbClient, sbClient)
+	store := telemetry.NewPropagationStore(100, time.Hour)
+	now := time.Now().UnixMilli()
+	store.Add(telemetry.PropagationEvent{Chassis: "ch1", Hostname: "h1", Generation: 5, LatencyMs: 12, RecordedAt: now})
+	store.Add(telemetry.PropagationEvent{Chassis: "ch1", Hostname: "h1", Generation: 6, LatencyMs: 8, RecordedAt: now})
+	store.Add(telemetry.PropagationEvent{Chassis: "ch2", Hostname: "h2", Generation: 6, LatencyMs: 20, RecordedAt: now})
+
+	mux := http.NewServeMux()
+	RegisterTelemetry(mux, querier, nil, store)
+
+	do := func(t *testing.T, url string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("timeline all", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/timeline")
+		require.Equal(t, http.StatusOK, w.Code)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, float64(3), body["count"])
+	})
+
+	t.Run("timeline filtered and limited", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/timeline?chassis=ch1&since=0&limit=1")
+		require.Equal(t, http.StatusOK, w.Code)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, float64(1), body["count"])
+	})
+
+	t.Run("timeline invalid since", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/timeline?since=abc")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("timeline invalid limit", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/timeline?limit=abc")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("heatmap default window", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/heatmap")
+		require.Equal(t, http.StatusOK, w.Code)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Contains(t, body, "chassis")
+	})
+
+	t.Run("heatmap explicit since", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/heatmap?since=1")
+		require.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("heatmap invalid since", func(t *testing.T) {
+		w := do(t, "/api/v1/telemetry/propagation/heatmap?since=abc")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
 
 func TestTelemetrySummary(t *testing.T) {
 	nbClient := setupNBTestClient(t)

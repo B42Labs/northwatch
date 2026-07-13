@@ -9,9 +9,52 @@ import (
 	"testing"
 	"time"
 
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHandleExportTopology_HTTP(t *testing.T) {
+	nbc := testutil.SetupNBTestClient(t)
+	sbc := testutil.SetupSBTestClient(t)
+
+	testutil.InsertLogicalSwitch(t, nbc, "sw-export")
+	testutil.InsertGatewayRouter(t, nbc, "router-export", "lrp-export", []string{"10.0.0.1/24"}, nil)
+
+	store := NewTraceStore(5 * time.Minute)
+	mux := http.NewServeMux()
+	RegisterExport(mux, nbc, sbc, store)
+
+	t.Run("svg by default", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/export/topology", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "image/svg+xml", w.Header().Get("Content-Type"))
+		assert.Contains(t, w.Header().Get("Content-Disposition"), "topology.svg")
+		assert.Contains(t, w.Body.String(), "<svg")
+	})
+
+	t.Run("json format", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/export/topology?format=json", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Header().Get("Content-Disposition"), "topology.json")
+		var resp TopologyResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.NotEmpty(t, resp.Nodes)
+	})
+
+	t.Run("invalid format", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/export/topology?format=xml", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
 
 func TestEscapeXML(t *testing.T) {
 	tests := []struct {
