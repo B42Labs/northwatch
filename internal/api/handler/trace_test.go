@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -263,4 +264,36 @@ func TestSelectBestMatch(t *testing.T) {
 			assert.Equal(t, tt.wantIndex, selectedIdx)
 		})
 	}
+}
+
+// TestHandleTrace_CacheErrorIsNot404 pins the split between a broken cache and a
+// port that does not exist. A disconnected client fails the lookup; reporting
+// that as 404 would tell the caller the port is absent, which is a different
+// problem than the one that actually occurred.
+func TestHandleTrace_CacheErrorIsNot404(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterTrace(mux, errListClient{err: errors.New("cache read failed")}, NewTraceStore(5*time.Minute))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/api/v1/debug/trace?port=00000000-0000-0000-0000-000000000000", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), "internal server error")
+}
+
+func TestHandleTrace_UnknownPortIs404(t *testing.T) {
+	sbc := testutil.SetupSBTestClient(t)
+
+	mux := http.NewServeMux()
+	RegisterTrace(mux, sbc, NewTraceStore(5*time.Minute))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/api/v1/debug/trace?port=00000000-0000-0000-0000-000000000000", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), "port binding not found")
 }

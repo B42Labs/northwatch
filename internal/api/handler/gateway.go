@@ -20,7 +20,7 @@ func RegisterGatewayHealth(mux *http.ServeMux, nbClient, sbClient client.Client,
 	mux.HandleFunc("GET /api/v1/topology/gateway", func(w http.ResponseWriter, r *http.Request) {
 		report, err := a.Analyze(r.Context())
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, report)

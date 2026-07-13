@@ -39,7 +39,7 @@ func handlePortDiagnostics(diagnoser *debug.PortDiagnoser) http.HandlerFunc {
 
 		summary, err := diagnoser.DiagnoseAll(r.Context())
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 
@@ -86,7 +86,7 @@ func handleConnectivity(checker *debug.ConnectivityChecker) http.HandlerFunc {
 
 		result, err := checker.Check(r.Context(), srcUUID, dstUUID)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 
@@ -98,7 +98,7 @@ func handleACLAudit(auditor *debug.ACLAuditor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		result, err := auditor.Audit(r.Context())
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, result)
@@ -109,7 +109,7 @@ func handleStaleEntries(detector *debug.StaleDetector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		result, err := detector.DetectAll(r.Context())
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, result)

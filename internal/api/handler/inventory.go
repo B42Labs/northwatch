@@ -21,7 +21,7 @@ func RegisterInventory(mux *http.ServeMux, sbClient client.Client, staleThreshol
 	mux.HandleFunc("GET /api/v1/sb/chassis-inventory", func(w http.ResponseWriter, r *http.Request) {
 		summaries, err := b.List(r.Context())
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, summaries)
@@ -35,7 +35,7 @@ func RegisterInventory(mux *http.ServeMux, sbClient client.Client, staleThreshol
 				api.WriteError(w, http.StatusNotFound, "not found")
 				return
 			}
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, detail)

@@ -39,13 +39,13 @@ func handleNATTopology(nbClient client.Client) http.HandlerFunc {
 
 		var routers []nb.LogicalRouter
 		if err := nbClient.List(ctx, &routers); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical routers")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 
 		var nats []nb.NAT
 		if err := nbClient.List(ctx, &nats); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list NAT rules")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 

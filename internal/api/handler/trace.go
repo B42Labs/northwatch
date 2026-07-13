@@ -65,12 +65,18 @@ func handleTrace(sbClient client.Client, traceStore *TraceStore) http.HandlerFun
 		protocol := r.URL.Query().Get("protocol")
 		ctx := r.Context()
 
-		// Resolve port binding
+		// Resolve port binding. A cache failure and an absent port are distinct:
+		// reporting a broken cache as 404 tells the caller the port does not
+		// exist, which is a different (and misleading) problem.
 		var pbs []sb.PortBinding
 		err := sbClient.WhereCache(func(pb *sb.PortBinding) bool {
 			return pb.UUID == portUUID
 		}).List(ctx, &pbs)
-		if err != nil || len(pbs) == 0 {
+		if err != nil {
+			api.WriteInternalError(w, r, err)
+			return
+		}
+		if len(pbs) == 0 {
 			api.WriteError(w, http.StatusNotFound, "port binding not found")
 			return
 		}
@@ -86,7 +92,7 @@ func handleTrace(sbClient client.Client, traceStore *TraceStore) http.HandlerFun
 			return f.LogicalDatapath != nil && *f.LogicalDatapath == datapathUUID
 		}).List(ctx, &flows)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical flows")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 

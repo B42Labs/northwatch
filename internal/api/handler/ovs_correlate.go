@@ -30,7 +30,7 @@ func RegisterOVSCorrelation(mux *http.ServeMux, pool *ovndb.OVSPool, sbClient cl
 		if err := c.WhereCache(func(i *vs.Interface) bool {
 			return i.UUID == uuid
 		}).List(r.Context(), &ifaces); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		if len(ifaces) == 0 {
@@ -46,7 +46,7 @@ func RegisterOVSCorrelation(mux *http.ServeMux, pool *ovndb.OVSPool, sbClient cl
 			Error:     ovndb.DerefStr(iface.Error),
 		})
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, result)

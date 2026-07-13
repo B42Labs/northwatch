@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -121,4 +122,21 @@ func TestLBTopology(t *testing.T) {
 		assert.Equal(t, "online", backendByAddr["192.168.1.10:8080"].Status)
 		assert.Empty(t, backendByAddr["192.168.1.11:8080"].Status, "monitor only covers .10")
 	})
+}
+
+// TestLBTopology_ListErrorIsSurfaced covers the three List calls whose errors
+// used to be discarded: a failed read served a load balancer with no backend
+// health, no routers and no switches, indistinguishable from one that has none.
+func TestLBTopology_ListErrorIsSurfaced(t *testing.T) {
+	failing := errListClient{err: errors.New("cache read failed")}
+
+	mux := http.NewServeMux()
+	RegisterLBTopology(mux, failing, failing)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/topology/load-balancers", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), "internal server error")
 }

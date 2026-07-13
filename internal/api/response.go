@@ -18,6 +18,18 @@ func WriteError(w http.ResponseWriter, status int, msg string) {
 	WriteJSON(w, status, map[string]string{"error": msg})
 }
 
+// WriteInternalError is the single policy for server-side failures: the cause is
+// logged with the request that triggered it, and the client gets a generic body.
+//
+// It replaces two habits that were both wrong. Returning err.Error() leaked
+// filesystem paths and SQL text to unauthenticated callers; returning a bare
+// "internal error" and dropping err made production 500s undebuggable. Every 5xx
+// goes through here so neither happens again.
+func WriteInternalError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.Error("internal server error", "method", r.Method, "path", r.URL.Path, "err", err)
+	WriteError(w, http.StatusInternalServerError, "internal server error")
+}
+
 // WriteJSONList writes items as a JSON array with the given status, coercing a
 // nil slice to an empty array so clients always receive [] rather than null.
 func WriteJSONList[T any](w http.ResponseWriter, status int, items []T) {

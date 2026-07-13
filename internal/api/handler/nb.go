@@ -54,7 +54,7 @@ func handleList[T any](c client.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var results []T
 		if err := c.List(r.Context(), &results); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))
@@ -69,7 +69,7 @@ func handleGet[T any](c client.Client) http.HandlerFunc {
 		if err := c.WhereCache(func(m *T) bool {
 			return getUUID(m) == uuid
 		}).List(r.Context(), &results); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 
