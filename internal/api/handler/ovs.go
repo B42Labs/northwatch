@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ovn-kubernetes/libovsdb/client"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/b42labs/northwatch/internal/api"
 	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
@@ -131,32 +132,58 @@ type ovsPool interface {
 // across every chassis on every request.
 const ovsHealthTTL = time.Second
 
+// ovsHealthComputeTimeout bounds a single fleet-health fan-out. The reads hit
+// in-memory caches and effectively never block, so this is only a backstop that
+// keeps a pathological hang from pinning the coalesced compute forever.
+const ovsHealthComputeTimeout = 10 * time.Second
+
 // healthCache memoizes the most recent fleet-health snapshot for ovsHealthTTL.
-// The mutex is held across the recompute so a burst of concurrent requests
-// coalesces onto a single fan-out rather than each triggering its own.
+// The mutex guards only the cached snapshot; a singleflight group coalesces
+// concurrent recomputes so a burst of requests triggers at most one fan-out
+// without holding the lock across it.
 type healthCache struct {
 	mu      sync.Mutex
 	at      time.Time
 	val     ovshealth.FleetHealth
 	tracker *ovshealth.Tracker
+	group   singleflight.Group
 }
 
 // get returns the cached fleet health when it is younger than ovsHealthTTL,
 // otherwise it recomputes, stores and returns a fresh snapshot. now is passed in
 // so tests can drive the TTL deterministically. The tracker is created lazily so
-// the zero-value healthCache is usable, and is accessed under hc.mu.
+// the zero-value healthCache is usable.
+//
+// The lock is only held to read or write the cached snapshot — never across the
+// fan-out — so a cached read cannot block behind an in-flight recompute. The
+// recompute is coalesced through singleflight and runs on a context detached
+// from the caller's cancellation with its own timeout, so the first caller
+// disconnecting neither aborts the shared fan-out nor poisons the snapshot the
+// coalesced callers receive.
 func (hc *healthCache) get(ctx context.Context, pool ovsPool, now time.Time) ovshealth.FleetHealth {
 	hc.mu.Lock()
-	defer hc.mu.Unlock()
 	if !hc.at.IsZero() && now.Sub(hc.at) < ovsHealthTTL {
-		return hc.val
+		val := hc.val
+		hc.mu.Unlock()
+		return val
 	}
 	if hc.tracker == nil {
 		hc.tracker = ovshealth.NewTracker()
 	}
-	hc.val = ovsFleetHealth(ctx, pool, hc.tracker)
-	hc.at = now
-	return hc.val
+	tracker := hc.tracker
+	hc.mu.Unlock()
+
+	v, _, _ := hc.group.Do("health", func() (any, error) {
+		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ovsHealthComputeTimeout)
+		defer cancel()
+		fh := ovsFleetHealth(cctx, pool, tracker)
+		hc.mu.Lock()
+		hc.val = fh
+		hc.at = now
+		hc.mu.Unlock()
+		return fh, nil
+	})
+	return v.(ovshealth.FleetHealth)
 }
 
 // RegisterOVS registers the read-only per-chassis Open_vSwitch endpoints,
