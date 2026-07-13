@@ -31,7 +31,10 @@ func TestPlanCache_GetMissing(t *testing.T) {
 }
 
 func TestPlanCache_Expired(t *testing.T) {
-	cache := NewPlanCache(1 * time.Millisecond)
+	cache := NewPlanCache(1 * time.Minute)
+	base := time.Now()
+	current := base
+	cache.now = func() time.Time { return current }
 
 	plan := &Plan{
 		ID:     "plan-expired",
@@ -39,8 +42,8 @@ func TestPlanCache_Expired(t *testing.T) {
 	}
 	cache.Store(plan)
 
-	// Wait for the plan to expire.
-	time.Sleep(5 * time.Millisecond)
+	// Advance the clock past the TTL instead of sleeping.
+	current = base.Add(2 * time.Minute)
 
 	_, ok := cache.Get("plan-expired")
 	assert.False(t, ok)
@@ -62,14 +65,16 @@ func TestPlanCache_Delete(t *testing.T) {
 }
 
 func TestPlanCache_Cleanup(t *testing.T) {
-	cache := NewPlanCache(1 * time.Millisecond)
+	cache := NewPlanCache(1 * time.Minute)
+	base := time.Now()
+	current := base
+	cache.now = func() time.Time { return current }
 
 	cache.Store(&Plan{ID: "plan-a", Status: "pending"})
 	cache.Store(&Plan{ID: "plan-b", Status: "pending"})
 
-	// Wait for plans to expire.
-	time.Sleep(5 * time.Millisecond)
-
+	// Advance the clock past the TTL, then sweep.
+	current = base.Add(2 * time.Minute)
 	cache.Cleanup()
 
 	_, okA := cache.Get("plan-a")

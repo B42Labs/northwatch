@@ -23,6 +23,9 @@ type Cache struct {
 	mu      sync.RWMutex
 	entries map[string]cacheEntry
 	ttl     time.Duration
+	// now returns the current time; a field so tests can drive expiry
+	// deterministically. It defaults to time.Now and is read under mu.
+	now func() time.Time
 }
 
 // NewCache creates a new Cache with the given TTL.
@@ -30,6 +33,7 @@ func NewCache(ttl time.Duration) *Cache {
 	return &Cache{
 		entries: make(map[string]cacheEntry),
 		ttl:     ttl,
+		now:     time.Now,
 	}
 }
 
@@ -42,11 +46,11 @@ func (c *Cache) Get(key string) (*Info, bool) {
 		c.mu.RUnlock()
 		return nil, false
 	}
-	if time.Now().After(entry.expiresAt) {
+	if c.now().After(entry.expiresAt) {
 		c.mu.RUnlock()
 		c.mu.Lock()
 		// Re-check under write lock to avoid racing with another goroutine.
-		if e, exists := c.entries[key]; exists && time.Now().After(e.expiresAt) {
+		if e, exists := c.entries[key]; exists && c.now().After(e.expiresAt) {
 			delete(c.entries, key)
 		}
 		c.mu.Unlock()
@@ -69,7 +73,7 @@ func (c *Cache) Set(key string, info *Info) {
 
 	c.entries[key] = cacheEntry{
 		info:      info,
-		expiresAt: time.Now().Add(c.ttl),
+		expiresAt: c.now().Add(c.ttl),
 	}
 }
 
@@ -77,7 +81,7 @@ func (c *Cache) Set(key string, info *Info) {
 // expired entries and, if the map is still at capacity, evicts arbitrary
 // entries until it is below the cap. The caller must hold c.mu.
 func (c *Cache) evictLocked() {
-	now := time.Now()
+	now := c.now()
 	for k, e := range c.entries {
 		if now.After(e.expiresAt) {
 			delete(c.entries, k)

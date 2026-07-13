@@ -40,10 +40,15 @@ func TestTraceStore_GetNotFound(t *testing.T) {
 }
 
 func TestTraceStore_GetExpired(t *testing.T) {
-	store := NewTraceStore(1 * time.Millisecond)
+	store := NewTraceStore(1 * time.Minute)
+	base := time.Now()
+	current := base
+	store.now = func() time.Time { return current }
+
 	store.Store("trace-1", TraceResponse{PortName: "p1"})
 
-	time.Sleep(5 * time.Millisecond)
+	// Advance the clock past maxAge instead of sleeping.
+	current = base.Add(2 * time.Minute)
 
 	_, ok := store.Get("trace-1")
 	assert.False(t, ok)
@@ -59,11 +64,15 @@ func TestTraceStore_List(t *testing.T) {
 }
 
 func TestTraceStore_ListFiltersExpired(t *testing.T) {
-	store := NewTraceStore(1 * time.Millisecond)
+	store := NewTraceStore(1 * time.Minute)
+	base := time.Now()
+	current := base
+	store.now = func() time.Time { return current }
+
 	store.Store("t1", TraceResponse{PortName: "p1"})
 
-	time.Sleep(5 * time.Millisecond)
-
+	// t1 ages past maxAge; t2 is stored fresh at the advanced clock.
+	current = base.Add(2 * time.Minute)
 	store.Store("t2", TraceResponse{PortName: "p2"})
 
 	traces := store.List()
@@ -72,10 +81,15 @@ func TestTraceStore_ListFiltersExpired(t *testing.T) {
 }
 
 func TestTraceStore_StoreCleanupExpired(t *testing.T) {
-	store := NewTraceStore(1 * time.Millisecond)
+	store := NewTraceStore(1 * time.Minute)
+	base := time.Now()
+	current := base
+	store.now = func() time.Time { return current }
+
 	store.Store("old", TraceResponse{PortName: "old"})
 
-	time.Sleep(5 * time.Millisecond)
+	// Advance past maxAge so "old" is eligible for the amortized sweep.
+	current = base.Add(2 * time.Minute)
 
 	// Cleanup is amortized over cleanupEvery stores. Drive enough writes
 	// to guarantee one sweep occurs and removes the expired entry.
