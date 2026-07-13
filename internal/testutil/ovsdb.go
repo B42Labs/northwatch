@@ -905,6 +905,56 @@ func InsertStaticMACBinding(t *testing.T, c client.Client, logicalPort, ip, mac 
 	return uuid
 }
 
+// InsertFDB inserts an SB FDB (forwarding database) row mapping a MAC on a
+// datapath key to a port key. dpKey and portKey must be >= 1 (schema minimum).
+func InsertFDB(t *testing.T, c client.Client, mac string, dpKey, portKey int) string {
+	t.Helper()
+	f := &sb.FDB{MAC: mac, DpKey: dpKey, PortKey: portKey}
+	ops, err := c.Create(f)
+	require.NoError(t, err)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	uuid := reply[0].UUID.GoUUID
+	require.Eventually(t, func() bool {
+		return c.Get(context.Background(), &sb.FDB{UUID: uuid}) == nil
+	}, 2*time.Second, 10*time.Millisecond)
+	return uuid
+}
+
+// InsertSwitchWithPort creates an NB Logical_Switch referencing one
+// Logical_Switch_Port with the given name in a single transaction. The LSP is a
+// non-root table, so it must be created together with the referencing switch or
+// OVSDB referential integrity garbage-collects it immediately.
+func InsertSwitchWithPort(t *testing.T, c client.Client, switchName, portName string) {
+	t.Helper()
+	lspNamed := "lsp_" + portName
+	lsp := &nb.LogicalSwitchPort{UUID: lspNamed, Name: portName, ExternalIDs: map[string]string{}, Options: map[string]string{}}
+	lspOps, err := c.Create(lsp)
+	require.NoError(t, err)
+	ls := &nb.LogicalSwitch{Name: switchName, Ports: []string{lspNamed}, ExternalIDs: map[string]string{}}
+	lsOps, err := c.Create(ls)
+	require.NoError(t, err)
+	ops := append(lspOps, lsOps...)
+	reply, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var lsps []nb.LogicalSwitchPort
+		if err := c.List(context.Background(), &lsps); err != nil {
+			return false
+		}
+		for _, p := range lsps {
+			if p.Name == portName {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 // HAChassisEntry describes a single HA_Chassis member for InsertHAChassisGroup.
 type HAChassisEntry struct {
 	ChassisUUID string
