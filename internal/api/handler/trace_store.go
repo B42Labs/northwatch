@@ -10,6 +10,12 @@ import (
 // remain O(1) on average instead of O(n) per call.
 const cleanupEvery = 64
 
+// maxTraceEntries bounds how many traces are held at once. Age alone was not a
+// bound: a trace is a full flow dump, and traces were kept for an hour with no
+// limit on how many, so an unauthenticated client could pin an unbounded amount
+// of memory just by requesting traces in a loop.
+const maxTraceEntries = 200
+
 // TraceStore stores packet traces for later retrieval and export.
 type TraceStore struct {
 	mu          sync.RWMutex
@@ -28,7 +34,8 @@ type StoredTrace struct {
 	Trace     TraceResponse `json:"trace"`
 }
 
-// NewTraceStore creates a new TraceStore with the given max age.
+// NewTraceStore creates a new TraceStore holding at most maxTraceEntries traces,
+// each for the given max age.
 func NewTraceStore(maxAge time.Duration) *TraceStore {
 	return &TraceStore{
 		traces: make(map[string]StoredTrace),
@@ -37,7 +44,8 @@ func NewTraceStore(maxAge time.Duration) *TraceStore {
 	}
 }
 
-// Store persists a trace and returns its ID.
+// Store persists a trace under the given ID, evicting the oldest trace when the
+// store is full.
 func (s *TraceStore) Store(id string, trace TraceResponse) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -53,11 +61,41 @@ func (s *TraceStore) Store(id string, trace TraceResponse) {
 		}
 	}
 
+	if _, replacing := s.traces[id]; !replacing {
+		s.evictOldest(now)
+	}
+
 	s.traces[id] = StoredTrace{
 		ID:        id,
 		CreatedAt: now,
 		Trace:     trace,
 	}
+}
+
+// evictOldest makes room for one new trace: it drops expired entries first and,
+// if the store is still at capacity, the oldest remaining one. Callers hold mu.
+func (s *TraceStore) evictOldest(now time.Time) {
+	if len(s.traces) < maxTraceEntries {
+		return
+	}
+
+	for k, v := range s.traces {
+		if now.Sub(v.CreatedAt) > s.maxAge {
+			delete(s.traces, k)
+		}
+	}
+	if len(s.traces) < maxTraceEntries {
+		return
+	}
+
+	var oldestID string
+	var oldestAt time.Time
+	for k, v := range s.traces {
+		if oldestID == "" || v.CreatedAt.Before(oldestAt) {
+			oldestID, oldestAt = k, v.CreatedAt
+		}
+	}
+	delete(s.traces, oldestID)
 }
 
 // Get retrieves a stored trace by ID.
