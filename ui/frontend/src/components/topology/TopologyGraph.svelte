@@ -1,5 +1,16 @@
 <script lang="ts">
-  import * as d3 from 'd3';
+  import { select } from 'd3-selection';
+  import { zoom as d3Zoom } from 'd3-zoom';
+  import { drag } from 'd3-drag';
+  import {
+    forceSimulation,
+    forceLink,
+    forceManyBody,
+    forceCenter,
+    forceCollide,
+    type SimulationNodeDatum,
+    type SimulationLinkDatum,
+  } from 'd3-force';
   import type { TopologyNode, TopologyEdge } from '../../lib/api';
   import { push } from '../../lib/router';
 
@@ -165,7 +176,7 @@
 
   function renderGraph() {
     if (!svgRef) return;
-    const svg = d3.select(svgRef);
+    const svg = select(svgRef);
     svg.selectAll('*').remove();
     hoveredNode = null;
 
@@ -231,8 +242,7 @@
 
     const g = svg.append('g');
 
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
+    const zoom = d3Zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 5])
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
@@ -240,8 +250,8 @@
       });
     svg.call(zoom);
 
-    type SimNode = TopologyNode & d3.SimulationNodeDatum;
-    type SimLink = d3.SimulationLinkDatum<SimNode> & { type: string };
+    type SimNode = TopologyNode & SimulationNodeDatum;
+    type SimLink = SimulationLinkDatum<SimNode> & { type: string };
 
     const simNodes: SimNode[] = nodes.map((n) => ({ ...n }));
     const nodeMap = new Map(simNodes.map((n) => [n.id, n]));
@@ -251,12 +261,10 @@
       .map((e) => ({ source: e.source, target: e.target, type: e.type }));
 
     // Force simulation
-    const simulation = d3
-      .forceSimulation<SimNode>(simNodes)
+    const simulation = forceSimulation<SimNode>(simNodes)
       .force(
         'link',
-        d3
-          .forceLink<SimNode, SimLink>(simLinks)
+        forceLink<SimNode, SimLink>(simLinks)
           .id((d) => d.id)
           .distance((d) => {
             if (d.type === 'vm-binding') return 50;
@@ -269,11 +277,11 @@
             return 0.4;
           }),
       )
-      .force('charge', d3.forceManyBody().strength(-600))
-      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('charge', forceManyBody().strength(-600))
+      .force('center', forceCenter(width / 2, height / 2))
       .force(
         'collision',
-        d3.forceCollide<SimNode>((d) => (d.type === 'vm-port' ? 25 : 60)),
+        forceCollide<SimNode>((d) => (d.type === 'vm-port' ? 25 : 60)),
       );
 
     // --- Edges ---
@@ -320,8 +328,7 @@
       .on('click', (_, d) => navigateToNode(d));
 
     node.call(
-      d3
-        .drag<SVGGElement, SimNode>()
+      drag<SVGGElement, SimNode>()
         .on('start', (event, d) => {
           if (!event.active) simulation.alphaTarget(0.3).restart();
           d.fx = d.x;
@@ -357,7 +364,7 @@
 
     // Node shapes
     node.each(function (d) {
-      const el = d3.select(this);
+      const el = select(this);
       const style = nodeStyles[d.type];
       if (!style) return;
 
@@ -490,11 +497,7 @@
     node
       .on('mouseenter', function (event: MouseEvent, d: SimNode) {
         const r = d.type === 'vm-port' ? 18 : 32;
-        d3.select(this)
-          .select('circle')
-          .transition()
-          .duration(200)
-          .attr('r', r);
+        select(this).select('circle').transition().duration(200).attr('r', r);
 
         // Position info card relative to container
         const rect = containerEl.getBoundingClientRect();
@@ -513,11 +516,7 @@
       })
       .on('mouseleave', function (_, d: SimNode) {
         const r = glowRadius(d.type);
-        d3.select(this)
-          .select('circle')
-          .transition()
-          .duration(200)
-          .attr('r', r);
+        select(this).select('circle').transition().duration(200).attr('r', r);
         hoveredNode = null;
       });
 

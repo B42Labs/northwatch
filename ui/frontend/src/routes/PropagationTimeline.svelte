@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import * as d3 from 'd3';
+  import { select, pointer } from 'd3-selection';
+  import { extent, max } from 'd3-array';
+  import { scaleLinear, scaleTime } from 'd3-scale';
+  import { axisBottom, axisLeft } from 'd3-axis';
+  import { timeFormat } from 'd3-time-format';
   import {
     getPropagationTimeline,
     getPropagationHeatmap,
@@ -61,7 +65,7 @@
   function renderChart() {
     if (!svgRef || events.length === 0) return;
 
-    const svg = d3.select(svgRef);
+    const svg = select(svgRef);
     svg.selectAll('*').remove();
 
     const rect = svgRef.getBoundingClientRect();
@@ -78,21 +82,19 @@
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
     // Latency-based color scale (green → yellow → red)
-    const yMax = d3.max(events, (e) => e.latency_ms) ?? 1000;
-    const latencyColor = d3
-      .scaleLinear<string>()
+    const yMax = max(events, (e) => e.latency_ms) ?? 1000;
+    const latencyColor = scaleLinear<string>()
       .domain([0, yMax * 0.5, yMax])
       .range(['#22c55e', '#eab308', '#ef4444'])
       .clamp(true);
 
-    const xExtent = d3.extent(events, (e) => e.chassis_timestamp_ms) as [
+    const xExtent = extent(events, (e) => e.chassis_timestamp_ms) as [
       number,
       number,
     ];
-    const x = d3.scaleTime().domain(xExtent).range([0, innerW]).nice();
+    const x = scaleTime().domain(xExtent).range([0, innerW]).nice();
 
-    const y = d3
-      .scaleLinear()
+    const y = scaleLinear()
       .domain([0, yMax * 1.1])
       .range([innerH, 0])
       .nice();
@@ -109,16 +111,13 @@
     // Smart time format: include seconds when range is narrow
     const xRangeMs = xExtent[1] - xExtent[0];
     const timeFmt =
-      xRangeMs < 5 * 60 * 1000
-        ? d3.timeFormat('%H:%M:%S')
-        : d3.timeFormat('%H:%M');
+      xRangeMs < 5 * 60 * 1000 ? timeFormat('%H:%M:%S') : timeFormat('%H:%M');
 
     // Axes
     g.append('g')
       .attr('transform', `translate(0,${innerH})`)
       .call(
-        d3
-          .axisBottom(x)
+        axisBottom(x)
           .ticks(6)
           .tickFormat((d) => timeFmt(d as Date)),
       )
@@ -127,8 +126,7 @@
 
     g.append('g')
       .call(
-        d3
-          .axisLeft(y)
+        axisLeft(y)
           .ticks(6)
           .tickFormat((d) => formatMs(d as number)),
       )
@@ -155,8 +153,7 @@
     g.append('g')
       .attr('class', 'opacity-10')
       .call(
-        d3
-          .axisLeft(y)
+        axisLeft(y)
           .ticks(6)
           .tickSize(-innerW)
           .tickFormat(() => ''),
@@ -165,8 +162,7 @@
       .remove();
 
     // Tooltip div
-    const tooltip = d3
-      .select(svgRef.parentNode as Element)
+    const tooltip = select(svgRef.parentNode as Element)
       .selectAll('.chart-tooltip')
       .data([null])
       .join('div')
@@ -186,7 +182,7 @@
       .attr('opacity', 0.5)
       .attr('stroke', 'none')
       .on('mouseenter', function (event, d) {
-        d3.select(this)
+        select(this)
           .attr('r', 5)
           .attr('opacity', 1)
           .attr('stroke', '#000')
@@ -201,14 +197,11 @@
           );
       })
       .on('mousemove', function (event) {
-        const [mx, my] = d3.pointer(event, svgRef!.parentNode as Element);
+        const [mx, my] = pointer(event, svgRef!.parentNode as Element);
         tooltip.style('left', mx + 12 + 'px').style('top', my - 10 + 'px');
       })
       .on('mouseleave', function () {
-        d3.select(this)
-          .attr('r', 2.5)
-          .attr('opacity', 0.5)
-          .attr('stroke', 'none');
+        select(this).attr('r', 2.5).attr('opacity', 0.5).attr('stroke', 'none');
         tooltip.style('opacity', '0');
       });
   }

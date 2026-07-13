@@ -47,15 +47,22 @@
 
   let displayRow = $derived(event.row ?? event.old_row);
   let allKeys = $derived(displayRow ? Object.keys(displayRow).sort() : []);
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') onClose();
+  }
 </script>
 
-<!-- Backdrop -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
+<svelte:window onkeydown={onKeydown} />
+
+<!-- Backdrop: a full-viewport button so it is dismissable by click, Enter/Space
+     and (via the window handler) Escape. -->
+<button
+  type="button"
   class="fixed inset-0 z-40 bg-black/30 transition-opacity duration-300"
+  aria-label="Close panel"
   onclick={onClose}
-></div>
+></button>
 
 <!-- Panel -->
 <div

@@ -53,6 +53,32 @@
     window.addEventListener('pointerup', onUp);
   }
 
+  // Keyboard resize: arrow keys grow/shrink the panel in the same directions a
+  // pointer drag would, clamped to the same bounds as the drag handler.
+  function resizeByKey(e: KeyboardEvent) {
+    const step = 24;
+    const parent = panelEl?.parentElement;
+    const maxW = parent ? parent.clientWidth - 24 : Infinity;
+    const maxH = parent ? parent.clientHeight - 24 : Infinity;
+    switch (e.key) {
+      case 'ArrowLeft':
+        width = Math.min(maxW, width + step);
+        break;
+      case 'ArrowRight':
+        width = Math.max(240, width - step);
+        break;
+      case 'ArrowUp':
+        height = Math.min(maxH, height + step);
+        break;
+      case 'ArrowDown':
+        height = Math.max(140, height - step);
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  }
+
   function eventTime(e: StreamEvent): string {
     return new Date(e.ts).toLocaleTimeString();
   }
@@ -67,16 +93,18 @@
 >
   {#if !collapsed}
     <!-- Resize grip (top-left corner) -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="absolute top-0 left-0 z-10 h-4 w-4 cursor-nwse-resize"
+    <button
+      type="button"
+      class="absolute top-0 left-0 z-10 h-4 w-4 cursor-nwse-resize border-0 bg-transparent p-0"
       onpointerdown={startResize}
+      onkeydown={resizeByKey}
+      aria-label="Resize event stream panel (arrow keys)"
       title="Drag to resize"
     >
       <span
         class="absolute top-1 left-1 h-2 w-2 border-t-2 border-l-2 border-base-content/30"
       ></span>
-    </div>
+    </button>
   {/if}
 
   <!-- Header -->

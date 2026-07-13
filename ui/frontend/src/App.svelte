@@ -16,7 +16,6 @@
   import LSPProfile from './routes/correlated/LSPProfile.svelte';
   import LRPProfile from './routes/correlated/LRPProfile.svelte';
   import PortBindingProfile from './routes/correlated/PortBindingProfile.svelte';
-  import Topology from './routes/Topology.svelte';
   import FlowPipeline from './routes/FlowPipeline.svelte';
   import SecurityPolicy from './routes/SecurityPolicy.svelte';
   import NatOverview from './routes/NatOverview.svelte';
@@ -38,7 +37,10 @@
   import ChassisInventory from './routes/ChassisInventory.svelte';
   import OvsVisibility from './routes/OvsVisibility.svelte';
   import OvsDetail from './routes/OvsDetail.svelte';
-  import PropagationTimeline from './routes/PropagationTimeline.svelte';
+  import LoadingSpinner from './components/ui/LoadingSpinner.svelte';
+
+  // Topology and PropagationTimeline pull in d3; they are dynamically imported
+  // below so d3 lands in its own lazily-loaded chunk instead of the main bundle.
   let route = $derived(resolveRoute($location));
 </script>
 
@@ -49,7 +51,12 @@
     {#if route.component === 'home'}
       <Home />
     {:else if route.component === 'topology'}
-      <Topology />
+      {#await import('./routes/Topology.svelte')}
+        <LoadingSpinner label="loading topology" />
+      {:then module}
+        {@const Topology = module.default}
+        <Topology />
+      {/await}
     {:else if route.component === 'flow-pipeline'}
       <FlowPipeline />
     {:else if route.component === 'security-policy'}
@@ -127,7 +134,12 @@
         uuid={route.params.uuid}
       />
     {:else if route.component === 'propagation-timeline'}
-      <PropagationTimeline />
+      {#await import('./routes/PropagationTimeline.svelte')}
+        <LoadingSpinner label="loading propagation timeline" />
+      {:then module}
+        {@const PropagationTimeline = module.default}
+        <PropagationTimeline />
+      {/await}
     {:else}
       <NotFound />
     {/if}

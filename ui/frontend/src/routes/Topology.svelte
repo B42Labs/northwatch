@@ -59,6 +59,83 @@
     exportJSON({ nodes, edges }, 'northwatch-topology.json');
   }
 
+  // --- Export menu (controlled, keyboard-accessible) ---
+  let exportMenuOpen = $state(false);
+  let exportMenuEl: HTMLDivElement | undefined = $state();
+
+  function exportItems(): HTMLButtonElement[] {
+    return exportMenuEl
+      ? [
+          ...exportMenuEl.querySelectorAll<HTMLButtonElement>(
+            '[role="menuitem"]',
+          ),
+        ]
+      : [];
+  }
+
+  function openExportMenu() {
+    exportMenuOpen = true;
+    requestAnimationFrame(() => exportItems()[0]?.focus());
+  }
+
+  function closeExportMenu(refocusTrigger = false) {
+    exportMenuOpen = false;
+    if (refocusTrigger) {
+      exportMenuEl
+        ?.querySelector<HTMLButtonElement>('button[aria-haspopup]')
+        ?.focus();
+    }
+  }
+
+  function runExport(fn: () => void) {
+    fn();
+    closeExportMenu();
+  }
+
+  function onExportTriggerKey(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      openExportMenu();
+    } else if (e.key === 'Escape') {
+      closeExportMenu();
+    }
+  }
+
+  function onExportMenuKey(e: KeyboardEvent) {
+    const items = exportItems();
+    if (items.length === 0) return;
+    const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        items[(idx + 1) % items.length]?.focus();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        items[(idx - 1 + items.length) % items.length]?.focus();
+        break;
+      case 'Home':
+        e.preventDefault();
+        items[0]?.focus();
+        break;
+      case 'End':
+        e.preventDefault();
+        items[items.length - 1]?.focus();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        closeExportMenu(true);
+        break;
+    }
+  }
+
+  function onExportFocusOut(e: FocusEvent) {
+    const next = e.relatedTarget as Node | null;
+    if (!next || (exportMenuEl && !exportMenuEl.contains(next))) {
+      exportMenuOpen = false;
+    }
+  }
+
   // Dropdown options derived from data
   let networkOptions = $derived(
     allNodes
@@ -175,6 +252,8 @@
   let chassisSearch = $state('');
   let networkDropdownOpen = $state(false);
   let chassisDropdownOpen = $state(false);
+  let networkComboEl: HTMLDivElement | undefined = $state();
+  let chassisComboEl: HTMLDivElement | undefined = $state();
 
   let filteredNetworks = $derived(
     networkOptions.filter((o) => {
@@ -232,17 +311,97 @@
     chassisDropdownOpen = false;
   }
 
-  function handleNetworkBlur() {
-    // Delay to allow click on option
-    setTimeout(() => {
-      networkDropdownOpen = false;
-    }, 200);
+  // Combobox option elements, for roving keyboard focus into the listbox.
+  function comboOptions(el: HTMLElement | undefined): HTMLButtonElement[] {
+    return el
+      ? [...el.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+      : [];
   }
 
-  function handleChassisBlur() {
-    setTimeout(() => {
+  // Close a combobox only once focus leaves its whole container (input + list),
+  // which keeps it open while the user tabs/arrows through the options and while
+  // a click on an option is being processed.
+  function comboFocusOut(e: FocusEvent, el: HTMLElement | undefined): boolean {
+    const next = e.relatedTarget as Node | null;
+    return !next || (!!el && !el.contains(next));
+  }
+
+  function onNetworkFocusOut(e: FocusEvent) {
+    if (comboFocusOut(e, networkComboEl)) networkDropdownOpen = false;
+  }
+
+  function onChassisFocusOut(e: FocusEvent) {
+    if (comboFocusOut(e, chassisComboEl)) chassisDropdownOpen = false;
+  }
+
+  // Key handling on the combobox input: ArrowDown opens the list and moves focus
+  // to the first option; Escape closes it.
+  function onNetworkInputKey(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      networkDropdownOpen = true;
+      requestAnimationFrame(() => comboOptions(networkComboEl)[0]?.focus());
+    } else if (e.key === 'Escape') {
+      networkDropdownOpen = false;
+    }
+  }
+
+  function onChassisInputKey(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      chassisDropdownOpen = true;
+      requestAnimationFrame(() => comboOptions(chassisComboEl)[0]?.focus());
+    } else if (e.key === 'Escape') {
       chassisDropdownOpen = false;
-    }, 200);
+    }
+  }
+
+  // Key handling within a listbox: roving Up/Down focus across the options,
+  // Escape returns focus to the input and closes the list. The option buttons
+  // handle Enter/Space natively.
+  function moveComboFocus(
+    e: KeyboardEvent,
+    el: HTMLElement | undefined,
+    input: HTMLInputElement | null,
+    close: () => void,
+  ) {
+    const items = comboOptions(el);
+    if (items.length === 0) return;
+    const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        items[(idx + 1) % items.length]?.focus();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        if (idx <= 0) input?.focus();
+        else items[idx - 1]?.focus();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        close();
+        input?.focus();
+        break;
+    }
+  }
+
+  function onNetworkListKey(e: KeyboardEvent) {
+    moveComboFocus(
+      e,
+      networkComboEl,
+      networkComboEl?.querySelector('input') ?? null,
+      () => (networkDropdownOpen = false),
+    );
+  }
+
+  function onChassisListKey(e: KeyboardEvent) {
+    moveComboFocus(
+      e,
+      chassisComboEl,
+      chassisComboEl?.querySelector('input') ?? null,
+      () => (chassisDropdownOpen = false),
+    );
   }
 </script>
 
@@ -280,22 +439,51 @@
       >
         &#x21bb; Layout
       </button>
-      <div class="dropdown dropdown-end">
+      <div
+        class="relative"
+        bind:this={exportMenuEl}
+        onfocusout={onExportFocusOut}
+      >
         <button
-          tabindex="0"
           class="btn border-base-300 btn-ghost font-mono normal-case btn-sm"
+          aria-haspopup="menu"
+          aria-expanded={exportMenuOpen}
+          onclick={() =>
+            exportMenuOpen ? closeExportMenu() : openExportMenu()}
+          onkeydown={onExportTriggerKey}
         >
           Export &#9662;
         </button>
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-        <ul
-          tabindex="0"
-          class="dropdown-content menu z-50 w-44 rounded border border-base-300 bg-base-100 p-2 font-mono text-sm shadow-lg"
-        >
-          <li><button onclick={handleExportSVG}>Download SVG</button></li>
-          <li><button onclick={handleExportPNG}>Download PNG</button></li>
-          <li><button onclick={handleExportJSON}>Download JSON</button></li>
-        </ul>
+        {#if exportMenuOpen}
+          <ul
+            role="menu"
+            class="absolute right-0 z-50 mt-1 flex w-44 flex-col rounded border border-base-300 bg-base-100 p-1 font-mono text-sm shadow-lg"
+            onkeydown={onExportMenuKey}
+          >
+            <li role="none">
+              <button
+                role="menuitem"
+                class="w-full rounded px-3 py-1.5 text-left hover:bg-base-300/40"
+                onclick={() => runExport(handleExportSVG)}>Download SVG</button
+              >
+            </li>
+            <li role="none">
+              <button
+                role="menuitem"
+                class="w-full rounded px-3 py-1.5 text-left hover:bg-base-300/40"
+                onclick={() => runExport(handleExportPNG)}>Download PNG</button
+              >
+            </li>
+            <li role="none">
+              <button
+                role="menuitem"
+                class="w-full rounded px-3 py-1.5 text-left hover:bg-base-300/40"
+                onclick={() => runExport(handleExportJSON)}
+                >Download JSON</button
+              >
+            </li>
+          </ul>
+        {/if}
       </div>
     {/snippet}
   </PageHeader>
@@ -308,29 +496,44 @@
         class="font-mono text-2xs tracking-wider whitespace-nowrap text-base-content/60 uppercase"
         >Network</span
       >
-      <div class="relative">
+      <div
+        class="relative"
+        bind:this={networkComboEl}
+        onfocusout={onNetworkFocusOut}
+      >
         <input
           type="text"
+          role="combobox"
+          aria-expanded={networkDropdownOpen}
+          aria-controls="network-focus-listbox"
+          aria-autocomplete="list"
           bind:value={networkSearch}
           onfocus={() => {
             networkDropdownOpen = true;
           }}
-          onblur={handleNetworkBlur}
+          onkeydown={onNetworkInputKey}
           placeholder="All networks"
           class="input w-48 font-mono input-xs"
         />
         {#if focusNetwork}
           <button
             class="btn absolute top-1/2 right-1 -translate-y-1/2 btn-ghost px-1 btn-xs"
+            aria-label="Clear network focus"
             onclick={clearNetwork}>&times;</button
           >
         {/if}
         {#if networkDropdownOpen}
           <ul
+            id="network-focus-listbox"
+            role="listbox"
+            aria-label="Network focus options"
             class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded border border-base-300 bg-base-100 font-mono shadow-lg"
+            onkeydown={onNetworkListKey}
           >
-            <li>
+            <li role="none">
               <button
+                role="option"
+                aria-selected={!focusNetwork}
                 class="w-full px-3 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/40"
                 onclick={clearNetwork}
               >
@@ -338,8 +541,10 @@
               </button>
             </li>
             {#each filteredNetworks as opt (opt.id)}
-              <li>
+              <li role="none">
                 <button
+                  role="option"
+                  aria-selected={opt.id === focusNetwork}
                   class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-300/40 {opt.id ===
                   focusNetwork
                     ? 'bg-primary/10 font-semibold'
@@ -354,7 +559,7 @@
               </li>
             {/each}
             {#if filteredNetworks.length === 0}
-              <li class="px-3 py-1.5 text-xs text-base-content/40">
+              <li role="none" class="px-3 py-1.5 text-xs text-base-content/40">
                 No matches
               </li>
             {/if}
@@ -369,29 +574,44 @@
         class="font-mono text-2xs tracking-wider whitespace-nowrap text-base-content/60 uppercase"
         >Chassis</span
       >
-      <div class="relative">
+      <div
+        class="relative"
+        bind:this={chassisComboEl}
+        onfocusout={onChassisFocusOut}
+      >
         <input
           type="text"
+          role="combobox"
+          aria-expanded={chassisDropdownOpen}
+          aria-controls="chassis-focus-listbox"
+          aria-autocomplete="list"
           bind:value={chassisSearch}
           onfocus={() => {
             chassisDropdownOpen = true;
           }}
-          onblur={handleChassisBlur}
+          onkeydown={onChassisInputKey}
           placeholder="All chassis"
           class="input w-48 font-mono input-xs"
         />
         {#if focusChassis}
           <button
             class="btn absolute top-1/2 right-1 -translate-y-1/2 btn-ghost px-1 btn-xs"
+            aria-label="Clear chassis focus"
             onclick={clearChassis}>&times;</button
           >
         {/if}
         {#if chassisDropdownOpen}
           <ul
+            id="chassis-focus-listbox"
+            role="listbox"
+            aria-label="Chassis focus options"
             class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded border border-base-300 bg-base-100 font-mono shadow-lg"
+            onkeydown={onChassisListKey}
           >
-            <li>
+            <li role="none">
               <button
+                role="option"
+                aria-selected={!focusChassis}
                 class="w-full px-3 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/40"
                 onclick={clearChassis}
               >
@@ -399,8 +619,10 @@
               </button>
             </li>
             {#each filteredChassis as opt (opt.id)}
-              <li>
+              <li role="none">
                 <button
+                  role="option"
+                  aria-selected={opt.id === focusChassis}
                   class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-300/40 {opt.id ===
                   focusChassis
                     ? 'bg-primary/10 font-semibold'
@@ -415,7 +637,7 @@
               </li>
             {/each}
             {#if filteredChassis.length === 0}
-              <li class="px-3 py-1.5 text-xs text-base-content/40">
+              <li role="none" class="px-3 py-1.5 text-xs text-base-content/40">
                 No matches
               </li>
             {/if}
