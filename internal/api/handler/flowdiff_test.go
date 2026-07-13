@@ -14,6 +14,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRegisterFlowDiff(t *testing.T) {
+	store := flowdiff.NewStore(100, time.Hour)
+	store.Add(flowdiff.FlowChange{
+		Timestamp: time.Now().UnixMilli(),
+		Type:      "insert",
+		UUID:      "flow-1",
+		Datapath:  "dp-1",
+	})
+
+	mux := http.NewServeMux()
+	RegisterFlowDiff(mux, store)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/debug/flow-diff?datapath=dp-1", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp FlowDiffResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, 1, resp.Count)
+}
+
 func TestHandleFlowDiff_Empty(t *testing.T) {
 	store := flowdiff.NewStore(100, time.Hour)
 	handler := handleFlowDiff(store)

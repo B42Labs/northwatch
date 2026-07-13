@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/go-logr/stdr"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/database/inmemory"
@@ -178,5 +179,45 @@ func TestSB(t *testing.T) {
 		mux.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestHandleLogicalFlows_Filters drives the filtered branch of
+// handleLogicalFlows against a small seeded flow set on the shared SB server.
+func TestHandleLogicalFlows_Filters(t *testing.T) {
+	sbc := testutil.SetupSBTestClient(t)
+
+	dp := insertDatapath(t, sbc, map[string]string{"logical-switch": "sw-flt"})
+	insertLogicalFlow(t, sbc, dp, "ingress", 0, 100, `inport == "a"`, "next;", nil)
+	insertLogicalFlow(t, sbc, dp, "ingress", 3, 50, `ip4.dst == 10.0.0.1`, "next;", nil)
+	insertLogicalFlow(t, sbc, dp, "egress", 0, 10, "1", "output;", nil)
+
+	mux := http.NewServeMux()
+	RegisterSB(mux, sbc)
+
+	get := func(t *testing.T, url string) []map[string]any {
+		t.Helper()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var body []map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		return body
+	}
+
+	t.Run("by pipeline and datapath", func(t *testing.T) {
+		body := get(t, "/api/v1/sb/logical-flows?datapath="+dp+"&pipeline=ingress")
+		assert.Len(t, body, 2)
+	})
+
+	t.Run("by table_id", func(t *testing.T) {
+		body := get(t, "/api/v1/sb/logical-flows?datapath="+dp+"&table_id=3")
+		assert.Len(t, body, 1)
+	})
+
+	t.Run("by match substring", func(t *testing.T) {
+		body := get(t, "/api/v1/sb/logical-flows?match=ip4.dst")
+		assert.Len(t, body, 1)
 	})
 }

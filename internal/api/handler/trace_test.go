@@ -1,12 +1,74 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/sb"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHandleTrace_HTTP(t *testing.T) {
+	sbc := testutil.SetupSBTestClient(t)
+
+	dpUUID := insertDatapath(t, sbc, map[string]string{"logical-switch": "sw-trace"})
+	pbUUID := insertPortBindingOn(t, sbc, "lsp-trace", dpUUID)
+	insertLogicalFlow(t, sbc, dpUUID, "ingress", 0, 100, `inport == "lsp-trace"`, "next;", map[string]string{"stage-name": "ls_in_port_sec"})
+	insertLogicalFlow(t, sbc, dpUUID, "egress", 0, 0, "1", "drop;", nil)
+
+	store := NewTraceStore(5 * time.Minute)
+	mux := http.NewServeMux()
+	RegisterTrace(mux, sbc, store)
+
+	t.Run("happy path stores trace", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/api/v1/debug/trace?port="+pbUUID+"&dst_ip=10.0.0.1&protocol=tcp", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp TraceResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "lsp-trace", resp.PortName)
+		assert.Equal(t, "sw-trace", resp.DatapathName)
+		assert.Equal(t, "10.0.0.1", resp.DstIP)
+		assert.Equal(t, "tcp", resp.Protocol)
+		require.NotEmpty(t, resp.ID)
+		require.NotEmpty(t, resp.Stages)
+
+		// The generated trace is retained for later export.
+		stored, ok := store.Get(resp.ID)
+		require.True(t, ok)
+		assert.Equal(t, "lsp-trace", stored.Trace.PortName)
+	})
+
+	t.Run("missing port param", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/debug/trace", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("port not found", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/debug/trace?port=missing", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+func TestGenerateTraceID_Unique(t *testing.T) {
+	a := generateTraceID()
+	b := generateTraceID()
+	assert.Len(t, a, 16)
+	assert.NotEqual(t, a, b)
+}
 
 func TestClassifyFlowMatch(t *testing.T) {
 	tests := []struct {

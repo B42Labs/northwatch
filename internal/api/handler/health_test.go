@@ -44,6 +44,25 @@ func TestReadyz_NotReady(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
+func TestRegisterHealth(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterHealth(mux, &mockDatabases{ready: true})
+
+	t.Run("healthz", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("readyz", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
 func TestReadyz_Ready(t *testing.T) {
 	mux := http.NewServeMux()
 	dbs := &mockDatabases{ready: true}
