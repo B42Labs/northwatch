@@ -18,14 +18,15 @@ type TableSource struct {
 
 // Collector manages automatic snapshots, event persistence, and event pruning.
 type Collector struct {
-	store         *Store
-	sources       []TableSource
-	hub           *events.Hub
-	interval      time.Duration
-	retention     time.Duration
-	eventMaxCount int64
-	paused        func() bool
-	wg            sync.WaitGroup
+	store            *Store
+	sources          []TableSource
+	hub              *events.Hub
+	interval         time.Duration
+	retention        time.Duration
+	eventMaxCount    int64
+	snapshotMaxCount int64
+	paused           func() bool
+	wg               sync.WaitGroup
 }
 
 // NewCollector creates a new history collector.
@@ -58,6 +59,29 @@ func (c *Collector) isPaused() bool {
 // If maxCount is 0, no count-based pruning is performed.
 func (c *Collector) SetEventMaxCount(maxCount int64) {
 	c.eventMaxCount = maxCount
+}
+
+// SetSnapshotMaxCount sets the maximum number of automatic snapshots to retain.
+// If maxCount is 0, no pruning is performed. Manual, labeled and imported
+// snapshots are never pruned.
+func (c *Collector) SetSnapshotMaxCount(maxCount int64) {
+	c.snapshotMaxCount = maxCount
+}
+
+// pruneSnapshots applies the auto-snapshot retention limit, logging what it
+// reclaimed. It is a no-op when no limit is configured.
+func (c *Collector) pruneSnapshots(ctx context.Context) {
+	if c.snapshotMaxCount <= 0 {
+		return
+	}
+	n, err := c.store.PruneAutoSnapshots(ctx, c.snapshotMaxCount)
+	if err != nil {
+		slog.Error("history snapshot pruning failed", "err", err)
+		return
+	}
+	if n > 0 {
+		slog.Info("history pruned auto-snapshots over the limit", "count", n, "limit", c.snapshotMaxCount)
+	}
 }
 
 // TakeSnapshot captures the current state of all registered table sources.
@@ -142,10 +166,15 @@ func (c *Collector) Start(ctx context.Context) func() {
 			select {
 			case <-ticker.C:
 				meta, err := c.TakeSnapshotIfChanged(ctx, "auto", "")
-				if err != nil {
+				switch {
+				case err != nil:
 					slog.Error("history auto-snapshot failed", "err", err)
-				} else if meta == nil {
+				case meta == nil:
 					slog.Debug("history auto-snapshot skipped (no changes)")
+				default:
+					// Prune right after adding one, so the store never grows past
+					// the limit between the hourly sweeps below.
+					c.pruneSnapshots(ctx)
 				}
 			case <-ctx.Done():
 				return
@@ -245,6 +274,11 @@ func (c *Collector) Start(ctx context.Context) func() {
 						slog.Info("history pruned events over count limit", "count", n, "limit", c.eventMaxCount)
 					}
 				}
+
+				// Snapshot retention: catches snapshots left over from a previous
+				// run with a higher (or absent) limit, which the per-snapshot
+				// prune above would otherwise never reach on a quiet cluster.
+				c.pruneSnapshots(ctx)
 			case <-ctx.Done():
 				return
 			}

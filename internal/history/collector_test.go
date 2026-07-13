@@ -2,6 +2,7 @@ package history
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -173,4 +174,33 @@ func TestCollector_StopWaitsForFlush(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "chassis-1", got[0].UUID)
+}
+
+// TestCollector_PruneSnapshots wires the retention limit through the collector,
+// which is what the running server relies on: without it, auto-snapshots
+// accumulate forever.
+func TestCollector_PruneSnapshots(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	collector := NewCollector(store, nil, nil, time.Hour, time.Hour)
+
+	for i := range 6 {
+		_, err := store.CreateSnapshot(ctx, "auto", "",
+			[]SnapshotRow{{Database: "nb", Table: "Logical_Switch", UUID: fmt.Sprintf("uuid-%d", i), Data: map[string]any{}}})
+		require.NoError(t, err)
+	}
+
+	// No limit configured: nothing is reclaimed, matching the previous behavior.
+	collector.pruneSnapshots(ctx)
+	list, err := store.ListSnapshots(ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 6)
+
+	collector.SetSnapshotMaxCount(2)
+	collector.pruneSnapshots(ctx)
+
+	list, err = store.ListSnapshots(ctx)
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
 }

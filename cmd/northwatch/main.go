@@ -321,6 +321,7 @@ func run() error {
 	if cfg.EventMaxCount > 0 {
 		historyCollector.SetEventMaxCount(cfg.EventMaxCount)
 	}
+	historyCollector.SetSnapshotMaxCount(cfg.SnapshotMaxCount)
 	// Pause auto-snapshots and event persistence while a snapshot session has
 	// suspended the default cluster's live monitors (which purges its caches).
 	historyCollector.SetPauseCheck(def.DBs.Suspended)
