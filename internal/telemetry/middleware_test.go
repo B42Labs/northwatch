@@ -2,101 +2,129 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizePath(t *testing.T) {
+func TestRouteLabel(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  string
-		expect string
+		name    string
+		pattern string
+		expect  string
 	}{
-		{"no uuid", "/api/v1/nb/Logical_Switch", "/api/v1/nb/Logical_Switch"},
-		{"single uuid", "/api/v1/nb/Logical_Switch/550e8400-e29b-41d4-a716-446655440000", "/api/v1/nb/Logical_Switch/{uuid}"},
-		{"two uuids", "/api/v1/correlated/550e8400-e29b-41d4-a716-446655440000/ports/12345678-1234-1234-1234-123456789abc", "/api/v1/correlated/{uuid}/ports/{uuid}"},
-		{"uppercase not matched", "/api/v1/test/550E8400-E29B-41D4-A716-446655440000", "/api/v1/test/550E8400-E29B-41D4-A716-446655440000"},
-		{"empty", "", ""},
-		{"root", "/", "/"},
+		{"method and path", "GET /api/v1/nb/logical-switches", "/api/v1/nb/logical-switches"},
+		{"wildcard segment", "GET /api/v1/nb/logical-switches/{uuid}", "/api/v1/nb/logical-switches/{uuid}"},
+		{"no method", "/healthz", "/healthz"},
+		{"unmatched route", "", unmatchedLabel},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expect, normalizePath(tt.input))
+			assert.Equal(t, tt.expect, routeLabel(tt.pattern))
 		})
 	}
 }
 
-func TestMiddleware_Wrap(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	m := NewMiddleware(registry)
+// pathLabels returns the observed path label values of the request counter,
+// mapped to their counts.
+func pathLabels(t *testing.T, registry *prometheus.Registry) map[string]float64 {
+	t.Helper()
+	families, err := registry.Gather()
+	require.NoError(t, err)
 
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	out := map[string]float64{}
+	for _, f := range families {
+		if f.GetName() != "northwatch_http_requests_total" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == "path" {
+					out[lp.GetValue()] += m.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+	return out
+}
+
+// testMux mirrors the shape of the real routes: a literal list route and a
+// wildcard detail route.
+func testMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/nb/logical-switches", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte("ok"))
 	})
+	mux.HandleFunc("GET /api/v1/nb/logical-switches/{uuid}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	return mux
+}
 
-	handler := m.Wrap(inner)
+func TestMiddleware_Wrap(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	handler := NewMiddleware(registry).Wrap(testMux())
 
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/nb/logical-switches", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "ok", w.Body.String())
 
-	// Verify metrics were recorded
-	families, err := registry.Gather()
-	require.NoError(t, err)
-
-	metrics := map[string]*dto.MetricFamily{}
-	for _, f := range families {
-		metrics[f.GetName()] = f
-	}
-
-	totalFam := metrics["northwatch_http_requests_total"]
-	require.NotNil(t, totalFam)
-	assert.Len(t, totalFam.GetMetric(), 1)
-
-	durationFam := metrics["northwatch_http_request_duration_seconds"]
-	require.NotNil(t, durationFam)
-}
-
-func TestMiddleware_UUIDNormalization(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	m := NewMiddleware(registry)
-
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	handler := m.Wrap(inner)
-
-	// Two requests with different UUIDs should be recorded under the same path label
-	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/nb/Logical_Switch/550e8400-e29b-41d4-a716-446655440000", nil)
-	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/nb/Logical_Switch/12345678-1234-1234-1234-123456789abc", nil)
-	handler.ServeHTTP(httptest.NewRecorder(), req1)
-	handler.ServeHTTP(httptest.NewRecorder(), req2)
+	assert.Equal(t, map[string]float64{"/api/v1/nb/logical-switches": 1}, pathLabels(t, registry))
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
-
+	var durationSeen bool
 	for _, f := range families {
-		if f.GetName() == "northwatch_http_requests_total" {
-			require.Len(t, f.GetMetric(), 1, "both requests should map to the same label set")
-			for _, lp := range f.GetMetric()[0].GetLabel() {
-				if lp.GetName() == "path" {
-					assert.Equal(t, "/api/v1/nb/Logical_Switch/{uuid}", lp.GetValue())
-				}
-			}
+		if f.GetName() == "northwatch_http_request_duration_seconds" {
+			durationSeen = true
 		}
 	}
+	assert.True(t, durationSeen)
+}
+
+// TestMiddleware_LabelsByRoutePattern is the cardinality bound: distinct UUIDs
+// collapse onto the route pattern that matched them, not their raw paths.
+func TestMiddleware_LabelsByRoutePattern(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	handler := NewMiddleware(registry).Wrap(testMux())
+
+	for _, uuid := range []string{
+		"550e8400-e29b-41d4-a716-446655440000",
+		"12345678-1234-1234-1234-123456789abc",
+		"not-even-a-uuid",
+	} {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/api/v1/nb/logical-switches/"+uuid, nil)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	assert.Equal(t, map[string]float64{"/api/v1/nb/logical-switches/{uuid}": 3}, pathLabels(t, registry))
+}
+
+// TestMiddleware_UnmatchedRoutesCollapse is the reason the change exists: a scan
+// of made-up URLs used to mint one time series per request. They must all land
+// on a single label.
+func TestMiddleware_UnmatchedRoutesCollapse(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	handler := NewMiddleware(registry).Wrap(testMux())
+
+	for i := range 50 {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			fmt.Sprintf("/api/v1/does-not-exist-%d", i), nil)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	assert.Equal(t, map[string]float64{unmatchedLabel: 50}, pathLabels(t, registry))
 }
 
 func TestResponseWriter_Flush(t *testing.T) {
