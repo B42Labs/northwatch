@@ -113,7 +113,6 @@ func TestCollector_EventPersistence(t *testing.T) {
 
 	collector := NewCollector(store, hub, nil, 1*time.Hour, 24*time.Hour)
 	stop := collector.Start(ctx)
-	defer stop()
 
 	// Publish some events
 	hub.Publish(events.Event{
@@ -134,10 +133,44 @@ func TestCollector_EventPersistence(t *testing.T) {
 		Ts:       time.Now().UnixMilli(),
 	})
 
-	// Wait for batch flush
-	time.Sleep(300 * time.Millisecond)
+	// stop() drains the subscriber buffer, flushes, and joins the goroutines,
+	// so both events are durably persisted by the time it returns — no sleep.
+	stop()
 
 	got, err := store.QueryEvents(ctx, EventQueryOpts{})
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
+}
+
+// TestCollector_StopWaitsForFlush asserts that stop() drains and persists a
+// batch that is still below the size threshold and never hit the flush timer,
+// so a graceful shutdown cannot lose the final events (the flush completes
+// before the caller closes the store).
+func TestCollector_StopWaitsForFlush(t *testing.T) {
+	store := newTestStore(t)
+	hub := events.NewHub()
+	ctx := context.Background()
+
+	// A long interval means the 100ms flush timer is the only steady-state
+	// flush path; we stop before it fires to prove stop() itself flushes.
+	collector := NewCollector(store, hub, nil, 1*time.Hour, 24*time.Hour)
+	stop := collector.Start(ctx)
+
+	hub.Publish(events.Event{
+		Type:     events.EventInsert,
+		Database: "sb",
+		Table:    "Chassis",
+		UUID:     "chassis-1",
+		Row:      map[string]any{"name": "node1"},
+		Ts:       time.Now().UnixMilli(),
+	})
+
+	stop()
+
+	// The store is still open here; querying it immediately after stop() must
+	// already see the flushed event.
+	got, err := store.QueryEvents(ctx, EventQueryOpts{})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "chassis-1", got[0].UUID)
 }

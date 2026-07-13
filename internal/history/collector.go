@@ -3,6 +3,7 @@ package history
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/b42labs/northwatch/internal/events"
@@ -24,6 +25,7 @@ type Collector struct {
 	retention     time.Duration
 	eventMaxCount int64
 	paused        func() bool
+	wg            sync.WaitGroup
 }
 
 // NewCollector creates a new history collector.
@@ -131,7 +133,9 @@ func (c *Collector) Start(ctx context.Context) func() {
 	ctx, cancel := context.WithCancel(ctx)
 
 	// Goroutine 1: periodic snapshots (with deduplication)
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		ticker := time.NewTicker(c.interval)
 		defer ticker.Stop()
 		for {
@@ -153,16 +157,22 @@ func (c *Collector) Start(ctx context.Context) func() {
 	sub := c.hub.Subscribe()
 	sub.AddFilter(events.Filter{Database: "*", Tables: []string{"*"}})
 
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		var batch []EventRecord
 		flushTimer := time.NewTicker(100 * time.Millisecond)
 		defer flushTimer.Stop()
 
-		flush := func() {
+		// flush persists the accumulated batch. fctx is a separate parameter so
+		// the shutdown flush can run on a context detached from cancellation:
+		// InsertEvents uses fctx for BeginTx/ExecContext, so flushing on the
+		// already-cancelled ctx would drop the final batch.
+		flush := func(fctx context.Context) {
 			if len(batch) == 0 {
 				return
 			}
-			if err := c.store.InsertEvents(ctx, batch); err != nil {
+			if err := c.store.InsertEvents(fctx, batch); err != nil {
 				slog.Error("history event persistence failed", "err", err)
 			}
 			batch = batch[:0]
@@ -172,7 +182,7 @@ func (c *Collector) Start(ctx context.Context) func() {
 			select {
 			case evt, ok := <-sub.C:
 				if !ok {
-					flush()
+					flush(context.WithoutCancel(ctx))
 					return
 				}
 				// Drop events while paused: during a snapshot session the cache
@@ -181,29 +191,40 @@ func (c *Collector) Start(ctx context.Context) func() {
 				if c.isPaused() {
 					continue
 				}
-				batch = append(batch, EventRecord{
-					Timestamp: time.UnixMilli(evt.Ts),
-					Type:      string(evt.Type),
-					Database:  evt.Database,
-					Table:     evt.Table,
-					UUID:      evt.UUID,
-					Row:       evt.Row,
-					OldRow:    evt.OldRow,
-				})
+				batch = append(batch, eventRecord(evt))
 				if len(batch) >= 100 {
-					flush()
+					flush(ctx)
 				}
 			case <-flushTimer.C:
-				flush()
+				flush(ctx)
 			case <-ctx.Done():
-				flush()
+				// Drain events still buffered in the subscriber channel so a
+				// graceful stop persists everything published before it, then
+				// flush once on a context detached from cancellation.
+			drain:
+				for {
+					select {
+					case evt, ok := <-sub.C:
+						if !ok {
+							break drain
+						}
+						if !c.isPaused() {
+							batch = append(batch, eventRecord(evt))
+						}
+					default:
+						break drain
+					}
+				}
+				flush(context.WithoutCancel(ctx))
 				return
 			}
 		}
 	}()
 
 	// Goroutine 3: event pruning (time-based + count-based)
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for {
@@ -233,5 +254,22 @@ func (c *Collector) Start(ctx context.Context) func() {
 	return func() {
 		cancel()
 		c.hub.Unsubscribe(sub)
+		// Wait for all three goroutines to return — in particular the event
+		// persistence goroutine's final flush — before the caller closes the
+		// store, so a shutdown flush cannot race Store.Close().
+		c.wg.Wait()
+	}
+}
+
+// eventRecord converts a hub event into the persisted EventRecord shape.
+func eventRecord(evt events.Event) EventRecord {
+	return EventRecord{
+		Timestamp: time.UnixMilli(evt.Ts),
+		Type:      string(evt.Type),
+		Database:  evt.Database,
+		Table:     evt.Table,
+		UUID:      evt.UUID,
+		Row:       evt.Row,
+		OldRow:    evt.OldRow,
 	}
 }
