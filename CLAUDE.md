@@ -83,9 +83,22 @@ unconditionally.
 
 - All tests: `go test -race ./...` (also run in CI).
 - OVSDB integration tests use libovsdb's in-memory test server — no real OVN
-  needed.
-- Coverage: CI enforces a 70% overall gate (the generated
-  `internal/ovsdb/{nb,sb,vs}` packages are excluded from the coverage set);
-  no per-package threshold is enforced.
+  needed. Each package uses **one shared server per DB kind**, started lazily by
+  `internal/testutil` and torn down by a per-package `TestMain` that calls
+  `testutil.Main(m)`. `SetupNBTestClient` / `SetupSBTestClient` wipe every table
+  on a fresh client before it monitors, so each test starts from an empty
+  database. Do not boot per-test servers; do not duplicate the boot helpers.
+- OVSDB-backed tests must stay **serial** — the shared server plus wipe-per-test
+  isolation makes intra-package parallelism unsafe, so do not add `t.Parallel()`
+  to them. Pure-logic suites (no OVSDB, no shared mutable state) may use
+  `t.Parallel()`.
+- **No `time.Sleep` for synchronization in tests.** Use an injected clock (an
+  unexported `now func() time.Time` seam), a completion channel/`require.Eventually`,
+  or a protocol round-trip (e.g. a WebSocket ping/pong barrier) instead.
+- Coverage: CI enforces a 70% overall gate **and** a per-package 85% floor for
+  the designated core packages (`internal/write`, `internal/debug`,
+  `internal/api`, `internal/api/handler`) via `scripts/covcheck.sh`. The
+  generated `internal/ovsdb/{nb,sb,vs}` packages are excluded from the coverage
+  set. Check locally with `make coverage-check`.
 - Frontend gates (in `ui/frontend`): `npm run lint`, `npm run format:check`,
   `npm run check` (svelte-check), and `npm run test` (vitest).
