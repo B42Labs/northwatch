@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -45,6 +46,28 @@ type Config struct {
 	Listen    string
 	OVNNBAddr string
 	OVNSBAddr string
+
+	// API authentication. APITokens maps a token name (used as the audit actor)
+	// to its secret. Every mutating /api/ request must present one of them as
+	// "Authorization: Bearer <secret>". An empty map fails closed: mutating
+	// routes answer 401. InsecureNoAuth disables the gate entirely — the
+	// documented escape hatch for deployments that authenticate at a reverse
+	// proxy — and is required to bind a non-loopback address without tokens.
+	APITokens      map[string]string // --api-tokens / NORTHWATCH_API_TOKENS, --api-tokens-file / NORTHWATCH_API_TOKENS_FILE
+	InsecureNoAuth bool              // --insecure-no-auth / NORTHWATCH_INSECURE_NO_AUTH
+
+	// HTTPS for the API server. Both or neither must be set.
+	TLSCert string // --tls-cert / NORTHWATCH_TLS_CERT
+	TLSKey  string // --tls-key / NORTHWATCH_TLS_KEY
+
+	// TLS material for ssl: OVN Northbound/Southbound endpoints. Each trio is
+	// all-or-none and applies to every cluster.
+	OVNNBTLSCert string // --ovn-nb-tls-cert / NORTHWATCH_OVN_NB_TLS_CERT
+	OVNNBTLSKey  string // --ovn-nb-tls-key / NORTHWATCH_OVN_NB_TLS_KEY
+	OVNNBTLSCA   string // --ovn-nb-tls-ca / NORTHWATCH_OVN_NB_TLS_CA
+	OVNSBTLSCert string // --ovn-sb-tls-cert / NORTHWATCH_OVN_SB_TLS_CERT
+	OVNSBTLSKey  string // --ovn-sb-tls-key / NORTHWATCH_OVN_SB_TLS_KEY
+	OVNSBTLSCA   string // --ovn-sb-tls-ca / NORTHWATCH_OVN_SB_TLS_CA
 
 	// Multi-cluster config file
 	ConfigFile string          // --config-file / NORTHWATCH_CONFIG_FILE
@@ -114,6 +137,7 @@ type Config struct {
 	SnapshotInterval time.Duration
 	EventRetention   time.Duration
 	EventMaxCount    int64 // max number of events to retain (0 = unlimited)
+	SnapshotMaxCount int64 // max number of automatic snapshots to retain (0 = unlimited)
 
 	// Logging. LogLevel is one of debug|info|warn|error; LogFormat is text|json.
 	LogLevel  string // --log-level / NORTHWATCH_LOG_LEVEL
@@ -129,9 +153,27 @@ func Parse(args []string) (*Config, error) {
 	// like NORTHWATCH_WRITE_ENABLED=True fails loudly instead of silently
 	// meaning false.
 	var envErrs []error
-	fs.StringVar(&cfg.Listen, "listen", envOrDefault("NORTHWATCH_LISTEN", ":8080"), "HTTP listen address")
+	fs.StringVar(&cfg.Listen, "listen", envOrDefault("NORTHWATCH_LISTEN", "127.0.0.1:8080"), "HTTP listen address (defaults to loopback; binding another address requires --api-tokens or --insecure-no-auth)")
 	fs.StringVar(&cfg.OVNNBAddr, "ovn-nb-addr", os.Getenv("NORTHWATCH_OVN_NB_ADDR"), "OVN Northbound DB address, comma-separated for failover (e.g. tcp:10.0.0.1:6641,tcp:10.0.0.2:6641)")
 	fs.StringVar(&cfg.OVNSBAddr, "ovn-sb-addr", os.Getenv("NORTHWATCH_OVN_SB_ADDR"), "OVN Southbound DB address, comma-separated for failover (e.g. tcp:10.0.0.1:6642,tcp:10.0.0.2:6642)")
+
+	// API authentication flags
+	var apiTokensStr, apiTokensFile string
+	fs.StringVar(&apiTokensStr, "api-tokens", os.Getenv("NORTHWATCH_API_TOKENS"), "Comma-separated name=token pairs authorizing mutating API requests (the name becomes the write-audit actor)")
+	fs.StringVar(&apiTokensFile, "api-tokens-file", os.Getenv("NORTHWATCH_API_TOKENS_FILE"), "Path to a JSON file mapping token name to token ({\"ops\": \"<secret>\"}); merged with --api-tokens")
+	fs.BoolVar(&cfg.InsecureNoAuth, "insecure-no-auth", envOrDefaultBool("NORTHWATCH_INSECURE_NO_AUTH", false, &envErrs), "Disable API authentication entirely; only safe behind a proxy that authenticates every mutating request")
+
+	// API HTTPS flags
+	fs.StringVar(&cfg.TLSCert, "tls-cert", os.Getenv("NORTHWATCH_TLS_CERT"), "Path to the server certificate (PEM) enabling HTTPS on --listen")
+	fs.StringVar(&cfg.TLSKey, "tls-key", os.Getenv("NORTHWATCH_TLS_KEY"), "Path to the server private key (PEM) enabling HTTPS on --listen")
+
+	// OVN NB/SB TLS flags (required for ssl: endpoints)
+	fs.StringVar(&cfg.OVNNBTLSCert, "ovn-nb-tls-cert", os.Getenv("NORTHWATCH_OVN_NB_TLS_CERT"), "Path to the client certificate (PEM) for ssl: OVN Northbound connections")
+	fs.StringVar(&cfg.OVNNBTLSKey, "ovn-nb-tls-key", os.Getenv("NORTHWATCH_OVN_NB_TLS_KEY"), "Path to the client private key (PEM) for ssl: OVN Northbound connections")
+	fs.StringVar(&cfg.OVNNBTLSCA, "ovn-nb-tls-ca", os.Getenv("NORTHWATCH_OVN_NB_TLS_CA"), "Path to the CA bundle (PEM) verifying ssl: OVN Northbound servers")
+	fs.StringVar(&cfg.OVNSBTLSCert, "ovn-sb-tls-cert", os.Getenv("NORTHWATCH_OVN_SB_TLS_CERT"), "Path to the client certificate (PEM) for ssl: OVN Southbound connections")
+	fs.StringVar(&cfg.OVNSBTLSKey, "ovn-sb-tls-key", os.Getenv("NORTHWATCH_OVN_SB_TLS_KEY"), "Path to the client private key (PEM) for ssl: OVN Southbound connections")
+	fs.StringVar(&cfg.OVNSBTLSCA, "ovn-sb-tls-ca", os.Getenv("NORTHWATCH_OVN_SB_TLS_CA"), "Path to the CA bundle (PEM) verifying ssl: OVN Southbound servers")
 
 	// Multi-cluster config file
 	fs.StringVar(&cfg.ConfigFile, "config-file", os.Getenv("NORTHWATCH_CONFIG_FILE"), "Path to JSON config file for multi-cluster")
@@ -196,6 +238,7 @@ func Parse(args []string) (*Config, error) {
 	var eventRetentionStr string
 	fs.StringVar(&eventRetentionStr, "event-retention", envOrDefault("NORTHWATCH_EVENT_RETENTION", "24h"), "Event log retention duration (e.g. 24h, 7d)")
 	fs.Int64Var(&cfg.EventMaxCount, "event-max-count", envOrDefaultInt64("NORTHWATCH_EVENT_MAX_COUNT", 0, &envErrs), "Maximum number of events to retain (0 = unlimited)")
+	fs.Int64Var(&cfg.SnapshotMaxCount, "snapshot-max-count", envOrDefaultInt64("NORTHWATCH_SNAPSHOT_MAX_COUNT", 500, &envErrs), "Maximum number of automatic snapshots to retain; labeled, manual and imported snapshots are never pruned (0 = unlimited)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -211,6 +254,23 @@ func Parse(args []string) (*Config, error) {
 	}
 	if err := validateLogFormat(cfg.LogFormat); err != nil {
 		return nil, err
+	}
+
+	tokens, err := parseAPITokens(apiTokensStr, apiTokensFile)
+	if err != nil {
+		return nil, err
+	}
+	if len(tokens) > 0 && cfg.InsecureNoAuth {
+		return nil, fmt.Errorf("--insecure-no-auth cannot be combined with configured API tokens")
+	}
+	cfg.APITokens = tokens
+
+	if (cfg.TLSCert == "") != (cfg.TLSKey == "") {
+		return nil, fmt.Errorf("--tls-cert and --tls-key must be set together")
+	}
+
+	if cfg.SnapshotMaxCount < 0 {
+		return nil, fmt.Errorf("snapshot-max-count must not be negative")
 	}
 
 	// Offline snapshot mode takes precedence: the cluster list is synthesized
@@ -257,6 +317,15 @@ func Parse(args []string) (*Config, error) {
 			}
 		}
 		cfg.Clusters = []ClusterConfig{cc}
+	}
+
+	for _, cc := range cfg.Clusters {
+		if err := requireOVNTLSForSSL(cc.Name, "Northbound", cc.OVNNBAddr, cfg.OVNNBTLSCert, cfg.OVNNBTLSKey, cfg.OVNNBTLSCA, "nb"); err != nil {
+			return nil, err
+		}
+		if err := requireOVNTLSForSSL(cc.Name, "Southbound", cc.OVNSBAddr, cfg.OVNSBTLSCert, cfg.OVNSBTLSKey, cfg.OVNSBTLSCA, "sb"); err != nil {
+			return nil, err
+		}
 	}
 
 	ttl, err := time.ParseDuration(cacheTTLStr)
@@ -319,6 +388,121 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// minAPITokenLength is the shortest accepted API token. Anything shorter is
+// guessable in the time an unauthenticated attacker has, so it is rejected at
+// startup rather than accepted as a false sense of security.
+const minAPITokenLength = 16
+
+// parseAPITokens merges the comma-separated "name=token" pairs from --api-tokens
+// with the JSON mapping in --api-tokens-file. Names must be unique across both
+// sources and tokens must be at least minAPITokenLength bytes long; anything
+// else is a startup error rather than a silently weaker configuration.
+func parseAPITokens(csv, file string) (map[string]string, error) {
+	tokens := make(map[string]string)
+
+	for _, pair := range SplitCSV(csv) {
+		name, token, ok := strings.Cut(pair, "=")
+		name, token = strings.TrimSpace(name), strings.TrimSpace(token)
+		if !ok || name == "" || token == "" {
+			return nil, fmt.Errorf("invalid --api-tokens entry %q: want name=token", pair)
+		}
+		if _, dup := tokens[name]; dup {
+			return nil, fmt.Errorf("duplicate API token name %q", name)
+		}
+		tokens[name] = token
+	}
+
+	if file != "" {
+		fromFile, err := loadAPITokens(file)
+		if err != nil {
+			return nil, fmt.Errorf("loading API tokens file: %w", err)
+		}
+		for name, token := range fromFile {
+			if _, dup := tokens[name]; dup {
+				return nil, fmt.Errorf("duplicate API token name %q", name)
+			}
+			tokens[name] = token
+		}
+	}
+
+	for name, token := range tokens {
+		if len(token) < minAPITokenLength {
+			return nil, fmt.Errorf("API token %q is too short: want at least %d characters", name, minAPITokenLength)
+		}
+	}
+
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+	return tokens, nil
+}
+
+// loadAPITokens reads a JSON object mapping token name to token secret
+// ({"ops": "<secret>"}). It rejects an empty map and any empty key or value so a
+// malformed file fails loudly instead of silently authorizing nobody.
+func loadAPITokens(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied token-file path (flag/env), not attacker input
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	var tokens map[string]string
+	if err := json.Unmarshal(data, &tokens); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("%s must define at least one token", path)
+	}
+	for name, token := range tokens {
+		if strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("%s: empty token name", path)
+		}
+		if strings.TrimSpace(token) == "" {
+			return nil, fmt.Errorf("%s: empty token for name %q", path, name)
+		}
+	}
+	return tokens, nil
+}
+
+// ListenIsLoopback reports whether the configured listen address binds only the
+// loopback interface. A missing host (":8080") binds every interface and is
+// therefore not loopback. Startup uses this to refuse an unauthenticated bind on
+// a routable address.
+func (c *Config) ListenIsLoopback() bool {
+	host, _, err := net.SplitHostPort(c.Listen)
+	if err != nil {
+		return false
+	}
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// requireOVNTLSForSSL rejects an ssl: NB/SB address when no TLS material is
+// configured for that database. Without client TLS material such a connection
+// can never complete a handshake; left unchecked it would retry forever behind a
+// generic "unreachable" log line. A partial cert/key/CA set is caught later by
+// BuildTLSConfig, so this only guards the all-empty case (which mirrors
+// BuildTLSConfig returning nil).
+func requireOVNTLSForSSL(cluster, db, addr, certFile, keyFile, caFile, flagPrefix string) error {
+	if certFile != "" || keyFile != "" || caFile != "" {
+		return nil
+	}
+	for _, ep := range strings.Split(addr, ",") {
+		if strings.HasPrefix(strings.TrimSpace(ep), "ssl:") {
+			return fmt.Errorf("cluster %q uses ssl: %s address %q but no TLS material configured (--ovn-%s-tls-cert/--ovn-%s-tls-key/--ovn-%s-tls-ca)",
+				cluster, db, addr, flagPrefix, flagPrefix, flagPrefix)
+		}
+	}
+	return nil
 }
 
 // loadOVSMgmtAddrs reads a JSON object mapping chassis system-id to OVSDB

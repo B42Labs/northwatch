@@ -13,10 +13,14 @@ import (
 func TestParse_Defaults(t *testing.T) {
 	cfg, err := Parse([]string{"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642"})
 	require.NoError(t, err)
-	assert.Equal(t, ":8080", cfg.Listen)
+	assert.Equal(t, "127.0.0.1:8080", cfg.Listen)
+	assert.True(t, cfg.ListenIsLoopback())
 	assert.Equal(t, "tcp:127.0.0.1:6641", cfg.OVNNBAddr)
 	assert.Equal(t, "tcp:127.0.0.1:6642", cfg.OVNSBAddr)
 	assert.Equal(t, 5*time.Minute, cfg.EnrichmentCacheTTL)
+	assert.Empty(t, cfg.APITokens)
+	assert.False(t, cfg.InsecureNoAuth)
+	assert.Equal(t, int64(500), cfg.SnapshotMaxCount)
 }
 
 func TestParse_CustomListen(t *testing.T) {
@@ -654,4 +658,246 @@ func writeTestFile(t *testing.T, content string) string {
 	path := filepath.Join(t.TempDir(), "config.json")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
 	return path
+}
+
+func TestListenIsLoopback(t *testing.T) {
+	tests := []struct {
+		name   string
+		listen string
+		want   bool
+	}{
+		{"all interfaces", ":8080", false},
+		{"ipv4 loopback", "127.0.0.1:8080", true},
+		{"ipv6 loopback", "[::1]:8080", true},
+		{"localhost", "localhost:8080", true},
+		{"wildcard ipv4", "0.0.0.0:8080", false},
+		{"routable ip", "10.0.0.5:8080", false},
+		{"hostname", "northwatch.example.com:8080", false},
+		{"malformed", "not-an-address", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{Listen: tc.listen}
+			assert.Equal(t, tc.want, cfg.ListenIsLoopback())
+		})
+	}
+}
+
+func TestParse_APITokensFlag(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--api-tokens", "ops=0123456789abcdef, ci = fedcba9876543210",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"ops": "0123456789abcdef",
+		"ci":  "fedcba9876543210",
+	}, cfg.APITokens)
+}
+
+func TestParse_APITokensEnv(t *testing.T) {
+	t.Setenv("NORTHWATCH_API_TOKENS", "ops=0123456789abcdef")
+	cfg, err := Parse([]string{"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"ops": "0123456789abcdef"}, cfg.APITokens)
+}
+
+func TestParse_APITokensInvalid(t *testing.T) {
+	tests := []struct {
+		name    string
+		tokens  string
+		wantErr string
+	}{
+		{"missing separator", "0123456789abcdef", "want name=token"},
+		{"empty name", "=0123456789abcdef", "want name=token"},
+		{"empty token", "ops=", "want name=token"},
+		{"too short", "ops=short", "too short"},
+		{"duplicate name", "ops=0123456789abcdef,ops=fedcba9876543210", "duplicate API token name"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]string{
+				"--api-tokens", tc.tokens,
+				"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestParse_APITokensFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tokens.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"ops": "0123456789abcdef"}`), 0o600))
+
+	cfg, err := Parse([]string{
+		"--api-tokens-file", path,
+		"--api-tokens", "ci=fedcba9876543210",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"ops": "0123456789abcdef",
+		"ci":  "fedcba9876543210",
+	}, cfg.APITokens)
+}
+
+func TestParse_APITokensFile_Errors(t *testing.T) {
+	dir := t.TempDir()
+
+	empty := filepath.Join(dir, "empty.json")
+	require.NoError(t, os.WriteFile(empty, []byte(`{}`), 0o600))
+	invalid := filepath.Join(dir, "invalid.json")
+	require.NoError(t, os.WriteFile(invalid, []byte(`not json`), 0o600))
+	blank := filepath.Join(dir, "blank.json")
+	require.NoError(t, os.WriteFile(blank, []byte(`{"ops": ""}`), 0o600))
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr string
+	}{
+		{"missing file", filepath.Join(dir, "nope.json"), "reading"},
+		{"empty map", empty, "at least one token"},
+		{"invalid json", invalid, "parsing"},
+		{"empty token", blank, "empty token"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]string{
+				"--api-tokens-file", tc.path,
+				"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestParse_APITokensFile_DuplicateName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tokens.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"ops": "0123456789abcdef"}`), 0o600))
+
+	_, err := Parse([]string{
+		"--api-tokens-file", path,
+		"--api-tokens", "ops=fedcba9876543210",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate API token name")
+}
+
+func TestParse_InsecureNoAuthWithTokensRejected(t *testing.T) {
+	_, err := Parse([]string{
+		"--insecure-no-auth",
+		"--api-tokens", "ops=0123456789abcdef",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--insecure-no-auth cannot be combined")
+}
+
+func TestParse_TLSCertRequiresKey(t *testing.T) {
+	_, err := Parse([]string{
+		"--tls-cert", "/tmp/cert.pem",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--tls-cert and --tls-key must be set together")
+}
+
+func TestParse_TLSCertAndKey(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--tls-cert", "/tmp/cert.pem", "--tls-key", "/tmp/key.pem",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/cert.pem", cfg.TLSCert)
+	assert.Equal(t, "/tmp/key.pem", cfg.TLSKey)
+}
+
+func TestParse_OVNTLSFlags(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--ovn-nb-addr", "ssl:10.0.0.1:6641", "--ovn-sb-addr", "ssl:10.0.0.1:6642",
+		"--ovn-nb-tls-cert", "/etc/nb.pem", "--ovn-nb-tls-key", "/etc/nb-key.pem", "--ovn-nb-tls-ca", "/etc/nb-ca.pem",
+		"--ovn-sb-tls-cert", "/etc/sb.pem", "--ovn-sb-tls-key", "/etc/sb-key.pem", "--ovn-sb-tls-ca", "/etc/sb-ca.pem",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "/etc/nb.pem", cfg.OVNNBTLSCert)
+	assert.Equal(t, "/etc/nb-key.pem", cfg.OVNNBTLSKey)
+	assert.Equal(t, "/etc/nb-ca.pem", cfg.OVNNBTLSCA)
+	assert.Equal(t, "/etc/sb.pem", cfg.OVNSBTLSCert)
+	assert.Equal(t, "/etc/sb-key.pem", cfg.OVNSBTLSKey)
+	assert.Equal(t, "/etc/sb-ca.pem", cfg.OVNSBTLSCA)
+}
+
+func TestParse_SSLWithoutTLSMaterial(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "nb ssl without material",
+			args:    []string{"--ovn-nb-addr", "ssl:10.0.0.1:6641", "--ovn-sb-addr", "tcp:10.0.0.1:6642"},
+			wantErr: "--ovn-nb-tls-cert",
+		},
+		{
+			name:    "sb ssl without material",
+			args:    []string{"--ovn-nb-addr", "tcp:10.0.0.1:6641", "--ovn-sb-addr", "ssl:10.0.0.1:6642"},
+			wantErr: "--ovn-sb-tls-cert",
+		},
+		{
+			name: "sb ssl with only nb material",
+			args: []string{
+				"--ovn-nb-addr", "ssl:10.0.0.1:6641", "--ovn-sb-addr", "ssl:10.0.0.1:6642",
+				"--ovn-nb-tls-cert", "/etc/nb.pem", "--ovn-nb-tls-key", "/etc/nb-key.pem", "--ovn-nb-tls-ca", "/etc/nb-ca.pem",
+			},
+			wantErr: "--ovn-sb-tls-cert",
+		},
+		{
+			name:    "ssl in a failover endpoint list",
+			args:    []string{"--ovn-nb-addr", "tcp:10.0.0.1:6641,ssl:10.0.0.2:6641", "--ovn-sb-addr", "tcp:10.0.0.1:6642"},
+			wantErr: "--ovn-nb-tls-cert",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse(tc.args)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestParse_ConfigFile_SSLWithoutTLSMaterial(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "clusters.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{
+		"clusters": [
+			{"name": "prod", "ovn_nb_addr": "ssl:10.0.0.1:6641", "ovn_sb_addr": "ssl:10.0.0.1:6642"}
+		]
+	}`), 0o600))
+
+	_, err := Parse([]string{"--config-file", path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `cluster "prod"`)
+	assert.Contains(t, err.Error(), "--ovn-nb-tls-cert")
+}
+
+func TestParse_SnapshotMaxCount(t *testing.T) {
+	cfg, err := Parse([]string{
+		"--snapshot-max-count", "0",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), cfg.SnapshotMaxCount)
+}
+
+func TestParse_NegativeSnapshotMaxCount(t *testing.T) {
+	_, err := Parse([]string{
+		"--snapshot-max-count", "-1",
+		"--ovn-nb-addr", "tcp:127.0.0.1:6641", "--ovn-sb-addr", "tcp:127.0.0.1:6642",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "snapshot-max-count must not be negative")
 }
