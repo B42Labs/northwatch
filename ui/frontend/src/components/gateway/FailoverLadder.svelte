@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as d3 from 'd3';
+  import { select } from 'd3-selection';
   import type { GatewayHealth, GatewayMember } from '../../lib/api';
 
   let { gateway }: { gateway: GatewayHealth } = $props();
@@ -50,7 +50,7 @@
 
   function draw() {
     if (!svgRef) return;
-    const svg = d3.select(svgRef);
+    const svg = select(svgRef);
     svg.selectAll('*').remove();
 
     const width = svgRef.clientWidth || 640;
