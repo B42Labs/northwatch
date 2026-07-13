@@ -183,12 +183,47 @@ func setupLogging(cfg *config.Config) {
 	slog.SetDefault(slog.New(h))
 }
 
+// checkAuthPosture enforces the deployment rule that Northwatch must never be
+// reachable from the network without a deliberate decision about authentication.
+// Binding a routable address with neither API tokens nor the explicit
+// --insecure-no-auth opt-out is a startup error; the two configurations that do
+// reach the network unauthenticated warn loudly instead of failing silently.
+func checkAuthPosture(cfg *config.Config) error {
+	loopback := cfg.ListenIsLoopback()
+
+	switch {
+	case cfg.InsecureNoAuth:
+		slog.Warn("API authentication is DISABLED (--insecure-no-auth): every mutating endpoint is open to any client that can reach the listen address",
+			"listen", cfg.Listen)
+	case len(cfg.APITokens) == 0 && !loopback:
+		return fmt.Errorf("refusing to bind non-loopback address %q without authentication: set --api-tokens/--api-tokens-file, or --insecure-no-auth if a proxy authenticates every mutating request", cfg.Listen)
+	case len(cfg.APITokens) == 0:
+		slog.Warn("no API tokens configured: all mutating endpoints reject requests with 401 (set --api-tokens to enable them)")
+	default:
+		slog.Info("API authentication enabled", "tokens", len(cfg.APITokens))
+		if !loopback {
+			// Tokens gate mutations only; every GET stays open, including the
+			// NB/SB topology, cross-database search, the ACL audit, and the
+			// write-audit log (which names the tokens used as actors). On a
+			// routable address a reverse proxy must front the read surface.
+			// #nosec G706 -- operator-supplied listen address (flag/env), not untrusted input
+			slog.Warn("API authentication gates mutations only: the read surface (including the write-audit log) is served without authentication; front a non-loopback bind with a reverse proxy",
+				"listen", cfg.Listen)
+		}
+	}
+	return nil
+}
+
 func run() error {
 	cfg, err := config.Parse(os.Args[1:])
 	if err != nil {
 		return err
 	}
 	setupLogging(cfg)
+
+	if err := checkAuthPosture(cfg); err != nil {
+		return err
+	}
 
 	// Stage 2 of the offline workflow: when --snapshot is set, spin up local
 	// in-memory OVSDB servers from the file and point the cluster at them, so
@@ -278,7 +313,14 @@ func run() error {
 	promRegistry.MustRegister(metricsCollector)
 	httpMetrics := telemetry.NewMiddleware(promRegistry)
 
-	srv := api.NewServer(cfg.Listen, def.DBs, httpMetrics.Wrap)
+	// Wrappers apply in slice order, so the last one is outermost: metrics label
+	// requests with the pattern the mux matched, and authentication rejects a
+	// mutating request before any of it runs.
+	wrappers := []func(http.Handler) http.Handler{httpMetrics.Wrap}
+	if !cfg.InsecureNoAuth {
+		wrappers = append(wrappers, api.AuthMiddleware(cfg.APITokens))
+	}
+	srv := api.NewServer(cfg.Listen, def.DBs, wrappers...)
 	mux := srv.Mux()
 
 	multiCluster := reg.Len() > 1
