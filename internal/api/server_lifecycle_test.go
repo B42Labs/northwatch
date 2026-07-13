@@ -2,8 +2,19 @@ package api
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -92,4 +103,101 @@ func TestNonNil(t *testing.T) {
 
 	in := []int{1, 2}
 	assert.Equal(t, in, NonNil(in), "a non-nil slice is returned unchanged")
+}
+
+// writeServerCert generates a self-signed certificate for 127.0.0.1, writes the
+// PEM pair into a temp dir, and returns the paths plus a cert pool trusting it.
+func writeServerCert(t *testing.T) (certPath, keyPath string, pool *x509.CertPool) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "northwatch-test"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	certPath = filepath.Join(dir, "cert.pem")
+	require.NoError(t, os.WriteFile(certPath,
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+	keyPath = filepath.Join(dir, "key.pem")
+	require.NoError(t, os.WriteFile(keyPath,
+		pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600))
+
+	pool = x509.NewCertPool()
+	require.True(t, pool.AppendCertsFromPEM(
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})))
+
+	return certPath, keyPath, pool
+}
+
+func TestServer_ServeTLS(t *testing.T) {
+	certPath, keyPath, pool := writeServerCert(t)
+
+	s := NewServer("127.0.0.1:0", nil)
+	s.SetTLSFiles(certPath, keyPath)
+	s.Mux().HandleFunc("GET /ping", func(w http.ResponseWriter, _ *http.Request) {
+		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+
+	// Bind a listener first so the test knows the port, then hand its address to
+	// the server (ListenAndServe binds Addr itself).
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+	s.httpServer.Addr = addr
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.ListenAndServe(context.Background()) }()
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = s.Shutdown(shutdownCtx)
+		<-errCh
+	})
+
+	client := &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
+	}}
+
+	var resp *http.Response
+	require.Eventually(t, func() bool {
+		r, err := client.Get("https://" + addr + "/ping")
+		if err != nil {
+			return false
+		}
+		resp = r
+		return true
+	}, 5*time.Second, 20*time.Millisecond)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NotNil(t, resp.TLS)
+	assert.GreaterOrEqual(t, resp.TLS.Version, uint16(tls.VersionTLS12))
+}
+
+func TestServer_ServeTLS_MissingCertFile(t *testing.T) {
+	// A cert path that does not exist must fail the serve loop loudly rather than
+	// silently falling back to plain HTTP.
+	s := NewServer("127.0.0.1:0", nil)
+	s.SetTLSFiles(filepath.Join(t.TempDir(), "absent.pem"), filepath.Join(t.TempDir(), "absent-key.pem"))
+
+	err := s.ListenAndServe(context.Background())
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, http.ErrServerClosed)
 }

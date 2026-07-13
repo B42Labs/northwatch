@@ -348,6 +348,7 @@ func run() error {
 		wrappers = append(wrappers, api.AuthMiddleware(cfg.APITokens))
 	}
 	srv := api.NewServer(cfg.Listen, def.DBs, wrappers...)
+	srv.SetTLSFiles(cfg.TLSCert, cfg.TLSKey)
 	mux := srv.Mux()
 
 	multiCluster := reg.Len() > 1

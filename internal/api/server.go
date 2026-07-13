@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -40,6 +41,10 @@ type Server struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
 	dbs        *ovndb.OVNDatabases
+
+	// tlsCert and tlsKey enable HTTPS when set (see SetTLSFiles).
+	tlsCert string
+	tlsKey  string
 }
 
 // NewServer creates a new HTTP server. Optional handler wrappers can be
@@ -85,15 +90,31 @@ func (s *Server) Databases() *ovndb.OVNDatabases {
 	return s.dbs
 }
 
+// SetTLSFiles enables HTTPS, serving with the given certificate and key. Both
+// must be set; passing empty paths leaves the server on plain HTTP, where a
+// TLS-terminating reverse proxy is expected in front of it.
+func (s *Server) SetTLSFiles(certFile, keyFile string) {
+	s.tlsCert, s.tlsKey = certFile, keyFile
+	if certFile != "" && keyFile != "" {
+		s.httpServer.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+}
+
 // ListenAndServe binds the listener using ctx for control of the bind itself
-// and then begins serving HTTP requests. Use Shutdown to stop the server.
+// and then begins serving requests, over HTTPS when SetTLSFiles was called with
+// a certificate and key. Use Shutdown to stop the server.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	lc := net.ListenConfig{}
 	ln, err := lc.Listen(ctx, "tcp", s.httpServer.Addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-	slog.Info("northwatch listening", "addr", ln.Addr().String())
+
+	if s.tlsCert != "" && s.tlsKey != "" {
+		slog.Info("northwatch listening", "addr", ln.Addr().String(), "scheme", "https")
+		return s.httpServer.ServeTLS(ln, s.tlsCert, s.tlsKey)
+	}
+	slog.Info("northwatch listening", "addr", ln.Addr().String(), "scheme", "http")
 	return s.httpServer.Serve(ln)
 }
 
