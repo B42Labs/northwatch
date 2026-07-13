@@ -17,6 +17,7 @@
     "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.2",
+    "@testing-library/svelte": "^5.4.2",
     "@types/d3": "^7.4.3",
     "daisyui": "^5.0.0",
     "eslint": "^10.6.0",
