@@ -110,23 +110,18 @@ func TestEngine_Silences(t *testing.T) {
 
 func TestEngine_SilencedAlertsNotReturned(t *testing.T) {
 	hub := events.NewHub()
-	var firing atomic.Bool
-	firing.Store(true)
 
 	engine := NewEngine(hub, 50*time.Millisecond)
 	engine.RegisterRule(Rule{
 		Name:     "silenced_rule",
 		Severity: SeverityWarning,
 		Check: func(ctx context.Context) ([]Alert, error) {
-			if firing.Load() {
-				return []Alert{{
-					Rule:     "silenced_rule",
-					Severity: SeverityWarning,
-					Message:  "test",
-					Labels:   map[string]string{},
-				}}, nil
-			}
-			return nil, nil
+			return []Alert{{
+				Rule:     "silenced_rule",
+				Severity: SeverityWarning,
+				Message:  "test",
+				Labels:   map[string]string{},
+			}}, nil
 		},
 	})
 
@@ -136,15 +131,11 @@ func TestEngine_SilencedAlertsNotReturned(t *testing.T) {
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	})
 
-	stop := engine.Start(context.Background())
-	defer stop()
+	// Evaluate synchronously — no need to wait for a ticker.
+	engine.evaluate(context.Background())
 
-	// Wait for evaluation
-	time.Sleep(200 * time.Millisecond)
-
-	// ActiveAlerts should not include silenced alerts
-	active := engine.ActiveAlerts()
-	assert.Empty(t, active)
+	// ActiveAlerts should not include silenced alerts.
+	assert.Empty(t, engine.ActiveAlerts())
 }
 
 func TestEngine_ExpiredSilencesCleanedUp(t *testing.T) {
@@ -212,15 +203,47 @@ func TestEngine_DisabledRuleNotEvaluated(t *testing.T) {
 		},
 	})
 
-	// Disable before starting
+	// Disable before evaluating
 	require.NoError(t, engine.SetRuleEnabled("disabled_rule", false))
 
-	stop := engine.Start(context.Background())
-	defer stop()
+	// Evaluate synchronously — a disabled rule's Check must never run.
+	engine.evaluate(context.Background())
 
-	time.Sleep(200 * time.Millisecond)
-
-	// Rule should not have been called
 	assert.Equal(t, int32(0), callCount.Load())
 	assert.Empty(t, engine.ActiveAlerts())
+}
+
+// TestNewEngine_ClampsNonPositiveInterval asserts a non-positive interval is
+// clamped so Start's ticker cannot panic.
+func TestNewEngine_ClampsNonPositiveInterval(t *testing.T) {
+	for _, d := range []time.Duration{0, -time.Second} {
+		engine := NewEngine(nil, d)
+		assert.Equal(t, defaultEvalInterval, engine.interval)
+		// Start must not panic on the clamped interval.
+		assert.NotPanics(t, func() {
+			stop := engine.Start(context.Background())
+			stop()
+		})
+	}
+}
+
+// TestEngine_SilenceExpiresWithClock drives silence expiry through the injected
+// clock instead of sleeping: a silence valid at creation drops out of the list
+// once the clock advances past its expiry.
+func TestEngine_SilenceExpiresWithClock(t *testing.T) {
+	engine := NewEngine(nil, 30*time.Second)
+
+	base := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	current := base
+	engine.now = func() time.Time { return current }
+
+	engine.AddSilence(Silence{
+		Rule:      "test",
+		ExpiresAt: base.Add(1 * time.Hour),
+	})
+	require.Len(t, engine.ListSilences(), 1)
+
+	// Advance past expiry — the silence must no longer be listed.
+	current = base.Add(2 * time.Hour)
+	assert.Empty(t, engine.ListSilences())
 }

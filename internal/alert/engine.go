@@ -12,6 +12,12 @@ import (
 
 const resolvedAlertTTL = 5 * time.Minute
 
+// defaultEvalInterval is the evaluation interval NewEngine falls back to when it
+// is given a non-positive one. time.NewTicker panics on a non-positive
+// duration, so clamping here keeps a misconfigured interval from crashing the
+// engine goroutine at Start.
+const defaultEvalInterval = 30 * time.Second
+
 // Engine evaluates alert rules on a periodic interval and tracks active alerts.
 type Engine struct {
 	mu       sync.RWMutex
@@ -23,16 +29,27 @@ type Engine struct {
 	interval time.Duration
 	notifier NotifierFunc
 	paused   func() bool
+	// now returns the current time. It is a field so tests can drive silence
+	// expiry and alert timing deterministically; it defaults to time.Now and is
+	// set once at construction, so reads need no synchronization.
+	now func() time.Time
 }
 
-// NewEngine creates a new alert engine.
+// NewEngine creates a new alert engine. A non-positive interval is clamped to
+// defaultEvalInterval so Start's ticker cannot panic.
 func NewEngine(hub *events.Hub, interval time.Duration) *Engine {
+	if interval <= 0 {
+		slog.Warn("alert engine interval non-positive, using default",
+			"requested", interval, "default", defaultEvalInterval)
+		interval = defaultEvalInterval
+	}
 	return &Engine{
 		active:   make(map[string]Alert),
 		disabled: make(map[string]bool),
 		silences: make(map[string]Silence),
 		hub:      hub,
 		interval: interval,
+		now:      time.Now,
 	}
 }
 
@@ -91,10 +108,10 @@ func (e *Engine) AddSilence(s Silence) string {
 	defer e.mu.Unlock()
 
 	if s.ID == "" {
-		s.ID = fmt.Sprintf("silence-%d", time.Now().UnixNano())
+		s.ID = fmt.Sprintf("silence-%d", e.now().UnixNano())
 	}
 	if s.CreatedAt.IsZero() {
-		s.CreatedAt = time.Now().UTC()
+		s.CreatedAt = e.now().UTC()
 	}
 	e.silences[s.ID] = s
 	return s.ID
@@ -117,7 +134,7 @@ func (e *Engine) ListSilences() []Silence {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	now := time.Now()
+	now := e.now()
 	var result []Silence
 	for _, s := range e.silences {
 		if !s.IsExpired(now) {
@@ -167,7 +184,7 @@ func (e *Engine) evaluate(ctx context.Context) {
 	}
 	e.mu.RUnlock()
 
-	now := time.Now()
+	now := e.now()
 	seen := map[string]bool{}
 	failed := map[string]bool{}
 	var notifications []Alert
@@ -281,7 +298,7 @@ func (e *Engine) publishEvent(a Alert, eventType events.EventType) {
 // isSilenced checks whether an alert is suppressed by any active silence.
 func (e *Engine) isSilenced(a Alert) bool {
 	// Caller must hold e.mu (at least RLock)
-	now := time.Now()
+	now := e.now()
 	for _, s := range e.silences {
 		if !s.IsExpired(now) && s.Matches(a) {
 			return true
