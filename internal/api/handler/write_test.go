@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/b42labs/northwatch/internal/api"
+	"github.com/b42labs/northwatch/internal/history"
+	ovndb "github.com/b42labs/northwatch/internal/ovsdb"
+	"github.com/b42labs/northwatch/internal/ovsdb/nb"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/b42labs/northwatch/internal/write"
 
 	_ "modernc.org/sqlite"
@@ -367,4 +373,117 @@ func TestWritePreview_OversizedBody(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// setupApplyEngine builds a write engine with a real NB client and history
+// collector, so a plan can be previewed and applied end-to-end and the resulting
+// audit entry inspected.
+func setupApplyEngine(t *testing.T) *write.Engine {
+	t.Helper()
+	nbClient := testutil.SetupNBTestClient(t)
+
+	historyStore, err := history.NewStore(filepath.Join(t.TempDir(), "history.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = historyStore.Close() })
+
+	sources := []history.TableSource{{
+		Database: "nb",
+		Table:    "Logical_Switch",
+		ListFunc: func(ctx context.Context) ([]map[string]any, error) {
+			var switches []nb.LogicalSwitch
+			if err := nbClient.List(ctx, &switches); err != nil {
+				return nil, err
+			}
+			return ovndb.ModelsToMaps(switches), nil
+		},
+	}}
+	collector := history.NewCollector(historyStore, nil, sources, time.Hour, time.Hour)
+
+	auditStore, err := write.NewAuditStore(context.Background(), historyStore.DB())
+	require.NoError(t, err)
+	engine, err := write.NewEngine(nbClient, nil, write.DefaultRegistry(), collector, auditStore, 5*time.Minute, 0)
+	require.NoError(t, err)
+	return engine
+}
+
+// authorized returns ctx carrying the actor the auth middleware would attach for
+// the named token.
+func authorized(name string) context.Context {
+	tokens := map[string]string{name: "0123456789abcdef"}
+	var got context.Context
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.Context() })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/write/preview", nil)
+	req.Header.Set("Authorization", "Bearer 0123456789abcdef")
+	api.AuthMiddleware(tokens)(next).ServeHTTP(httptest.NewRecorder(), req)
+	return got
+}
+
+// TestWriteApply_ActorDerivedFromToken drives preview → apply with a client-sent
+// "actor" field and asserts the audit entry names the authenticated token
+// instead: a client can no longer forge who made a change.
+func TestWriteApply_ActorDerivedFromToken(t *testing.T) {
+	engine := setupApplyEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	ctx := authorized("ops")
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/write/preview",
+		strings.NewReader(`{"operations":[{"action":"create","table":"Logical_Switch","fields":{"name":"ls-actor"}}],"reason":"test"}`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var plan struct {
+		ID         string `json:"id"`
+		ApplyToken string `json:"apply_token"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &plan))
+
+	req = httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/write/plans/"+plan.ID+"/apply",
+		strings.NewReader(`{"apply_token":"`+plan.ApplyToken+`","actor":"attacker"}`))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var entry write.AuditEntry
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entry))
+	assert.Equal(t, "ops", entry.Actor)
+
+	entries, err := engine.QueryAudit(context.Background(), 10)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "ops", entries[0].Actor)
+}
+
+// TestWriteApply_ActorAnonymousWithoutCredential covers the --insecure-no-auth
+// deployment, where no credential reaches the handler: the audit entry must be
+// attributed to "anonymous" rather than to a client-supplied string.
+func TestWriteApply_ActorAnonymousWithoutCredential(t *testing.T) {
+	engine := setupApplyEngine(t)
+	mux := http.NewServeMux()
+	RegisterWrite(mux, engine)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/preview",
+		strings.NewReader(`{"operations":[{"action":"create","table":"Logical_Switch","fields":{"name":"ls-anon"}}],"reason":"test"}`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var plan struct {
+		ID         string `json:"id"`
+		ApplyToken string `json:"apply_token"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &plan))
+
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/write/plans/"+plan.ID+"/apply",
+		strings.NewReader(`{"apply_token":"`+plan.ApplyToken+`","actor":"admin"}`))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var entry write.AuditEntry
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entry))
+	assert.Equal(t, "anonymous", entry.Actor)
 }

@@ -173,35 +173,25 @@ describe('previewOperations / dryRunOperations', () => {
 });
 
 describe('applyPlan', () => {
-  it('forwards the apply_token and actor in the body', async () => {
+  // The actor is derived server-side from the API token, so the body carries
+  // the apply_token and nothing else.
+  it('sends only the apply_token in the body', async () => {
     const spy = okFetch({ id: 1, result: 'success' });
 
-    const result = await applyPlan('plan-1', 'tok-abc', 'alice');
+    const result = await applyPlan('plan-1', 'tok-abc');
 
     expect(spy).toHaveBeenCalledWith('/api/v1/write/plans/plan-1/apply', {
       method: 'POST',
       headers: JSON_POST,
-      body: JSON.stringify({ apply_token: 'tok-abc', actor: 'alice' }),
+      body: JSON.stringify({ apply_token: 'tok-abc' }),
     });
     expect(result).toEqual({ id: 1, result: 'success' });
-  });
-
-  it('omits an undefined actor while still sending the apply_token', async () => {
-    const spy = okFetch({ id: 2, result: 'success' });
-
-    await applyPlan('plan-2', 'tok-xyz');
-
-    expect(spy).toHaveBeenCalledWith('/api/v1/write/plans/plan-2/apply', {
-      method: 'POST',
-      headers: JSON_POST,
-      body: JSON.stringify({ apply_token: 'tok-xyz' }),
-    });
   });
 
   it('propagates an invalid-token rejection as an ApiError', async () => {
     errFetch(403, 'Forbidden', { error: 'apply token mismatch' });
 
-    const err = await applyPlan('plan-1', 'wrong', 'alice').catch((e) => e);
+    const err = await applyPlan('plan-1', 'wrong').catch((e) => e);
 
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 403, message: 'apply token mismatch' });

@@ -61,16 +61,12 @@
     }
   }
 
-  async function handleApply(actor: string) {
+  async function handleApply() {
     if (!plan) return;
     applying = true;
     error = '';
     try {
-      const entry = await applyPlan(
-        plan.id,
-        plan.apply_token,
-        actor || undefined,
-      );
+      const entry = await applyPlan(plan.id, plan.apply_token);
       applyResult = { success: true, auditId: entry.id };
       step = 'result';
     } catch (e) {
