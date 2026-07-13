@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/b42labs/northwatch/internal/ovsdb/nb"
+	"github.com/b42labs/northwatch/internal/testutil"
 	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/ovn-kubernetes/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +89,7 @@ func seedPortGroup(t *testing.T, ctx context.Context, c client.Client, name stri
 }
 
 func TestACLAudit_ScopedByAttachment(t *testing.T) {
-	nbClient := setupNBClient(t)
+	nbClient := testutil.SetupNBTestClient(t)
 	ctx := context.Background()
 
 	// Two identical ACLs on two DIFFERENT switches: unrelated, must never be
@@ -118,7 +119,7 @@ func TestACLAudit_ScopedByAttachment(t *testing.T) {
 }
 
 func TestACLAudit_PortGroupScope(t *testing.T) {
-	nbClient := setupNBClient(t)
+	nbClient := testutil.SetupNBTestClient(t)
 	ctx := context.Background()
 
 	seedPortGroup(t, ctx, nbClient, "pg1", []aclSpec{
@@ -134,7 +135,7 @@ func TestACLAudit_PortGroupScope(t *testing.T) {
 }
 
 func TestACLAudit_FindingsCapped(t *testing.T) {
-	nbClient := setupNBClient(t)
+	nbClient := testutil.SetupNBTestClient(t)
 	ctx := context.Background()
 
 	// 35 identical ACLs on one switch => 35*34/2 = 595 redundant pairs, above the
@@ -152,7 +153,7 @@ func TestACLAudit_FindingsCapped(t *testing.T) {
 }
 
 func TestACLAudit_ContextCanceled(t *testing.T) {
-	nbClient := setupNBClient(t)
+	nbClient := testutil.SetupNBTestClient(t)
 	ctx := context.Background()
 
 	seedSwitch(t, ctx, nbClient, "swx", []aclSpec{
