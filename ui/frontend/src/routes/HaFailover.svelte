@@ -5,7 +5,6 @@
   import FilterInput from '../components/ui/FilterInput.svelte';
   import Badge from '../components/ui/Badge.svelte';
   import GatewayHealthPanel from '../components/gateway/GatewayHealthPanel.svelte';
-  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { writeEnabled } from '../lib/capabilitiesStore';
   import {
     requestFailover,
@@ -16,90 +15,23 @@
     type Plan,
   } from '../lib/writeApi';
   import { get } from '../lib/api';
-
-  // --- Types ---
-
-  // NB types — primary data source for group structure and names.
-  // The backend write operations work with NB data, so API calls must
-  // use NB group names and NB chassis names.
-  interface NbHaChassisEntry {
-    _uuid: string;
-    chassis_name: string;
-    priority: number;
-    external_ids: Record<string, string>;
-  }
-
-  interface NbHaChassisGroup {
-    _uuid: string;
-    name: string;
-    ha_chassis: string[];
-    external_ids: Record<string, string>;
-  }
-
-  interface NbGatewayChassisEntry {
-    _uuid: string;
-    chassis_name: string;
-    name: string;
-    priority: number;
-    external_ids: Record<string, string>;
-  }
-
-  interface NbLogicalRouterPort {
-    _uuid: string;
-    name: string;
-    gateway_chassis: string[] | null;
-    ha_chassis_group: string | null;
-  }
-
-  // SB types — used only for determining the actual active chassis
-  // (from port bindings) and chassis hostnames.
-  interface SbHaChassisEntry {
-    _uuid: string;
-    chassis: string | null;
-    priority: number;
-    external_ids: Record<string, string>;
-  }
-
-  interface SbHaChassisGroup {
-    _uuid: string;
-    name: string;
-    ha_chassis: string[];
-    external_ids: Record<string, string>;
-  }
-
-  interface ChassisRecord {
-    _uuid: string;
-    name: string;
-    hostname: string;
-  }
-
-  interface PortBindingRecord {
-    _uuid: string;
-    type: string;
-    logical_port: string;
-    chassis: string | null;
-    ha_chassis_group: string | null;
-  }
-
-  interface ResolvedChassisEntry {
-    uuid: string;
-    chassisUuid: string | null;
-    chassisName: string;
-    hostname: string;
-    priority: number;
-    isActive: boolean;
-    isDrained: boolean;
-  }
-
-  interface ResolvedGroup {
-    uuid: string;
-    name: string;
-    nbGroupName: string | null; // NB group name for write API calls (null if NB has no matching group)
-    nbLeaderName: string | null; // chassis with highest NB priority (what the backend considers "active")
-    chassisChain: ResolvedChassisEntry[];
-    crPortName: string | null;
-    activeChassis: string | null; // SB-active chassis UUID (actual runtime)
-  }
+  import {
+    resolveHaGroups,
+    computeActiveChassisInfo,
+    filterGroups,
+    entryStatus,
+    shortName,
+    type NbHaChassisEntry,
+    type NbHaChassisGroup,
+    type NbGatewayChassisEntry,
+    type NbLogicalRouterPort,
+    type SbHaChassisEntry,
+    type SbHaChassisGroup,
+    type ChassisRecord,
+    type PortBindingRecord,
+    type ResolvedGroup,
+    type DrainedChassisInfo,
+  } from '../lib/haFailover';
 
   // --- State ---
 
@@ -121,6 +53,7 @@
   let totalChassisInvolved = $state(0);
   let searchQuery = $state('');
   let hasNbGroups = $state(false);
+  let drainedChassisInfo: DrainedChassisInfo[] = $state([]);
 
   // --- Failover/Evacuate state ---
 
@@ -138,67 +71,15 @@
   let actionError = $state('');
   let actionSuccess = $state('');
 
-  // --- Derived: active chassis with context for evacuate panel ---
+  // --- Deriveds (thin wrappers over the pure lib/haFailover helpers) ---
 
-  interface ActiveChassisInfo {
-    name: string;
-    hostname: string;
-    activeInGroups: string[];
-  }
+  // Active chassis with context for the evacuate panel.
+  let activeChassisInfo = $derived(computeActiveChassisInfo(groups));
 
-  interface DrainedChassisInfo {
-    name: string;
-    hostname: string;
-    drainedInGroups: string[];
-  }
-
-  let drainedChassisInfo: DrainedChassisInfo[] = $state([]);
-
-  let activeChassisInfo = $derived.by(() => {
-    const map = new SvelteMap<string, ActiveChassisInfo>();
-    for (const g of groups) {
-      const active = g.chassisChain.find((c) => c.isActive);
-      if (active) {
-        const existing = map.get(active.chassisName);
-        if (existing) {
-          existing.activeInGroups.push(g.name);
-        } else {
-          map.set(active.chassisName, {
-            name: active.chassisName,
-            hostname: active.hostname,
-            activeInGroups: [g.name],
-          });
-        }
-      }
-    }
-    return [...map.values()].sort(
-      (a, b) => b.activeInGroups.length - a.activeInGroups.length,
-    );
-  });
-
-  // --- Filtered groups ---
-
-  let filteredGroups = $derived.by(() => {
-    if (!searchQuery.trim()) return groups;
-    const q = searchQuery.toLowerCase();
-    return groups.filter((g) => {
-      if (g.name.toLowerCase().includes(q)) return true;
-      if (g.crPortName?.toLowerCase().includes(q)) return true;
-      return g.chassisChain.some(
-        (c) =>
-          c.chassisName.toLowerCase().includes(q) ||
-          c.hostname.toLowerCase().includes(q),
-      );
-    });
-  });
+  // Filtered groups for the search bar.
+  let filteredGroups = $derived(filterGroups(groups, searchQuery));
 
   // --- Load data ---
-
-  // chassisNameKey builds a stable key from sorted chassis names for matching
-  // NB and SB groups by membership.
-  function chassisNameKey(names: string[]): string {
-    return [...names].sort().join('\0');
-  }
 
   async function load() {
     loading = true;
@@ -228,209 +109,21 @@
         get<NbLogicalRouterPort[]>('/api/v1/nb/logical-router-ports'),
       ]);
 
-      // --- SB lookups (for display) ---
-
-      const sbHaChassisMap = new SvelteMap<string, SbHaChassisEntry>();
-      for (const hc of sbHaChassis) {
-        sbHaChassisMap.set(hc._uuid, hc);
-      }
-
-      const sbChassisMap = new SvelteMap<string, ChassisRecord>();
-      for (const ch of sbChassisList) {
-        sbChassisMap.set(ch._uuid, ch);
-      }
-
-      // Chassisredirect port bindings: SB HA group UUID -> active chassis UUID + CR port
-      const haGroupToActiveChassis = new SvelteMap<string, string>();
-      const haGroupToCrPort = new SvelteMap<string, string>();
-      for (const pb of sbPortBindings) {
-        if (
-          pb.type === 'chassisredirect' &&
-          pb.ha_chassis_group &&
-          pb.chassis
-        ) {
-          haGroupToActiveChassis.set(pb.ha_chassis_group, pb.chassis);
-          haGroupToCrPort.set(pb.ha_chassis_group, pb.logical_port);
-        }
-      }
-
-      // --- NB lookups (for write API name mapping) ---
-      // Build chassis-name-key -> NB group name from both HA_Chassis_Groups
-      // and Gateway_Chassis (via LRPs). The backend resolves groups from both.
-
-      // chassis-name-key -> { groupName, leaderName }
-      const nbKeyToGroupInfo = new SvelteMap<
-        string,
-        { groupName: string; leaderName: string }
-      >();
-
-      // Helper: find chassis with highest priority (NB leader)
-      function findLeader(
-        entries: { chassis_name: string; priority: number }[],
-      ): string {
-        if (entries.length === 0) return '';
-        let best = entries[0];
-        for (const e of entries) {
-          if (e.priority > best.priority) best = e;
-        }
-        return best.chassis_name;
-      }
-
-      // From NB HA_Chassis_Groups
-      const nbChassisMap = new SvelteMap<string, NbHaChassisEntry>();
-      for (const hc of nbHaChassis) {
-        nbChassisMap.set(hc._uuid, hc);
-      }
-      for (const nbGroup of nbHaGroups) {
-        const entries: NbHaChassisEntry[] = [];
-        for (const hcUuid of nbGroup.ha_chassis) {
-          const hc = nbChassisMap.get(hcUuid);
-          if (hc?.chassis_name) entries.push(hc);
-        }
-        if (entries.length > 0) {
-          const key = chassisNameKey(entries.map((e) => e.chassis_name));
-          nbKeyToGroupInfo.set(key, {
-            groupName: nbGroup.name,
-            leaderName: findLeader(entries),
-          });
-        }
-      }
-
-      // From NB Gateway_Chassis (via LRPs)
-      const nbGwChassisMap = new SvelteMap<string, NbGatewayChassisEntry>();
-      for (const gw of nbGwChassis) {
-        nbGwChassisMap.set(gw._uuid, gw);
-      }
-      for (const lrp of nbLrps) {
-        if (!lrp.gateway_chassis || lrp.gateway_chassis.length === 0) continue;
-        const entries: NbGatewayChassisEntry[] = [];
-        for (const gwUuid of lrp.gateway_chassis) {
-          const gw = nbGwChassisMap.get(gwUuid);
-          if (gw?.chassis_name) entries.push(gw);
-        }
-        if (entries.length > 0) {
-          const key = chassisNameKey(entries.map((e) => e.chassis_name));
-          nbKeyToGroupInfo.set(key, {
-            groupName: lrp.name,
-            leaderName: findLeader(entries),
-          });
-        }
-      }
-
-      // --- Detect drained chassis from NB data ---
-      const chassisHostnameByName = new SvelteMap<string, string>();
-      for (const ch of sbChassisList) {
-        chassisHostnameByName.set(ch.name, ch.hostname);
-      }
-
-      const drainedMap = new SvelteMap<string, DrainedChassisInfo>();
-
-      function recordDrained(
-        chassisName: string,
-        groupName: string,
-        externalIds: Record<string, string> | undefined,
-      ) {
-        if (!externalIds?.['northwatch:pre-drain-priority']) return;
-        const existing = drainedMap.get(chassisName);
-        if (existing) {
-          existing.drainedInGroups.push(groupName);
-        } else {
-          drainedMap.set(chassisName, {
-            name: chassisName,
-            hostname: chassisHostnameByName.get(chassisName) || '',
-            drainedInGroups: [groupName],
-          });
-        }
-      }
-
-      for (const nbGroup of nbHaGroups) {
-        for (const hcUuid of nbGroup.ha_chassis) {
-          const hc = nbChassisMap.get(hcUuid);
-          if (hc && hc.priority === 0) {
-            recordDrained(hc.chassis_name, nbGroup.name, hc.external_ids);
-          }
-        }
-      }
-
-      for (const lrp of nbLrps) {
-        if (!lrp.gateway_chassis || lrp.gateway_chassis.length === 0) continue;
-        for (const gwUuid of lrp.gateway_chassis) {
-          const gw = nbGwChassisMap.get(gwUuid);
-          if (gw && gw.priority === 0) {
-            recordDrained(gw.chassis_name, lrp.name, gw.external_ids);
-          }
-        }
-      }
-
-      drainedChassisInfo = [...drainedMap.values()].sort(
-        (a, b) => b.drainedInGroups.length - a.drainedInGroups.length,
-      );
-
-      hasNbGroups = nbKeyToGroupInfo.size > 0;
-
-      // --- Resolve SB groups for display, with NB name mapping ---
-
-      const chassisUuidsInvolved = new SvelteSet<string>();
-
-      const resolved: ResolvedGroup[] = sbHaGroups.map((group) => {
-        const activeChassis = haGroupToActiveChassis.get(group._uuid) ?? null;
-        const crPortName = haGroupToCrPort.get(group._uuid) ?? null;
-
-        // Resolve SB HA chassis entries for this group
-        const memberChassisNames: string[] = [];
-        const chainEntries: ResolvedChassisEntry[] = group.ha_chassis
-          .map((hcUuid) => {
-            const hc = sbHaChassisMap.get(hcUuid);
-            if (!hc) return null;
-
-            const chassisRecord = hc.chassis
-              ? sbChassisMap.get(hc.chassis)
-              : null;
-
-            if (hc.chassis) {
-              chassisUuidsInvolved.add(hc.chassis);
-            }
-            if (chassisRecord?.name) {
-              memberChassisNames.push(chassisRecord.name);
-            }
-
-            const chassisName = chassisRecord?.name ?? hc.chassis ?? 'unknown';
-            return {
-              uuid: hc._uuid,
-              chassisUuid: hc.chassis,
-              chassisName,
-              hostname: chassisRecord?.hostname ?? '',
-              priority: hc.priority,
-              isActive: hc.chassis === activeChassis && activeChassis !== null,
-              isDrained: drainedMap.has(chassisName),
-            } satisfies ResolvedChassisEntry;
-          })
-          .filter((e): e is ResolvedChassisEntry => e !== null)
-          .sort((a, b) => b.priority - a.priority);
-
-        // Look up matching NB group info by chassis name membership
-        const key =
-          memberChassisNames.length > 0
-            ? chassisNameKey(memberChassisNames)
-            : '';
-        const nbInfo = key ? (nbKeyToGroupInfo.get(key) ?? null) : null;
-
-        return {
-          uuid: group._uuid,
-          name: group.name,
-          nbGroupName: nbInfo?.groupName ?? null,
-          nbLeaderName: nbInfo?.leaderName ?? null,
-          chassisChain: chainEntries,
-          crPortName,
-          activeChassis,
-        };
+      const resolved = resolveHaGroups({
+        sbHaGroups,
+        sbHaChassis,
+        sbChassisList,
+        sbPortBindings,
+        nbHaGroups,
+        nbHaChassis,
+        nbGwChassis,
+        nbLrps,
       });
 
-      // Sort groups by name
-      resolved.sort((a, b) => a.name.localeCompare(b.name));
-
-      groups = resolved;
-      totalChassisInvolved = chassisUuidsInvolved.size;
+      groups = resolved.groups;
+      totalChassisInvolved = resolved.totalChassisInvolved;
+      drainedChassisInfo = resolved.drainedChassisInfo;
+      hasNbGroups = resolved.hasNbGroups;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load HA data';
     } finally {
@@ -441,11 +134,6 @@
   $effect(() => {
     load();
   });
-
-  function shortName(name: string): string {
-    if (name.length <= 32) return name;
-    return name.slice(0, 29) + '...';
-  }
 
   // --- Failover actions ---
 
@@ -520,7 +208,7 @@
     try {
       await applyPlan(pendingPlan.id, pendingPlan.apply_token, 'northwatch-ui');
       actionSuccess = failoverTarget
-        ? `Failover completed: ${failoverTarget.activeChassisName} \u2192 ${failoverTarget.targetChassis}`
+        ? `Failover completed: ${failoverTarget.activeChassisName} → ${failoverTarget.targetChassis}`
         : evacuateTarget
           ? `Evacuation of ${evacuateTarget} completed`
           : `Restore of chassis ${restoreTarget} completed`;
@@ -982,6 +670,11 @@
             {:else}
               <div class="flex flex-wrap items-center gap-0">
                 {#each group.chassisChain as entry, idx (entry.uuid)}
+                  {@const status = entryStatus(
+                    entry,
+                    idx,
+                    !!group.activeChassis,
+                  )}
                   <!-- Chassis box -->
                   <div
                     class="relative flex min-w-[140px] flex-col rounded border-l-2 px-3 py-2 {entry.isActive
@@ -994,15 +687,7 @@
                         text="P{entry.priority}"
                         variant={entry.isActive ? 'success' : 'ghost'}
                       />
-                      {#if entry.isActive}
-                        <Badge text="ACTIVE" variant="success" />
-                      {:else if entry.isDrained}
-                        <Badge text="DRAINED" variant="error" />
-                      {:else if idx === 0 && !group.activeChassis}
-                        <Badge text="STANDBY" variant="warning" />
-                      {:else}
-                        <Badge text="STANDBY" variant="ghost" />
-                      {/if}
+                      <Badge text={status.label} variant={status.variant} />
                     </div>
                     <!-- Chassis name -->
                     <div
