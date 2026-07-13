@@ -60,48 +60,69 @@ func serveUnixSocket(t *testing.T, srv *server.OvsdbServer, sockName string) str
 	}
 }
 
-// SetupNBTestClient creates an in-memory NB OVSDB test server and returns a connected client.
+// SetupNBTestClient returns a connected, monitoring NB client backed by the
+// package's shared in-memory NB server. The database is wiped before the client
+// monitors, so each test starts empty even though the server is reused.
 func SetupNBTestClient(t *testing.T) client.Client {
 	t.Helper()
-	clientModel, err := nb.FullDatabaseModel()
+	return setupSharedClient(t, sharedNB, nbModel(t), nb.Schema(), "nb.sock")
+}
+
+// SetupSBTestClient returns a connected, monitoring SB client backed by the
+// package's shared in-memory SB server, wiped per test like SetupNBTestClient.
+func SetupSBTestClient(t *testing.T) client.Client {
+	t.Helper()
+	return setupSharedClient(t, sharedSB, sbModel(t), sb.Schema(), "sb.sock")
+}
+
+func nbModel(t *testing.T) model.ClientDBModel {
+	t.Helper()
+	m, err := nb.FullDatabaseModel()
 	require.NoError(t, err)
-	schema := nb.Schema()
-	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
-	require.Empty(t, errs)
-	logger := stdr.New(nil)
-	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
-	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
+	return m
+}
+
+func sbModel(t *testing.T) model.ClientDBModel {
+	t.Helper()
+	m, err := sb.FullDatabaseModel()
 	require.NoError(t, err)
-	sockPath := serveUnixSocket(t, ovsdbServer, "nb.sock")
-	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
+	return m
+}
+
+// setupSharedClient dials a fresh client at the package's shared server for the
+// given schema, wipes every table so the test starts from an empty database,
+// then monitors. It registers t.Cleanup(c.Close) and returns the client.
+func setupSharedClient(t *testing.T, s *sharedServer, clientModel model.ClientDBModel, schema ovsdb.DatabaseSchema, sockName string) client.Client {
+	t.Helper()
+	endpoint, err := s.endpointFor(clientModel, schema, sockName)
+	require.NoError(t, err)
+
+	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(endpoint))
 	require.NoError(t, err)
 	require.NoError(t, c.Connect(context.Background()))
+	t.Cleanup(func() { c.Close() })
+
+	wipeAllTables(t, c, schema)
+
 	_, err = c.MonitorAll(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() { c.Close() })
 	return c
 }
 
-// SetupSBTestClient creates an in-memory SB OVSDB test server and returns a connected client.
-func SetupSBTestClient(t *testing.T) client.Client {
+// wipeAllTables deletes every row in every table of the schema in one
+// transaction, so a test connecting to the shared server starts from an empty
+// database. A delete with no condition matches all rows, and wiping every table
+// at once means no strong reference is left dangling at commit.
+func wipeAllTables(t *testing.T, c client.Client, schema ovsdb.DatabaseSchema) {
 	t.Helper()
-	clientModel, err := sb.FullDatabaseModel()
+	ops := make([]ovsdb.Operation, 0, len(schema.Tables))
+	for table := range schema.Tables {
+		ops = append(ops, ovsdb.Operation{Op: ovsdb.OperationDelete, Table: table})
+	}
+	reply, err := c.Transact(context.Background(), ops...)
 	require.NoError(t, err)
-	schema := sb.Schema()
-	dbModel, errs := model.NewDatabaseModel(schema, clientModel)
-	require.Empty(t, errs)
-	logger := stdr.New(nil)
-	db := inmemory.NewDatabase(map[string]model.ClientDBModel{schema.Name: clientModel}, &logger)
-	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
 	require.NoError(t, err)
-	sockPath := serveUnixSocket(t, ovsdbServer, "sb.sock")
-	c, err := client.NewOVSDBClient(clientModel, client.WithEndpoint(fmt.Sprintf("unix:%s", sockPath)))
-	require.NoError(t, err)
-	require.NoError(t, c.Connect(context.Background()))
-	_, err = c.MonitorAll(context.Background())
-	require.NoError(t, err)
-	t.Cleanup(func() { c.Close() })
-	return c
 }
 
 // SetupOVSTestServer creates an in-memory per-chassis Open_vSwitch OVSDB test
