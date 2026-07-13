@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-13
+
 ### Added
 - `--log-level` (`NORTHWATCH_LOG_LEVEL`, `debug`/`info`/`warn`/`error`) and
   `--log-format` (`NORTHWATCH_LOG_FORMAT`, `text`/`json`) flags. Logs are now
@@ -287,12 +289,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `alert.Engine.evaluate` holds the write lock for the entire seen-check-and-
   insert critical section, eliminating a small TOCTOU window.
 - `TraceStore.Store` amortizes expired-entry sweeps across many writes.
+- The UI first load is smaller: the d3-heavy Topology and Propagation Timeline
+  routes are code-split and lazy-loaded, and d3 is imported by submodule,
+  cutting the initial JS bundle from ~464 kB to ~358 kB (131 kB → 96 kB gzip).
+- The topology export menu and the network/chassis comboboxes are now
+  keyboard-operable (roles, `aria-expanded`, arrow/Escape/Enter handling) and
+  the remaining accessibility suppressions have been removed.
+- CI now enforces a per-package 85% coverage floor for the core packages
+  (`internal/write`, `internal/debug`, `internal/api`, `internal/api/handler`)
+  in addition to the 70% overall gate.
 
 ### Fixed
 - `govulncheck` is now a blocking step in CI; previously failures were
   silently ignored via `continue-on-error: true`.
 - Avoid relying on backing-array sharing when concatenating snapshot source
   slices in `cmd/northwatch/main.go`.
+- The history collector now waits for its background goroutines on shutdown and
+  flushes the final event batch on a context detached from cancellation, so a
+  graceful stop no longer races the SQLite store close or drops buffered events.
+- The propagation tracker subscribes to the event hub before seeding, so
+  config-generation events published during startup are no longer lost, and its
+  stop function is idempotent (a second stop no longer panics).
+- The alert engine clamps a non-positive evaluation interval to 30s instead of
+  panicking in its ticker when misconfigured.
+- Fleet OVS health (`GET /api/v1/ovs/health`) recomputes under singleflight on a
+  detached context: a burst of polls no longer convoys on a lock, and a client
+  disconnecting mid-fan-out no longer cancels or poisons the shared snapshot.
 
 ## [0.1.0] - Initial release
 
