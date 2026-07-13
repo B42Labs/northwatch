@@ -125,15 +125,10 @@ export function getPlan(id: string): Promise<Plan> {
   return get(`/api/v1/write/plans/${id}`);
 }
 
-export function applyPlan(
-  id: string,
-  applyToken: string,
-  actor?: string,
-): Promise<AuditEntry> {
-  return post(`/api/v1/write/plans/${id}/apply`, {
-    apply_token: applyToken,
-    actor,
-  });
+// The audit actor is derived server-side from the API token that authorized the
+// request, so the client no longer sends one.
+export function applyPlan(id: string, applyToken: string): Promise<AuditEntry> {
+  return post(`/api/v1/write/plans/${id}/apply`, { apply_token: applyToken });
 }
 
 export function cancelPlan(id: string): Promise<void> {

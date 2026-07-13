@@ -14,7 +14,6 @@
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
   import SegmentedControl from '../components/ui/SegmentedControl.svelte';
-  import FormField from '../components/ui/FormField.svelte';
   import Badge from '../components/ui/Badge.svelte';
   import { severityVariant } from '../lib/status';
   import PlanDiffView from '../components/write/PlanDiffView.svelte';
@@ -58,7 +57,6 @@
   >('idle');
   let plan = $state<Plan | null>(null);
   let deleteError = $state('');
-  let actor = $state('');
 
   function setTypeFilter(val: string) {
     typeFilter = val;
@@ -130,7 +128,7 @@
     if (!plan) return;
     deleteStep = 'applying';
     try {
-      await applyPlan(plan.id, plan.apply_token, actor || undefined);
+      await applyPlan(plan.id, plan.apply_token);
       deleteStep = 'done';
       selected.clear();
       // Reload the data
@@ -156,7 +154,6 @@
     deleteStep = 'idle';
     plan = null;
     deleteError = '';
-    actor = '';
   }
 
   async function load() {
@@ -258,15 +255,6 @@
             <div
               class="flex flex-wrap items-end gap-3 border-t border-base-300 pt-3"
             >
-              <FormField label="Actor (optional)" forId="stale-actor">
-                <input
-                  id="stale-actor"
-                  type="text"
-                  class="input w-48 font-mono input-sm"
-                  placeholder="your-name"
-                  bind:value={actor}
-                />
-              </FormField>
               <button
                 class="btn btn-error btn-sm"
                 disabled={expired}

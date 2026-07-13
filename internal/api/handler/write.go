@@ -56,6 +56,18 @@ func applyEngineError(w http.ResponseWriter, entry *write.AuditEntry, err error)
 // maxWriteBodySize limits the size of write request bodies to 1 MB.
 const maxWriteBodySize = 1 << 20
 
+// auditActor derives the write-audit actor from the credential that authorized
+// the request, so an audit entry names whoever presented the token rather than
+// whatever string the client typed into the request body. It falls back to
+// "anonymous" only when the deployment runs with --insecure-no-auth, where no
+// credential exists to attribute the change to.
+func auditActor(r *http.Request) string {
+	if actor := api.ActorFromContext(r.Context()); actor != "" {
+		return actor
+	}
+	return "anonymous"
+}
+
 // RegisterWrite registers all write operation HTTP endpoints.
 func RegisterWrite(mux *http.ServeMux, engine *write.Engine) {
 	mux.HandleFunc("GET /api/v1/write/schema", handleSchema(engine))
@@ -181,7 +193,6 @@ func handleApply(engine *write.Engine) http.HandlerFunc {
 		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			ApplyToken string `json:"apply_token"`
-			Actor      string `json:"actor"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			api.WriteError(w, http.StatusBadRequest, "invalid JSON body")
@@ -193,7 +204,7 @@ func handleApply(engine *write.Engine) http.HandlerFunc {
 			return
 		}
 
-		entry, err := engine.Apply(r.Context(), id, body.ApplyToken, body.Actor)
+		entry, err := engine.Apply(r.Context(), id, body.ApplyToken, auditActor(r))
 		if err != nil {
 			applyEngineError(w, entry, err)
 			return
@@ -220,7 +231,6 @@ func handleRollback(engine *write.Engine) http.HandlerFunc {
 		r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodySize)
 		var body struct {
 			SnapshotID int64  `json:"snapshot_id"`
-			Actor      string `json:"actor"`
 			Reason     string `json:"reason"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -232,7 +242,7 @@ func handleRollback(engine *write.Engine) http.HandlerFunc {
 			return
 		}
 
-		plan, err := engine.Rollback(r.Context(), body.SnapshotID, body.Actor, body.Reason)
+		plan, err := engine.Rollback(r.Context(), body.SnapshotID, auditActor(r), body.Reason)
 		if err != nil {
 			writeEngineError(w, err)
 			return

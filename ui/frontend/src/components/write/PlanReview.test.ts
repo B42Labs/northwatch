@@ -57,16 +57,17 @@ describe('PlanReview', () => {
     expect(cancelButton().disabled).toBe(false);
   });
 
-  it('applies with the entered actor name', async () => {
+  // The actor is derived from the API token server-side, so the review pane no
+  // longer offers a client-supplied one.
+  it('applies without asking for an actor', async () => {
     const onApply = vi.fn();
     render(PlanReview, { plan: makePlan(), onApply, onCancel: () => {} });
 
-    await fireEvent.input(screen.getByLabelText(/Actor/i), {
-      target: { value: 'alice' },
-    });
+    expect(screen.queryByLabelText(/Actor/i)).toBeNull();
+
     await fireEvent.click(applyButton());
 
-    expect(onApply).toHaveBeenCalledWith('alice');
+    expect(onApply).toHaveBeenCalled();
   });
 
   it('disables Apply and surfaces the expired notice once expires_at passes', () => {

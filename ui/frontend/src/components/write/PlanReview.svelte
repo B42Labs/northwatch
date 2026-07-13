@@ -3,7 +3,6 @@
   import type { Variant } from '../../lib/status';
   import Badge from '../ui/Badge.svelte';
   import Card from '../ui/Card.svelte';
-  import FormField from '../ui/FormField.svelte';
   import ImpactWarning from './ImpactWarning.svelte';
   import PlanDiffView from './PlanDiffView.svelte';
 
@@ -14,12 +13,11 @@
     applying = false,
   }: {
     plan: Plan;
-    onApply: (actor: string) => void;
+    onApply: () => void;
     onCancel: () => void;
     applying?: boolean;
   } = $props();
 
-  let actor = $state('');
   let expired = $state(false);
 
   $effect(() => {
@@ -102,19 +100,10 @@
     <Card>
       <div class="flex flex-col gap-2">
         <div class="flex flex-wrap items-end gap-3">
-          <FormField label="Actor (optional)" forId="apply-actor">
-            <input
-              id="apply-actor"
-              type="text"
-              class="input w-60 font-mono input-sm"
-              placeholder="your-name"
-              bind:value={actor}
-            />
-          </FormField>
           <button
             class="btn font-mono btn-primary btn-sm"
             disabled={expired || applying}
-            onclick={() => onApply(actor)}
+            onclick={() => onApply()}
           >
             {#if applying}
               <span class="loading loading-xs loading-spinner"></span>

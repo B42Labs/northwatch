@@ -206,7 +206,7 @@
     actionLoading = true;
     actionError = '';
     try {
-      await applyPlan(pendingPlan.id, pendingPlan.apply_token, 'northwatch-ui');
+      await applyPlan(pendingPlan.id, pendingPlan.apply_token);
       actionSuccess = failoverTarget
         ? `Failover completed: ${failoverTarget.activeChassisName} → ${failoverTarget.targetChassis}`
         : evacuateTarget
