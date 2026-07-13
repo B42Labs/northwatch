@@ -41,13 +41,17 @@ func NewPropagationTracker(hub *events.Hub, store *PropagationStore, nbClient, s
 }
 
 // Start seeds the tracker state and begins listening for events.
-// Returns a cleanup function.
+// Returns a cleanup function that is safe to call more than once.
 func (t *PropagationTracker) Start(ctx context.Context) func() {
-	t.seed(ctx)
-
+	// Subscribe before seeding. Events published while seed() reads the current
+	// OVSDB state would otherwise fall into the gap between seeding and
+	// subscribing and be lost; subscribing first buffers them in the subscriber
+	// channel (cap 256) so the consumer goroutine picks them up after the seed.
 	sub := t.hub.Subscribe()
 	sub.AddFilter(events.Filter{Database: "nb", Tables: []string{"NB_Global"}})
 	sub.AddFilter(events.Filter{Database: "sb", Tables: []string{"Chassis_Private", "Chassis"}})
+
+	t.seed(ctx)
 
 	done := make(chan struct{})
 	go func() {
@@ -64,9 +68,14 @@ func (t *PropagationTracker) Start(ctx context.Context) func() {
 		}
 	}()
 
+	// sync.Once guards the closure so a double stop() cannot close(done) twice
+	// (which panics) or unsubscribe a subscriber already removed from the hub.
+	var once sync.Once
 	return func() {
-		close(done)
-		t.hub.Unsubscribe(sub)
+		once.Do(func() {
+			close(done)
+			t.hub.Unsubscribe(sub)
+		})
 	}
 }
 
