@@ -207,6 +207,37 @@ func (s *Store) DeleteSnapshot(ctx context.Context, id int64) error {
 	return nil
 }
 
+// PruneAutoSnapshots deletes all but the newest keep automatic snapshots and
+// reports how many were removed. A keep of 0 or less disables pruning.
+//
+// Only unlabeled "auto" snapshots are eligible: a manual, labeled or imported
+// snapshot is something an operator deliberately kept, so retention must never
+// reclaim it. Rows are removed by the ON DELETE CASCADE, which is only reliable
+// because the foreign_keys pragma now applies to every pooled connection.
+func (s *Store) PruneAutoSnapshots(ctx context.Context, keep int64) (int64, error) {
+	if keep <= 0 {
+		return 0, nil
+	}
+
+	res, err := s.db.ExecContext(ctx, `
+		DELETE FROM snapshots
+		WHERE trigger = 'auto' AND label = ''
+		  AND id NOT IN (
+			SELECT id FROM snapshots
+			WHERE trigger = 'auto' AND label = ''
+			ORDER BY id DESC LIMIT ?
+		  )`, keep)
+	if err != nil {
+		return 0, fmt.Errorf("pruning auto snapshots: %w", err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("checking rows affected: %w", err)
+	}
+	return n, nil
+}
+
 // SnapshotExport is a portable representation of a snapshot for export/import.
 type SnapshotExport struct {
 	Meta SnapshotMeta  `json:"meta"`
@@ -231,10 +262,13 @@ func (s *Store) ExportSnapshot(ctx context.Context, id int64) (*SnapshotExport, 
 	}, nil
 }
 
-// ImportSnapshot creates a new snapshot from exported data, preserving trigger
-// and label but assigning a new ID and timestamp.
+// ImportSnapshot creates a new snapshot from exported data, preserving the label
+// but assigning a new ID and timestamp. The trigger is forced to "import" rather
+// than carried over from the export: an operator imported this deliberately, so
+// it must be exempt from PruneAutoSnapshots even when its origin store recorded
+// it as an "auto" snapshot.
 func (s *Store) ImportSnapshot(ctx context.Context, exp SnapshotExport) (*SnapshotMeta, error) {
-	return s.CreateSnapshot(ctx, exp.Meta.Trigger, exp.Meta.Label, exp.Rows)
+	return s.CreateSnapshot(ctx, "import", exp.Meta.Label, exp.Rows)
 }
 
 // LatestSnapshotContentHash returns the content hash of the most recent snapshot.

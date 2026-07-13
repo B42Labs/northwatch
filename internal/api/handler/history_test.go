@@ -371,7 +371,7 @@ func TestHistory_ImportSnapshot(t *testing.T) {
 
 	var imported history.SnapshotMeta
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&imported))
-	assert.Equal(t, "manual", imported.Trigger)
+	assert.Equal(t, "import", imported.Trigger, "import forces the trigger so the copy is exempt from pruning")
 	assert.Equal(t, "original", imported.Label)
 	assert.Equal(t, 1, imported.RowCounts["nb.Logical_Switch"])
 }
