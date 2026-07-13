@@ -3,6 +3,7 @@
   import ThemeToggle from './ThemeToggle.svelte';
   import ClusterSwitcher from './ClusterSwitcher.svelte';
   import ConnectionStatus from '../ui/ConnectionStatus.svelte';
+  import ApiTokenControl from './ApiTokenControl.svelte';
   import { sidebarOpen } from '../../lib/sidebarStore';
 
   let searchQuery = $state('');
@@ -59,6 +60,7 @@
     <ClusterSwitcher />
     <span class="hidden h-4 w-px bg-base-300 sm:block"></span>
     <ConnectionStatus />
+    <ApiTokenControl />
     <ThemeToggle />
   </div>
 </header>

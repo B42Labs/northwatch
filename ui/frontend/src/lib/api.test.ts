@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   ApiError,
+  createSnapshot,
   getOvsEntity,
   getOvsFleetHealth,
   getOvsInterfaceCorrelation,
@@ -8,6 +9,7 @@ import {
   listOvsMembers,
   listOvsTable,
 } from './api';
+import { clearApiToken, setApiToken } from './authStore';
 
 function mockFetch(body: unknown): void {
   vi.stubGlobal(
@@ -203,5 +205,63 @@ describe('OVS visibility endpoints', () => {
       '/api/v1/ovs/node%2F0/interface/uuid-1/correlation',
     );
     expect(result).toEqual(body);
+  });
+});
+
+describe('bearer token', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearApiToken();
+  });
+
+  it('omits the Authorization header when no token is set', async () => {
+    clearApiToken();
+    const spy = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', spy);
+
+    await listOvsMembers();
+
+    expect(spy).toHaveBeenCalledWith('/api/v1/ovs');
+  });
+
+  it('sends the token as a bearer credential once configured', async () => {
+    setApiToken('0123456789abcdef');
+    const spy = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ id: 1 }),
+    }));
+    vi.stubGlobal('fetch', spy);
+
+    await createSnapshot('pre-upgrade');
+
+    expect(spy).toHaveBeenCalledWith('/api/v1/snapshots', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer 0123456789abcdef',
+      },
+      body: JSON.stringify({ label: 'pre-upgrade' }),
+    });
+  });
+
+  it('turns a 401 into a message that says what to do about it', async () => {
+    clearApiToken();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: async () => ({ error: 'authentication required' }),
+      })),
+    );
+
+    const err = await createSnapshot().catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({
+      status: 401,
+      message: 'authentication required — set an API token',
+    });
   });
 });
