@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-var uuidPattern = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
 // Middleware records HTTP request metrics using Prometheus counters and histograms.
 type Middleware struct {
@@ -44,6 +42,11 @@ func NewMiddleware(registry *prometheus.Registry) *Middleware {
 }
 
 // Wrap returns an http.Handler that records request metrics around next.
+//
+// Requests are labeled with the route pattern the mux matched, not their raw
+// path. Labeling by path — even with UUIDs normalized — let anyone mint a new
+// time series per request just by walking made-up URLs, so a 404 scan grew the
+// label set without bound.
 func (m *Middleware) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -51,7 +54,9 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rw, r)
 
-		path := normalizePath(r.URL.Path)
+		// ServeMux records the matched pattern on the request it dispatches, so
+		// this is only readable after the handler has run.
+		path := routeLabel(r.Pattern)
 		status := strconv.Itoa(rw.status)
 		duration := time.Since(start).Seconds()
 
@@ -60,9 +65,20 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 	})
 }
 
-// normalizePath replaces UUIDs with {uuid} to avoid label cardinality explosion.
-func normalizePath(path string) string {
-	return uuidPattern.ReplaceAllString(path, "{uuid}")
+// unmatchedLabel is the single label every unrouted request collapses onto, so
+// the cardinality of the path label is bounded by the number of routes.
+const unmatchedLabel = "unmatched"
+
+// routeLabel turns a ServeMux pattern ("GET /api/v1/nb/acls/{uuid}") into a path
+// label, dropping the leading method. An empty pattern means no route matched.
+func routeLabel(pattern string) string {
+	if pattern == "" {
+		return unmatchedLabel
+	}
+	if _, path, ok := strings.Cut(pattern, " "); ok {
+		return path
+	}
+	return pattern
 }
 
 type responseWriter struct {
