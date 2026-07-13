@@ -157,11 +157,13 @@ func TestWriteRollback_NoCollector(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	// A missing history collector is a server-capability failure, not a bad
-	// request: it maps to 500 under the corrected status taxonomy.
+	// request: it maps to 500 under the corrected status taxonomy. The cause is
+	// logged server-side; the client only sees a generic body.
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Contains(t, body["error"], "requires history collector")
+	assert.Equal(t, "internal server error", body["error"])
+	assert.NotContains(t, w.Body.String(), "requires history collector")
 }
 
 func TestWriteEngineErrorTaxonomy(t *testing.T) {
@@ -179,8 +181,12 @@ func TestWriteEngineErrorTaxonomy(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			writeEngineError(w, tc.err)
+			r := httptest.NewRequest(http.MethodPost, "/api/v1/write/preview", nil)
+			writeEngineError(w, r, tc.err)
 			assert.Equal(t, tc.want, w.Code)
+			if tc.want == http.StatusInternalServerError {
+				assert.NotContains(t, w.Body.String(), tc.err.Error())
+			}
 		})
 	}
 }
@@ -206,8 +212,12 @@ func TestApplyEngineErrorTaxonomy(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			applyEngineError(w, tc.entry, tc.err)
+			r := httptest.NewRequest(http.MethodPost, "/api/v1/write/plans/x/apply", nil)
+			applyEngineError(w, r, tc.entry, tc.err)
 			assert.Equal(t, tc.want, w.Code)
+			if tc.want == http.StatusInternalServerError {
+				assert.NotContains(t, w.Body.String(), tc.err.Error())
+			}
 		})
 	}
 }

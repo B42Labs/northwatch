@@ -34,7 +34,7 @@ func handleFailover(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Failover(r.Context(), body.GroupName, body.TargetChassis)
 		if err != nil {
-			api.WriteError(w, writeErrorStatus(err), err.Error())
+			writeFailoverError(w, r, err)
 			return
 		}
 
@@ -57,7 +57,7 @@ func handleEvacuate(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Evacuate(r.Context(), body.ChassisName)
 		if err != nil {
-			api.WriteError(w, writeErrorStatus(err), err.Error())
+			writeFailoverError(w, r, err)
 			return
 		}
 
@@ -80,7 +80,7 @@ func handleRestore(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Restore(r.Context(), body.ChassisName)
 		if err != nil {
-			api.WriteError(w, writeErrorStatus(err), err.Error())
+			writeFailoverError(w, r, err)
 			return
 		}
 
@@ -88,11 +88,13 @@ func handleRestore(engine *write.Engine) http.HandlerFunc {
 	}
 }
 
-// writeErrorStatus returns http.StatusBadRequest for user input errors and
-// http.StatusInternalServerError for infrastructure/OVSDB errors.
-func writeErrorStatus(err error) int {
+// writeFailoverError answers 400 with the message for user input errors, and
+// routes everything else (infrastructure/OVSDB failures) through the shared 500
+// policy: logged server-side, generic to the client.
+func writeFailoverError(w http.ResponseWriter, r *http.Request, err error) {
 	if write.IsInputError(err) {
-		return http.StatusBadRequest
+		api.WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	return http.StatusInternalServerError
+	api.WriteInternalError(w, r, err)
 }

@@ -55,7 +55,7 @@ func handleFlows(sbClient client.Client) http.HandlerFunc {
 			return f.LogicalDatapath != nil && *f.LogicalDatapath == datapathUUID
 		}).List(ctx, &flows)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list logical flows")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 

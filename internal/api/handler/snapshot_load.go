@@ -34,7 +34,7 @@ func handleLoadSnapshot(mgr *snapshotsession.Manager) http.HandlerFunc {
 				errors.Is(err, snapshotsession.ErrLoadInProgress):
 				api.WriteError(w, http.StatusConflict, err.Error())
 			default:
-				api.WriteError(w, http.StatusInternalServerError, err.Error())
+				api.WriteInternalError(w, r, err)
 			}
 			return
 		}
@@ -61,7 +61,7 @@ func handleUnloadSnapshot(mgr *snapshotsession.Manager) http.HandlerFunc {
 			if errors.Is(err, snapshotsession.ErrNotLoaded) {
 				api.WriteError(w, http.StatusNotFound, "snapshot not loaded")
 			} else {
-				api.WriteError(w, http.StatusInternalServerError, err.Error())
+				api.WriteInternalError(w, r, err)
 			}
 			return
 		}

@@ -34,7 +34,7 @@ func RegisterCorrelated(mux *http.ServeMux, cor *correlate.Correlator, enricher 
 func (h *correlatedHandler) listSwitches(w http.ResponseWriter, r *http.Request) {
 	var switches []nb.LogicalSwitch
 	if err := h.correlator.NB.List(r.Context(), &switches); err != nil {
-		api.WriteError(w, http.StatusInternalServerError, "internal error")
+		api.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -51,7 +51,7 @@ func (h *correlatedHandler) getSwitch(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.correlator.SwitchDetail(r.Context(), uuid)
 	if err != nil {
-		writeCorrelateError(w, err)
+		writeCorrelateError(w, r, err)
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *correlatedHandler) getSwitch(w http.ResponseWriter, r *http.Request) {
 func (h *correlatedHandler) listRouters(w http.ResponseWriter, r *http.Request) {
 	var routers []nb.LogicalRouter
 	if err := h.correlator.NB.List(r.Context(), &routers); err != nil {
-		api.WriteError(w, http.StatusInternalServerError, "internal error")
+		api.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *correlatedHandler) getRouter(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.correlator.RouterDetail(r.Context(), uuid)
 	if err != nil {
-		writeCorrelateError(w, err)
+		writeCorrelateError(w, r, err)
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *correlatedHandler) getLSP(w http.ResponseWriter, r *http.Request) {
 
 	chain, err := h.correlator.LSPDetail(r.Context(), uuid)
 	if err != nil {
-		writeCorrelateError(w, err)
+		writeCorrelateError(w, r, err)
 		return
 	}
 
@@ -105,7 +105,7 @@ func (h *correlatedHandler) getLRP(w http.ResponseWriter, r *http.Request) {
 
 	chain, err := h.correlator.LRPDetail(r.Context(), uuid)
 	if err != nil {
-		writeCorrelateError(w, err)
+		writeCorrelateError(w, r, err)
 		return
 	}
 
@@ -116,7 +116,7 @@ func (h *correlatedHandler) getLRP(w http.ResponseWriter, r *http.Request) {
 func (h *correlatedHandler) listChassis(w http.ResponseWriter, r *http.Request) {
 	var chassisList []sb.Chassis
 	if err := h.correlator.SB.List(r.Context(), &chassisList); err != nil {
-		api.WriteError(w, http.StatusInternalServerError, "internal error")
+		api.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -133,7 +133,7 @@ func (h *correlatedHandler) getChassis(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.correlator.ChassisDetail(r.Context(), uuid)
 	if err != nil {
-		writeCorrelateError(w, err)
+		writeCorrelateError(w, r, err)
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *correlatedHandler) getPortBinding(w http.ResponseWriter, r *http.Reques
 
 	chain, err := h.correlator.PortBindingDetail(r.Context(), uuid)
 	if err != nil {
-		writeCorrelateError(w, err)
+		writeCorrelateError(w, r, err)
 		return
 	}
 
@@ -215,13 +215,14 @@ func (h *correlatedHandler) enrichPortChain(r *http.Request, chain *correlate.Po
 	}
 }
 
-// writeCorrelateError writes 404 for not-found errors, 500 for everything else.
-func writeCorrelateError(w http.ResponseWriter, err error) {
+// writeCorrelateError writes 404 for not-found errors and routes everything else
+// through the shared 500 policy.
+func writeCorrelateError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, correlate.ErrNotFound) {
 		api.WriteError(w, http.StatusNotFound, "not found")
 		return
 	}
-	api.WriteError(w, http.StatusInternalServerError, "internal error")
+	api.WriteInternalError(w, r, err)
 }
 
 // getExternalIDs extracts the external_ids map from a model map.

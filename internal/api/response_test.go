@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,4 +34,25 @@ func TestWriteError(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "not found", body["error"])
+}
+
+func TestWriteInternalError(t *testing.T) {
+	var logged bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelError})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/snapshots", nil)
+	WriteInternalError(w, r, errors.New(`opening /var/lib/northwatch/history.db: permission denied`))
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+
+	// The client learns nothing about the internals...
+	assert.JSONEq(t, `{"error":"internal server error"}`, w.Body.String())
+	assert.NotContains(t, w.Body.String(), "history.db")
+
+	// ...but the cause is on the server, with the request that triggered it.
+	assert.Contains(t, logged.String(), "permission denied")
+	assert.Contains(t, logged.String(), "/api/v1/snapshots")
 }

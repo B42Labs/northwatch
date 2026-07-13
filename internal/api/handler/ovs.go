@@ -207,7 +207,7 @@ func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 		}
 		rows, err := access.list(r.Context(), c)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, rows)
@@ -221,7 +221,7 @@ func RegisterOVS(mux *http.ServeMux, pool *ovndb.OVSPool) {
 		uuid := r.PathValue("uuid")
 		row, found, err := access.get(r.Context(), c, uuid)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		if !found {

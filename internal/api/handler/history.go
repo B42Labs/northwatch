@@ -27,7 +27,7 @@ func handleListSnapshots(store *history.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := store.ListSnapshots(r.Context())
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSONList(w, http.StatusOK, list)
@@ -45,7 +45,7 @@ func handleCreateSnapshot(collector *history.Collector) http.HandlerFunc {
 
 		meta, err := collector.TakeSnapshot(r.Context(), "manual", body.Label)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusCreated, meta)
@@ -76,7 +76,7 @@ func handleDiffSnapshots(store *history.Store) http.HandlerFunc {
 
 		diff, err := store.DiffSnapshots(r.Context(), fromID, toID, tableFilter)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, diff)
@@ -96,7 +96,7 @@ func handleGetSnapshot(store *history.Store) http.HandlerFunc {
 			if errors.Is(err, history.ErrNotFound) {
 				api.WriteError(w, http.StatusNotFound, "snapshot not found")
 			} else {
-				api.WriteError(w, http.StatusInternalServerError, err.Error())
+				api.WriteInternalError(w, r, err)
 			}
 			return
 		}
@@ -117,7 +117,7 @@ func handleGetSnapshotRows(store *history.Store) http.HandlerFunc {
 
 		rows, err := store.GetSnapshotRows(r.Context(), id, database, table)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSONList(w, http.StatusOK, rows)
@@ -136,7 +136,7 @@ func handleDeleteSnapshot(store *history.Store) http.HandlerFunc {
 			if errors.Is(err, history.ErrNotFound) {
 				api.WriteError(w, http.StatusNotFound, "snapshot not found")
 			} else {
-				api.WriteError(w, http.StatusInternalServerError, err.Error())
+				api.WriteInternalError(w, r, err)
 			}
 			return
 		}
@@ -181,7 +181,7 @@ func handleQueryEvents(store *history.Store) http.HandlerFunc {
 
 		events, err := store.QueryEvents(r.Context(), opts)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSONList(w, http.StatusOK, events)
@@ -201,7 +201,7 @@ func handleExportSnapshot(store *history.Store) http.HandlerFunc {
 			if errors.Is(err, history.ErrNotFound) {
 				api.WriteError(w, http.StatusNotFound, "snapshot not found")
 			} else {
-				api.WriteError(w, http.StatusInternalServerError, err.Error())
+				api.WriteInternalError(w, r, err)
 			}
 			return
 		}
@@ -222,7 +222,7 @@ func handleImportSnapshot(store *history.Store) http.HandlerFunc {
 
 		meta, err := store.ImportSnapshot(r.Context(), export)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusCreated, meta)

@@ -30,7 +30,7 @@ func handleExportTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 
 		data, err := fetchTopologyData(r.Context(), nbClient, sbClient)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to fetch topology data: "+err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 

@@ -13,7 +13,7 @@ import (
 // writeEngineError maps a write.Engine error to an HTTP status: rate limiting to
 // 429, stale-state conflicts to 409, user input errors to 400, and everything
 // else (infrastructure failures) to 500.
-func writeEngineError(w http.ResponseWriter, err error) {
+func writeEngineError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, write.ErrRateLimited):
 		api.WriteError(w, http.StatusTooManyRequests, err.Error())
@@ -22,7 +22,7 @@ func writeEngineError(w http.ResponseWriter, err error) {
 	case write.IsInputError(err):
 		api.WriteError(w, http.StatusBadRequest, err.Error())
 	default:
-		api.WriteError(w, http.StatusInternalServerError, err.Error())
+		api.WriteInternalError(w, r, err)
 	}
 }
 
@@ -32,7 +32,7 @@ func writeEngineError(w http.ResponseWriter, err error) {
 // and a fresh input error means the plan validated clean at preview but the
 // referenced state changed since — a retryable conflict (409), not a bad
 // request (400).
-func applyEngineError(w http.ResponseWriter, entry *write.AuditEntry, err error) {
+func applyEngineError(w http.ResponseWriter, r *http.Request, entry *write.AuditEntry, err error) {
 	switch {
 	case errors.Is(err, write.ErrRateLimited):
 		api.WriteError(w, http.StatusTooManyRequests, err.Error())
@@ -48,7 +48,7 @@ func applyEngineError(w http.ResponseWriter, entry *write.AuditEntry, err error)
 		// invalid token): a client error.
 		api.WriteError(w, http.StatusBadRequest, err.Error())
 	default:
-		api.WriteError(w, http.StatusInternalServerError, err.Error())
+		api.WriteInternalError(w, r, err)
 	}
 }
 
@@ -116,7 +116,7 @@ func handlePreview(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Preview(r.Context(), body.Operations)
 		if err != nil {
-			writeEngineError(w, err)
+			writeEngineError(w, r, err)
 			return
 		}
 
@@ -133,7 +133,7 @@ func handleDryRun(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.DryRun(r.Context(), body.Operations)
 		if err != nil {
-			writeEngineError(w, err)
+			writeEngineError(w, r, err)
 			return
 		}
 
@@ -198,7 +198,7 @@ func handleApply(engine *write.Engine) http.HandlerFunc {
 
 		entry, err := engine.Apply(r.Context(), id, body.ApplyToken, auditActor(r))
 		if err != nil {
-			applyEngineError(w, entry, err)
+			applyEngineError(w, r, entry, err)
 			return
 		}
 
@@ -234,7 +234,7 @@ func handleRollback(engine *write.Engine) http.HandlerFunc {
 
 		plan, err := engine.Rollback(r.Context(), body.SnapshotID, auditActor(r), body.Reason)
 		if err != nil {
-			writeEngineError(w, err)
+			writeEngineError(w, r, err)
 			return
 		}
 
@@ -256,7 +256,7 @@ func handleAuditLog(engine *write.Engine) http.HandlerFunc {
 
 		entries, err := engine.QueryAudit(r.Context(), limit)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, err.Error())
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSONList(w, http.StatusOK, entries)

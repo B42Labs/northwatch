@@ -75,7 +75,7 @@ func handleLogicalFlows(c client.Client) http.HandlerFunc {
 		if !hasFilter {
 			var results []sb.LogicalFlow
 			if err := c.List(r.Context(), &results); err != nil {
-				api.WriteError(w, http.StatusInternalServerError, "internal error")
+				api.WriteInternalError(w, r, err)
 				return
 			}
 			api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))
@@ -99,7 +99,7 @@ func handleLogicalFlows(c client.Client) http.HandlerFunc {
 			return true
 		}).List(r.Context(), &results)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))

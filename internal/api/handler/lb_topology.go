@@ -51,12 +51,19 @@ func handleLBTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 
 		var lbs []nb.LoadBalancer
 		if err := nbClient.List(ctx, &lbs); err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "failed to list load balancers")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 
+		// These three lists used to have their errors discarded, so a failed read
+		// served a load balancer with no backend health, no routers and no
+		// switches — indistinguishable from one that genuinely has none. Degraded
+		// data must not be served as complete.
 		var monitors []sb.ServiceMonitor
-		_ = sbClient.List(ctx, &monitors)
+		if err := sbClient.List(ctx, &monitors); err != nil {
+			api.WriteInternalError(w, r, err)
+			return
+		}
 
 		monitorStatus := make(map[string]string)
 		for _, m := range monitors {
@@ -70,9 +77,15 @@ func handleLBTopology(nbClient, sbClient client.Client) http.HandlerFunc {
 		}
 
 		var routers []nb.LogicalRouter
-		_ = nbClient.List(ctx, &routers)
+		if err := nbClient.List(ctx, &routers); err != nil {
+			api.WriteInternalError(w, r, err)
+			return
+		}
 		var switches []nb.LogicalSwitch
-		_ = nbClient.List(ctx, &switches)
+		if err := nbClient.List(ctx, &switches); err != nil {
+			api.WriteInternalError(w, r, err)
+			return
+		}
 
 		lbRouters := make(map[string][]string)
 		for _, router := range routers {

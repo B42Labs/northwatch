@@ -21,7 +21,7 @@ func handleSearch(engine *search.Engine) http.HandlerFunc {
 
 		results, err := engine.Search(r.Context(), q)
 		if err != nil {
-			api.WriteError(w, http.StatusInternalServerError, "internal error")
+			api.WriteInternalError(w, r, err)
 			return
 		}
 
