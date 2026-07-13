@@ -2,6 +2,7 @@ package ovsdb
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -124,18 +125,26 @@ func splitEndpoints(addr string) []client.Option {
 // Connect dials both the Northbound and Southbound OVSDB servers, populates
 // the libovsdb monitor cache, and returns a ready-to-use OVNDatabases handle.
 // The mon options control how the initial cache is built; pass the zero value
-// for the default single-request MonitorAll behavior. On any failure, it closes
-// the partially-opened clients before returning.
-func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.ClientDBModel, mon MonitorOptions) (*OVNDatabases, error) {
+// for the default single-request MonitorAll behavior. nbTLS and sbTLS carry the
+// client TLS material for ssl: endpoints (see BuildTLSConfig); pass nil to dial
+// plain tcp:. On any failure, it closes the partially-opened clients before
+// returning.
+func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.ClientDBModel, mon MonitorOptions, nbTLS, sbTLS *tls.Config) (*OVNDatabases, error) {
 	// Create clients sequentially to avoid race in libovsdb's stdr.SetVerbosity.
 	// Each client gets its own backoff instance since ExponentialBackOff is stateful.
 	nbOpts := append(splitEndpoints(nbAddr), client.WithReconnect(10*time.Second, newBackoff()))
+	if nbTLS != nil {
+		nbOpts = append(nbOpts, client.WithTLSConfig(nbTLS))
+	}
 	nbClient, err := client.NewOVSDBClient(nbModel, nbOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating NB client: %w", err)
 	}
 
 	sbOpts := append(splitEndpoints(sbAddr), client.WithReconnect(10*time.Second, newBackoff()))
+	if sbTLS != nil {
+		sbOpts = append(sbOpts, client.WithTLSConfig(sbTLS))
+	}
 	sbClient, err := client.NewOVSDBClient(sbModel, sbOpts...)
 	if err != nil {
 		nbClient.Close()
@@ -191,8 +200,8 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 	// connectServerMonitors. Skipped for in-memory snapshot servers, which expose
 	// no "_Server" database.
 	if !mon.SkipServerMonitors {
-		dbs.NBServers = connectServerMonitors(ctx, nbAddr)
-		dbs.SBServers = connectServerMonitors(ctx, sbAddr)
+		dbs.NBServers = connectServerMonitors(ctx, nbAddr, nbTLS)
+		dbs.SBServers = connectServerMonitors(ctx, sbAddr, sbTLS)
 	}
 
 	return dbs, nil
@@ -211,7 +220,7 @@ func Connect(ctx context.Context, nbAddr, sbAddr string, nbModel, sbModel model.
 // libovsdb's global logger) but connected concurrently with a per-endpoint
 // timeout, so a slow or down endpoint does not serialize startup. Once
 // connected, WithReconnect keeps each monitor healthy across drops.
-func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
+func connectServerMonitors(ctx context.Context, addr string, tlsCfg *tls.Config) []ServerMonitor {
 	eps := endpointList(addr)
 	if len(eps) == 0 {
 		return nil
@@ -227,7 +236,11 @@ func connectServerMonitors(ctx context.Context, addr string) []ServerMonitor {
 	clients := make([]client.Client, len(eps))
 	for i, ep := range eps {
 		monitors[i].Endpoint = ep
-		c, err := client.NewOVSDBClient(sm, client.WithEndpoint(ep), client.WithReconnect(10*time.Second, newBackoff()))
+		opts := []client.Option{client.WithEndpoint(ep), client.WithReconnect(10*time.Second, newBackoff())}
+		if tlsCfg != nil {
+			opts = append(opts, client.WithTLSConfig(tlsCfg))
+		}
+		c, err := client.NewOVSDBClient(sm, opts...)
 		if err != nil {
 			slog.Warn("creating _Server client failed", "endpoint", ep, "err", err)
 			continue
