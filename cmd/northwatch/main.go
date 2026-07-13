@@ -103,6 +103,14 @@ func runSnapshot(args []string) error {
 	}
 	monitorBatchDelay := fs.Duration("monitor-batch-delay", defBatchDelay, "Delay between staged per-table monitor requests (e.g. 100ms, 1s); 0 loads all tables in a single request")
 	monitorSkipTables := fs.String("monitor-skip-tables", os.Getenv("NORTHWATCH_MONITOR_SKIP_TABLES"), "Comma-separated OVN table names to never capture (e.g. Logical_Flow,MAC_Binding,FDB)")
+	// Same TLS material as the server, so a snapshot can be captured from ssl:
+	// databases.
+	nbTLSCert := fs.String("ovn-nb-tls-cert", os.Getenv("NORTHWATCH_OVN_NB_TLS_CERT"), "Path to the client certificate (PEM) for ssl: OVN Northbound connections")
+	nbTLSKey := fs.String("ovn-nb-tls-key", os.Getenv("NORTHWATCH_OVN_NB_TLS_KEY"), "Path to the client private key (PEM) for ssl: OVN Northbound connections")
+	nbTLSCA := fs.String("ovn-nb-tls-ca", os.Getenv("NORTHWATCH_OVN_NB_TLS_CA"), "Path to the CA bundle (PEM) verifying ssl: OVN Northbound servers")
+	sbTLSCert := fs.String("ovn-sb-tls-cert", os.Getenv("NORTHWATCH_OVN_SB_TLS_CERT"), "Path to the client certificate (PEM) for ssl: OVN Southbound connections")
+	sbTLSKey := fs.String("ovn-sb-tls-key", os.Getenv("NORTHWATCH_OVN_SB_TLS_KEY"), "Path to the client private key (PEM) for ssl: OVN Southbound connections")
+	sbTLSCA := fs.String("ovn-sb-tls-ca", os.Getenv("NORTHWATCH_OVN_SB_TLS_CA"), "Path to the CA bundle (PEM) verifying ssl: OVN Southbound servers")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -111,6 +119,15 @@ func runSnapshot(args []string) error {
 	}
 	if *sbAddr == "" {
 		return fmt.Errorf("--ovn-sb-addr is required (or set NORTHWATCH_OVN_SB_ADDR)")
+	}
+
+	nbTLS, err := ovndb.BuildTLSConfig(*nbTLSCert, *nbTLSKey, *nbTLSCA)
+	if err != nil {
+		return fmt.Errorf("building NB TLS config: %w", err)
+	}
+	sbTLS, err := ovndb.BuildTLSConfig(*sbTLSCert, *sbTLSKey, *sbTLSCA)
+	if err != nil {
+		return fmt.Errorf("building SB TLS config: %w", err)
 	}
 
 	nbModel, err := nb.FullDatabaseModel()
@@ -133,7 +150,7 @@ func runSnapshot(args []string) error {
 	defer cancel()
 
 	fmt.Println("Connecting to OVN databases...")
-	dbs, err := ovndb.Connect(ctx, *nbAddr, *sbAddr, nbModel, sbModel, mon)
+	dbs, err := ovndb.Connect(ctx, *nbAddr, *sbAddr, nbModel, sbModel, mon, nbTLS, sbTLS)
 	if err != nil {
 		return fmt.Errorf("connecting to OVN: %w", err)
 	}
@@ -513,7 +530,16 @@ func buildCluster(ctx context.Context, cfg *config.Config, cc config.ClusterConf
 	connectCtx, cancel := context.WithTimeout(ctx, mon.ConnectTimeout(30*time.Second, nbModel, sbModel))
 	defer cancel()
 
-	dbs, err := ovndb.Connect(connectCtx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel, mon)
+	nbTLS, err := ovndb.BuildTLSConfig(cfg.OVNNBTLSCert, cfg.OVNNBTLSKey, cfg.OVNNBTLSCA)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cluster %q: building NB TLS config: %w", cc.Name, err)
+	}
+	sbTLS, err := ovndb.BuildTLSConfig(cfg.OVNSBTLSCert, cfg.OVNSBTLSKey, cfg.OVNSBTLSCA)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cluster %q: building SB TLS config: %w", cc.Name, err)
+	}
+
+	dbs, err := ovndb.Connect(connectCtx, cc.OVNNBAddr, cc.OVNSBAddr, nbModel, sbModel, mon, nbTLS, sbTLS)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cluster %q: connecting to OVN: %w", cc.Name, err)
 	}
@@ -676,9 +702,10 @@ func buildSnapshotCluster(ctx context.Context, name, label, nbAddr, sbAddr strin
 		return nil, nil, fmt.Errorf("creating SB model: %w", err)
 	}
 
-	// The servers are local in-memory copies: load everything in one request and
-	// skip the "_Server" Raft monitors (the snapshot exposes no "_Server" DB).
-	dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true})
+	// The servers are local in-memory copies: load everything in one request,
+	// skip the "_Server" Raft monitors (the snapshot exposes no "_Server" DB)
+	// and dial them without TLS.
+	dbs, err := ovndb.Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connecting to snapshot servers: %w", err)
 	}

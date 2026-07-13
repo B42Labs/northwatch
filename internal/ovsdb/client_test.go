@@ -98,7 +98,7 @@ func TestConnect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -119,7 +119,7 @@ func TestReady_WhileSuspended(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -189,7 +189,7 @@ func TestConnect_InvalidNBAddr(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err = Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	_, err = Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{}, nil, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "NB")
 }
@@ -208,7 +208,7 @@ func TestConnect_InvalidSBAddr(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err = Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	_, err = Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{}, nil, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "SB")
 }
@@ -251,7 +251,7 @@ func TestConnect_CommaEndpoints(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -319,7 +319,7 @@ func TestConnect_StagedMonitoring(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{BatchDelay: 2 * time.Millisecond})
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{BatchDelay: 2 * time.Millisecond}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -350,7 +350,7 @@ func TestConnect_SkipTables(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{SkipTables: []string{"Logical_Switch"}})
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{SkipTables: []string{"Logical_Switch"}}, nil, nil)
 	require.NoError(t, err)
 	defer dbs.Close()
 
@@ -386,7 +386,7 @@ func TestConnect_SkipAllTablesErrors(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{SkipTables: allNB})
+	_, err = Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{SkipTables: allNB}, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no tables left to monitor")
 }
@@ -405,7 +405,7 @@ func TestReady_AfterClose(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{})
+	dbs, err := Connect(ctx, nbAddr, sbAddr, nbModel, sbModel, MonitorOptions{}, nil, nil)
 	require.NoError(t, err)
 
 	assert.True(t, dbs.Ready())
