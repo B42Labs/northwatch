@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -278,6 +279,91 @@ func TestOVSHealthCacheCoalesces(t *testing.T) {
 
 	hc.get(context.Background(), pool, base.Add(2*ovsHealthTTL))
 	assert.Equal(t, 2, pool.membersCalls, "call past TTL must recompute")
+}
+
+// ctxObservingClient records the context error seen inside List, so a test can
+// assert the fleet-health fan-out ran on a live (non-cancelled) context.
+type ctxObservingClient struct {
+	client.Client
+	sawErr error
+}
+
+func (c *ctxObservingClient) List(ctx context.Context, _ any) error {
+	c.sawErr = ctx.Err()
+	return nil
+}
+
+func TestOVSHealthCacheDetachedContext(t *testing.T) {
+	// A caller whose context is already cancelled must still get a complete
+	// snapshot: the compute runs on a context detached from cancellation, so the
+	// per-chassis cache read is not aborted mid-fan-out.
+	obs := &ctxObservingClient{}
+	pool := &fakeOVSPool{
+		members: []ovndb.OVSMemberStatus{{SystemID: "s1", Connected: true}},
+		clients: map[string]client.Client{"s1": obs},
+	}
+	var hc healthCache
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // caller has already disconnected
+
+	fh := hc.get(ctx, pool, time.Now())
+
+	assert.NoError(t, obs.sawErr, "fan-out must run on a live context, not the cancelled caller context")
+	assert.Equal(t, 1, fh.Chassis)
+	assert.Equal(t, 1, fh.Connected)
+	assert.Equal(t, 0, fh.Unreachable)
+}
+
+// gatedMembersPool blocks its second Members() call (the recompute fan-out)
+// until release is closed, signalling on started when it begins blocking, so a
+// test can prove a cached read is served while a recompute is in flight.
+type gatedMembersPool struct {
+	calls   atomic.Int32
+	started chan struct{}
+	release chan struct{}
+}
+
+func (p *gatedMembersPool) Members() []ovndb.OVSMemberStatus {
+	if p.calls.Add(1) == 2 {
+		close(p.started)
+		<-p.release
+	}
+	return nil
+}
+
+func (p *gatedMembersPool) Client(string) (client.Client, bool) { return nil, false }
+
+func TestOVSHealthCacheServesCachedDuringRecompute(t *testing.T) {
+	// The lock is not held across the fan-out, so a cached read must return
+	// while a stale recompute is still blocked — no lock convoy.
+	pool := &gatedMembersPool{started: make(chan struct{}), release: make(chan struct{})}
+	var hc healthCache
+	base := time.Now()
+
+	// Prime the cache (fan-out #1, not gated).
+	hc.get(context.Background(), pool, base)
+
+	// Trigger a stale recompute (fan-out #2) that blocks inside Members().
+	recomputeDone := make(chan ovshealth.FleetHealth, 1)
+	go func() {
+		recomputeDone <- hc.get(context.Background(), pool, base.Add(2*ovsHealthTTL))
+	}()
+	<-pool.started // the recompute is now in flight and blocked
+
+	// A read within the TTL of the primed snapshot must return immediately; if
+	// the lock were held across the fan-out this would deadlock (test timeout).
+	hc.get(context.Background(), pool, base.Add(ovsHealthTTL/2))
+
+	// The recompute must still be blocked — the cached read did not wait on it.
+	select {
+	case <-recomputeDone:
+		t.Fatal("recompute completed before release; gating is broken")
+	default:
+	}
+
+	close(pool.release)
+	<-recomputeDone
 }
 
 func TestOVSUnknownChassis(t *testing.T) {
