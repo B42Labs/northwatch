@@ -42,7 +42,9 @@ type TraceResponse struct {
 	Stages       []TraceStage `json:"stages"`
 }
 
-// RegisterTrace registers the packet trace endpoint.
+// RegisterTrace registers the packet trace endpoint. A trace is retained for
+// later retrieval and export only when the caller asks for it with ?store=true;
+// the response then carries the id it was stored under.
 func RegisterTrace(mux *http.ServeMux, sbClient client.Client, traceStore *TraceStore) {
 	mux.HandleFunc("GET /api/v1/debug/trace", handleTrace(sbClient, traceStore))
 }
@@ -96,22 +98,22 @@ func handleTrace(sbClient client.Client, traceStore *TraceStore) http.HandlerFun
 			return
 		}
 
-		stages := buildTraceStages(flows, portName, dstIP, protocol)
-
-		traceID := generateTraceID()
 		resp := TraceResponse{
-			ID:           traceID,
 			PortUUID:     portUUID,
 			PortName:     portName,
 			DatapathUUID: datapathUUID,
 			DatapathName: datapathName,
 			DstIP:        dstIP,
 			Protocol:     protocol,
-			Stages:       stages,
+			Stages:       buildTraceStages(flows, portName, dstIP, protocol),
 		}
 
-		if traceStore != nil {
-			traceStore.Store(traceID, resp)
+		// Retaining a full flow dump is opt-in. Every trace used to be kept for
+		// an hour whether anyone intended to export it or not, so merely reading
+		// traces filled the store.
+		if traceStore != nil && r.URL.Query().Get("store") == "true" {
+			resp.ID = generateTraceID()
+			traceStore.Store(resp.ID, resp)
 		}
 
 		api.WriteJSON(w, http.StatusOK, resp)

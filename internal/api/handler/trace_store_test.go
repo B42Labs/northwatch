@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -111,4 +112,54 @@ func TestTraceStore_Overwrite(t *testing.T) {
 	got, ok := store.Get("t1")
 	require.True(t, ok)
 	assert.Equal(t, "updated", got.Trace.PortName)
+}
+
+// TestTraceStore_EvictsOldestAtCapacity pins the entry cap. Age alone was not a
+// bound: a full flow dump was kept for an hour with no limit on how many, so a
+// client could pin unbounded memory by requesting traces in a loop.
+func TestTraceStore_EvictsOldestAtCapacity(t *testing.T) {
+	now := time.Now()
+	store := NewTraceStore(1 * time.Hour)
+	store.now = func() time.Time { return now }
+
+	for i := range maxTraceEntries {
+		now = now.Add(time.Second)
+		store.Store(fmt.Sprintf("trace-%03d", i), TraceResponse{PortName: fmt.Sprintf("port-%d", i)})
+	}
+	require.Len(t, store.List(), maxTraceEntries)
+
+	// One more store evicts the oldest, keeping the store at its cap.
+	now = now.Add(time.Second)
+	store.Store("trace-new", TraceResponse{PortName: "port-new"})
+
+	assert.Len(t, store.List(), maxTraceEntries)
+
+	_, ok := store.Get("trace-000")
+	assert.False(t, ok, "the oldest trace must be evicted")
+
+	_, ok = store.Get("trace-new")
+	assert.True(t, ok)
+	_, ok = store.Get("trace-001")
+	assert.True(t, ok, "the second-oldest must survive")
+}
+
+// TestTraceStore_ReplaceDoesNotEvict guards the eviction path against dropping a
+// trace when an existing id is merely overwritten.
+func TestTraceStore_ReplaceDoesNotEvict(t *testing.T) {
+	now := time.Now()
+	store := NewTraceStore(1 * time.Hour)
+	store.now = func() time.Time { return now }
+
+	for i := range maxTraceEntries {
+		now = now.Add(time.Second)
+		store.Store(fmt.Sprintf("trace-%03d", i), TraceResponse{PortName: fmt.Sprintf("port-%d", i)})
+	}
+
+	now = now.Add(time.Second)
+	store.Store("trace-000", TraceResponse{PortName: "port-replaced"})
+
+	assert.Len(t, store.List(), maxTraceEntries)
+	stored, ok := store.Get("trace-000")
+	require.True(t, ok)
+	assert.Equal(t, "port-replaced", stored.Trace.PortName)
 }

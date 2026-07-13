@@ -311,6 +311,7 @@ func registerDebug(b *Builder) {
 			requiredQueryParam("port", "Port binding UUID"),
 			queryParam("dst_ip", "Destination IP for heuristic matching"),
 			queryParam("protocol", "Protocol for heuristic matching"),
+			queryParam("store", "Set to \"true\" to retain the trace for later export; the response then carries its id"),
 		},
 		Responses: jsonOK("Traced flow stages with heuristic matching"),
 	})

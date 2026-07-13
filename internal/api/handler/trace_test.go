@@ -27,9 +27,9 @@ func TestHandleTrace_HTTP(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterTrace(mux, sbc, store)
 
-	t.Run("happy path stores trace", func(t *testing.T) {
+	t.Run("happy path with store=true retains the trace", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
-			"/api/v1/debug/trace?port="+pbUUID+"&dst_ip=10.0.0.1&protocol=tcp", nil)
+			"/api/v1/debug/trace?port="+pbUUID+"&dst_ip=10.0.0.1&protocol=tcp&store=true", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -43,10 +43,28 @@ func TestHandleTrace_HTTP(t *testing.T) {
 		require.NotEmpty(t, resp.ID)
 		require.NotEmpty(t, resp.Stages)
 
-		// The generated trace is retained for later export.
+		// Only a trace the caller asked to keep is retained for later export.
 		stored, ok := store.Get(resp.ID)
 		require.True(t, ok)
 		assert.Equal(t, "lsp-trace", stored.Trace.PortName)
+	})
+
+	t.Run("without store=true nothing is retained", func(t *testing.T) {
+		before := len(store.List())
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/api/v1/debug/trace?port="+pbUUID, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp TraceResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.NotEmpty(t, resp.Stages)
+
+		// No id is handed out, because there is nothing to fetch later.
+		assert.Empty(t, resp.ID)
+		assert.Len(t, store.List(), before)
 	})
 
 	t.Run("missing port param", func(t *testing.T) {
