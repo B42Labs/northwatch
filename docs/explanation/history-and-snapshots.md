@@ -15,6 +15,13 @@ A running server records into an embedded SQLite database (`--history-db-path`):
 - **Periodic snapshots** — the full NB+SB state, captured at a fixed interval
   (`--snapshot-interval`, default `5m`), plus on demand.
 
+Events are pruned by age and (optionally) by count, but **auto-snapshots have no
+retention cap yet**: the store keeps every snapshot until you delete one, so on a
+long-running server their disk use grows unbounded. Prune old snapshots manually
+through the history API (`DELETE /api/v1/snapshots/{id}`) — or lengthen
+`--snapshot-interval` — until an automatic cap lands (tracked in [issue
+#41](https://github.com/B42Labs/northwatch/issues/41)).
+
 SQLite is embedded (`modernc.org/sqlite`, pure Go), so there is no external
 database to operate — history travels with the binary.
 

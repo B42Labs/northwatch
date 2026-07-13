@@ -103,6 +103,11 @@ export default defineConfig({
               link: '/how-to/scrape-prometheus-metrics',
             },
             { text: 'Explore the API', link: '/how-to/explore-the-api' },
+            {
+              text: 'Deploy to production',
+              link: '/how-to/deploy-production',
+            },
+            { text: 'Cut a release', link: '/how-to/cut-a-release' },
           ],
         },
       ],

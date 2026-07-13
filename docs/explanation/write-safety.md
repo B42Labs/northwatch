@@ -35,6 +35,21 @@ preview time. If a targeted row changed or was deleted in the meantime, apply
 aborts with a `409 Conflict` (`plan preconditions no longer hold`) rather than
 silently applying against a row that has moved on.
 
+## The apply token binds a plan to a snapshot
+
+Preview returns an **apply token** alongside the plan, and apply requires it. The
+token is an HMAC-SHA256 over the plan id and the id of the snapshot taken at
+preview time, keyed by a secret generated fresh each time the server starts. Apply
+recomputes the expected token and rejects a mismatch, so a plan cannot be applied
+with a token that was not issued for that exact `(plan, snapshot)` pair — and no
+token survives a server restart.
+
+It is important to be clear about what this token is *not*: it is **not
+authentication**. It binds a plan to the snapshot it was previewed against; it
+does not identify or authorize the caller. Anyone who can read the preview
+response holds the token. Deciding *who* may apply is still the reverse proxy's
+job (see below).
+
 ## Rollback restores changed fields only
 
 Rollback compares a stored snapshot to the live NB state and produces a preview
@@ -81,6 +96,13 @@ Write safety is about *containing* and *recording* mutations, not about deciding
 open API with `--write-enabled` means open OVN mutation. Put it behind an
 authenticating reverse proxy. See [The capability
 model](/explanation/capability-model).
+
+This is also why the `actor` recorded on each apply is **client-supplied**: the
+caller states who it is, and the audit log records that claim, but Northwatch has
+no way to verify it. Trustworthy actor attribution depends on the authenticating
+proxy in front (and on built-in identity, tracked in [issue
+#41](https://github.com/B42Labs/northwatch/issues/41)). Treat the audit `actor`
+as a self-declared label until then.
 
 ## Related
 
