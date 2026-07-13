@@ -242,16 +242,16 @@ func handleRollback(engine *write.Engine) http.HandlerFunc {
 	}
 }
 
+// maxAuditLimit caps how many audit entries one request may fetch.
+const maxAuditLimit = 1000
+
 func handleAuditLog(engine *write.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		limit := 100
-		if v := r.URL.Query().Get("limit"); v != "" {
-			n, err := strconv.Atoi(v)
-			if err != nil {
-				api.WriteError(w, http.StatusBadRequest, "invalid limit parameter")
-				return
-			}
-			limit = n
+		// An unclamped limit reached the store as a raw SQL LIMIT, where a
+		// negative value means "no limit" and returns the whole audit table.
+		limit, ok := pageParam(w, r, "limit", 100, 1, maxAuditLimit)
+		if !ok {
+			return
 		}
 
 		entries, err := engine.QueryAudit(r.Context(), limit)

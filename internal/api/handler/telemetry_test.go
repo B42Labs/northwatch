@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -81,6 +82,24 @@ func TestTelemetryPropagationTimelineAndHeatmap(t *testing.T) {
 	t.Run("timeline invalid limit", func(t *testing.T) {
 		w := do(t, "/api/v1/telemetry/propagation/timeline?limit=abc")
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	// A non-positive limit used to mean "unlimited", handing the client every
+	// event the store holds in one response.
+	t.Run("timeline non-positive limit is rejected", func(t *testing.T) {
+		for _, q := range []string{"?limit=0", "?limit=-1"} {
+			w := do(t, "/api/v1/telemetry/propagation/timeline"+q)
+			assert.Equal(t, http.StatusBadRequest, w.Code, q)
+			assert.Contains(t, w.Body.String(), "positive integer")
+		}
+	})
+
+	t.Run("timeline limit above the cap is clamped", func(t *testing.T) {
+		w := do(t, fmt.Sprintf("/api/v1/telemetry/propagation/timeline?limit=%d", maxTimelineLimit*100))
+		require.Equal(t, http.StatusOK, w.Code)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, float64(3), body["count"])
 	})
 
 	t.Run("heatmap default window", func(t *testing.T) {

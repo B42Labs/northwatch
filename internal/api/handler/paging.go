@@ -2,6 +2,7 @@ package handler
 
 import (
 	"cmp"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -28,11 +29,11 @@ const maxListPageSize = 5000
 // order an offset would step through an arbitrary permutation and could show a
 // row twice while never showing another.
 func writePagedModels[T any](w http.ResponseWriter, r *http.Request, results []T) {
-	limit, ok := pageParam(w, r, "limit", maxListPageSize, maxListPageSize)
+	limit, ok := pageParam(w, r, "limit", maxListPageSize, 0, maxListPageSize)
 	if !ok {
 		return
 	}
-	offset, ok := pageParam(w, r, "offset", 0, 0)
+	offset, ok := pageParam(w, r, "offset", 0, 0, math.MaxInt)
 	if !ok {
 		return
 	}
@@ -67,23 +68,29 @@ func writePagedModels[T any](w http.ResponseWriter, r *http.Request, results []T
 	api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(page))
 }
 
-// pageParam parses a non-negative integer query parameter. An absent parameter
-// yields def; a value above max (when max > 0) is clamped rather than rejected,
-// so a client asking for everything gets the capped page instead of an error.
-// It reports whether parsing succeeded; on failure it has written a 400.
-func pageParam(w http.ResponseWriter, r *http.Request, name string, def, max int) (int, bool) {
+// pageParam parses an integer query parameter into the range [lo, hi]. An absent
+// parameter yields def; a value above hi is clamped rather than rejected, so a
+// client asking for everything gets the capped page instead of an error, while a
+// value below lo is a 400. It reports whether parsing succeeded; on failure it
+// has written the 400.
+//
+// lo is 1 for the endpoints whose limit is passed straight to a store rather
+// than used to slice a result set, where a non-positive value means "unlimited"
+// and would return the whole table.
+func pageParam(w http.ResponseWriter, r *http.Request, name string, def, lo, hi int) (int, bool) {
 	raw := r.URL.Query().Get(name)
 	if raw == "" {
 		return def, true
 	}
 
 	v, err := strconv.Atoi(raw)
-	if err != nil || v < 0 {
-		api.WriteError(w, http.StatusBadRequest, "invalid "+name+" parameter: want a non-negative integer")
+	if err != nil || v < lo {
+		want := "non-negative"
+		if lo > 0 {
+			want = "positive"
+		}
+		api.WriteError(w, http.StatusBadRequest, "invalid "+name+" parameter: want a "+want+" integer")
 		return 0, false
 	}
-	if max > 0 && v > max {
-		return max, true
-	}
-	return v, true
+	return min(v, hi), true
 }
