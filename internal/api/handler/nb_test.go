@@ -126,3 +126,86 @@ func TestNBListLogicalSwitches_Empty(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Empty(t, body)
 }
+
+// TestHandleList_Pagination drives the limit/offset window on a table list. The
+// cap matters most on the unbounded tables (SB logical flows), but every list
+// endpoint shares this code path.
+func TestHandleList_Pagination(t *testing.T) {
+	nbc := setupNBTestClient(t)
+	for i := range 12 {
+		insertLogicalSwitch(t, nbc, fmt.Sprintf("sw-page-%02d", i))
+	}
+
+	mux := http.NewServeMux()
+	RegisterNB(mux, nbc)
+
+	list := func(t *testing.T, query string) (*httptest.ResponseRecorder, []map[string]any) {
+		t.Helper()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/api/v1/nb/logical-switches"+query, nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var got []map[string]any
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+		return rec, got
+	}
+
+	t.Run("no params returns everything under the cap", func(t *testing.T) {
+		rec, got := list(t, "")
+		assert.Len(t, got, 12)
+		assert.Equal(t, "12", rec.Header().Get("X-Total-Count"))
+		assert.Empty(t, rec.Header().Get("X-Truncated"))
+	})
+
+	t.Run("limit truncates and flags", func(t *testing.T) {
+		rec, got := list(t, "?limit=5")
+		assert.Len(t, got, 5)
+		assert.Equal(t, "12", rec.Header().Get("X-Total-Count"))
+		assert.Equal(t, "true", rec.Header().Get("X-Truncated"))
+	})
+
+	t.Run("offset windows deterministically", func(t *testing.T) {
+		_, first := list(t, "?limit=4")
+		_, second := list(t, "?limit=4&offset=4")
+		_, whole := list(t, "")
+
+		// A stable order is what makes offset meaningful: the cache iterates a
+		// map, so without sorting a window could repeat a row and skip another.
+		assert.Equal(t, whole[0:4], first)
+		assert.Equal(t, whole[4:8], second)
+	})
+
+	t.Run("offset past the end yields an empty page", func(t *testing.T) {
+		rec, got := list(t, "?offset=99")
+		assert.Empty(t, got)
+		assert.Equal(t, "12", rec.Header().Get("X-Total-Count"))
+		assert.Empty(t, rec.Header().Get("X-Truncated"))
+	})
+
+	t.Run("limit above the cap is clamped, not rejected", func(t *testing.T) {
+		rec, got := list(t, fmt.Sprintf("?limit=%d", maxListPageSize*10))
+		assert.Len(t, got, 12)
+		assert.Equal(t, "12", rec.Header().Get("X-Total-Count"))
+		assert.Empty(t, rec.Header().Get("X-Truncated"))
+	})
+}
+
+func TestHandleList_InvalidPageParams(t *testing.T) {
+	nbc := setupNBTestClient(t)
+	mux := http.NewServeMux()
+	RegisterNB(mux, nbc)
+
+	for _, query := range []string{"?limit=abc", "?limit=-1", "?offset=-1", "?offset=abc"} {
+		t.Run(query, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				"/api/v1/nb/logical-switches"+query, nil)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Contains(t, rec.Body.String(), "non-negative integer")
+		})
+	}
+}

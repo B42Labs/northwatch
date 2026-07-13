@@ -57,7 +57,7 @@ func handleList[T any](c client.Client) http.HandlerFunc {
 			api.WriteInternalError(w, r, err)
 			return
 		}
-		api.WriteJSON(w, http.StatusOK, ovndb.ModelsToMaps(results))
+		writePagedModels(w, r, results)
 	}
 }
 
