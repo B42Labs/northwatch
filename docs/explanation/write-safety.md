@@ -93,8 +93,10 @@ hand-assembled from individual writes.
 
 Write safety is about *containing* and *recording* mutations. Deciding *who* may
 make them is the job of the bearer tokens configured with `--api-tokens`: every
-`/api/v1/write/*` call must present one, or it is rejected with 401 before the
-engine sees it.
+**mutating** write call — preview, dry-run, apply, cancel, the operational
+actions — must present one, or it is rejected with 401 before the engine sees
+it. The `GET` write routes (schema, plan inspection, the audit log) are reads
+and stay open like the rest of the read surface.
 
 The `apply_token` returned by `POST /api/v1/write/preview` is **not**
 authentication. It proves the caller previewed the exact plan it is about to

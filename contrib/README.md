@@ -10,7 +10,8 @@ anchor only, with **no private key**. It is safe to commit and to share.
 
 It is used solely by the `make testbed` target as the OpenStack trust anchor for
 the lab: the target defaults `OS_CACERT` to `$(CURDIR)/contrib/testbed.pem` (see
-`Makefile:224`) and passes it through as the clouds.yaml `cacert`. Northwatch's
+the `testbed` block in the `Makefile`) and passes it through as the clouds.yaml
+`cacert`. Northwatch's
 OpenStack enrichment then verifies the testbed Keystone/OpenStack API against
 this CA (`config.OpenStackCACert` → `internal/enrich/openstack.go`, which builds
 an HTTP client trusting exactly this bundle). The target fails fast if the file

@@ -9,9 +9,9 @@ implications.
 A "mode" forces a single choice: you are in *read mode* or *write mode* or *debug
 mode*. Capabilities instead stack: a live server always has `read`, `debug`,
 `correlate`, `realtime`, `topology`, `flows`, `telemetry`, `alerts`, `history`
-and `openapi`, and it gains `enrich`, `write`, `multi-cluster` or `snapshot` as
-those features are configured. There is no state where browsing is unavailable
-because you switched to tracing.
+and `openapi`, and it gains `enrich`, `write`, `multi-cluster`, `ovs` or
+`snapshot` as those features are configured. There is no state where browsing is
+unavailable because you switched to tracing.
 
 The server advertises the active set at `/api/v1/capabilities`, and the UI uses it
 to decide which views and actions to render. This keeps the frontend honest: a
@@ -32,20 +32,30 @@ state and never mutates OVN. There is no reason to gate it, so it ships enabled.
 workflow with previews, an audit log and a rate limit. That design is covered in
 [Write safety](/explanation/write-safety).
 
-## There is no authentication
+## Capabilities are not authorization
 
-This is the most important thing to understand: **Northwatch has no user
-management, login, or authorization.** Capabilities describe what the *server* can
-do, not what a particular *caller* is allowed to do. Anyone who can reach the API
-gets the full advertised capability set.
+Capabilities describe what the *server* can do, not what a particular *caller*
+is allowed to do. Northwatch has no user accounts or roles; there is exactly one
+authorization boundary, and it sits between reading and mutating:
 
-That is a deliberate scoping decision, not an oversight. Authentication,
-authorization and TLS termination belong at the network and reverse-proxy layer,
-where an operator already runs them for everything else. The practical rules:
+- **Read endpoints are open.** Anyone who can reach the API can browse the full
+  advertised capability set.
+- **Mutating endpoints require a bearer token**, configured with `--api-tokens`
+  or `--api-tokens-file`. The gate fails closed: with no tokens configured,
+  every mutating request is rejected. Token names identify *actors* in the
+  write-audit log — they do not carry per-token permissions.
 
-- Never expose Northwatch directly to untrusted networks.
-- Put it behind a reverse proxy that authenticates users — especially with
-  `--write-enabled`, where an open API means open OVN mutation.
+The server also refuses to bind a non-loopback address without tokens (or an
+explicit `--insecure-no-auth`), and can terminate TLS itself with
+`--tls-cert` / `--tls-key`. See [CLI flags](/reference/cli#authentication) and
+[Write safety](/explanation/write-safety).
+
+The practical rules:
+
+- Never expose Northwatch directly to untrusted networks — the read surface is
+  unauthenticated by design.
+- When readers are not all trusted, put it behind a reverse proxy that
+  authenticates them; see [Deploy to production](/how-to/deploy-production).
 - Use `--ws-allowed-origins` to constrain which web origins may open the
   WebSocket stream when a browser is involved.
 

@@ -27,6 +27,7 @@ northwatch/
     debug/             # connectivity, port diagnostics, ACL audit, stale detection
     gateway/           # gateway / HA-chassis health
     router/            # routing helpers (next-hop, static routes)
+    severity/          # shared healthy/warning/error status vocabulary
     impact/            # impact analysis for an entity
     flowdiff/          # real-time logical-flow diffing
     telemetry/         # Prometheus collector, propagation tracking
@@ -35,6 +36,8 @@ northwatch/
     snapshot/          # snapshot capture / serve (offline mode)
     snapshotsession/   # load a stored snapshot as a runtime cluster
     write/             # write engine: plans, preview, audit, rate limit
+    ovscorrelate/      # correlate live per-chassis OVS state with OVN intent
+    ovshealth/         # fleet-wide OVS health aggregation
     openapi/           # OpenAPI 3.1 spec builder
     ovnsim/            # OVN lab load-generator implementation (seed/run/bind/unbind/clean)
     testutil/          # shared test helpers
@@ -43,6 +46,8 @@ northwatch/
     *.go               # embed.FS for the built assets
   lab/                 # containerlab + Docker Compose OVN lab
   packaging/           # Debian packaging inputs: systemd unit, env file, maintainer scripts
+  scripts/             # CI helpers (covcheck.sh: the per-package coverage gate)
+  contrib/             # extra deployment assets (testbed CA bundle)
   nfpm.yaml            # nfpm spec for the .deb (see make deb / the release workflow)
   Makefile
   go.mod / go.sum

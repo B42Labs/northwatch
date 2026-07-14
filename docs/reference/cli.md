@@ -16,7 +16,7 @@ Run `./bin/northwatch --help` to see the same list at runtime.
 | `--ovn-sb-addr` | `NORTHWATCH_OVN_SB_ADDR` | *(required)* | OVN Southbound address. Comma-separated for Raft failover. |
 | `--config-file` | `NORTHWATCH_CONFIG_FILE` | *(none)* | Path to a JSON multi-cluster config file. When set, `--ovn-nb-addr` / `--ovn-sb-addr` are ignored. |
 | `--snapshot` | `NORTHWATCH_SNAPSHOT` | *(none)* | Serve a snapshot file offline. Takes precedence over `--ovn-*-addr` and `--config-file`. |
-| `--version` | — | — | Print the build version and exit. Release builds report the release tag; other builds report `dev`. |
+| `--version` | — | — | Print the build version and exit (also accepted as `-version` or bare `version`). Release builds report the release tag; other builds report `dev`. |
 
 Exactly one connection source is required: a snapshot, a config file, or both
 flat NB/SB addresses.
@@ -30,11 +30,12 @@ to production](/how-to/deploy-production).
 | Flag | Env var | Default | Description |
 |---|---|---|---|
 | `--api-tokens` | `NORTHWATCH_API_TOKENS` | *(none)* | Comma-separated `name=token` pairs authorizing mutating requests. The name becomes the write-audit `actor`. Tokens must be at least 16 characters. |
-| `--api-tokens-file` | `NORTHWATCH_API_TOKENS_FILE` | *(none)* | Path to a JSON object mapping token name to token (`{"ops": "…"}`), merged with `--api-tokens`. Keeps secrets out of the process table. |
-| `--insecure-no-auth` | `NORTHWATCH_INSECURE_NO_AUTH` | `false` | Disable the token gate entirely. Only safe behind a proxy that authenticates every mutating request; audit entries are then recorded as `anonymous`. Cannot be combined with `--api-tokens`. |
+| `--api-tokens-file` | `NORTHWATCH_API_TOKENS_FILE` | *(none)* | Path to a JSON object mapping token name to token (`{"ops": "…"}`), merged with `--api-tokens`. Keeps secrets out of the process table. The file must be a non-empty JSON object; empty names or token values fail startup. |
+| `--insecure-no-auth` | `NORTHWATCH_INSECURE_NO_AUTH` | `false` | Disable the token gate entirely. Only safe behind a proxy that authenticates every mutating request; audit entries are then recorded as `anonymous`. Cannot be combined with tokens from `--api-tokens` **or** `--api-tokens-file`. |
 
 With no tokens configured, mutating endpoints answer `401` — including on
-loopback.
+loopback. A token name that appears in both `--api-tokens` and
+`--api-tokens-file` is a startup error.
 
 ## TLS
 
@@ -58,7 +59,7 @@ database is a startup error. The same `--ovn-*-tls-*` flags are accepted by the
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--monitor-batch-delay` | `NORTHWATCH_MONITOR_BATCH_DELAY` | `200ms` | Delay between staged per-table monitor requests on connect (Go duration). `0` loads all tables in one request. Offline `--snapshot` replay always uses `0`. |
+| `--monitor-batch-delay` | `NORTHWATCH_MONITOR_BATCH_DELAY` | `200ms` | Delay between staged per-table monitor requests on connect (Go duration, not negative). `0` loads all tables in one request. Offline `--snapshot` replay always uses `0`. |
 | `--monitor-skip-tables` | `NORTHWATCH_MONITOR_SKIP_TABLES` | *(none)* | Comma-separated OVN tables to never monitor (e.g. `Logical_Flow,MAC_Binding,FDB`). Features reading a skipped table see it as empty. |
 
 See [Tune the initial load](/how-to/tune-the-initial-load) and
@@ -100,13 +101,15 @@ bundle is trusted only by the OpenStack client, not the whole process.
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--chassis-stale-threshold` | `NORTHWATCH_CHASSIS_STALE_THRESHOLD` | `60s` | How long an out-of-sync chassis may lag the current `nb_cfg` generation before the [chassis inventory](/reference/api#chassis-inventory) flags it `stale` (Go duration). |
+| `--chassis-stale-threshold` | `NORTHWATCH_CHASSIS_STALE_THRESHOLD` | `60s` | How long an out-of-sync chassis may lag the current `nb_cfg` generation before the [chassis inventory](/reference/api#chassis-inventory) flags it `stale` (Go duration, must be positive). |
 
 This threshold only affects the `stale` flag, **not** `alive`/down: a chassis is
 alive whenever it is present and in-sync. `nb_cfg_timestamp` only advances when a
 chassis acknowledges a new `nb_cfg` generation, so on a steady-state cluster it
 freezes — which is why staleness, not timestamp age, is what this bounds. Raise
 it to tolerate slower config propagation before a lagging chassis is flagged.
+Sync state is derived from `Chassis_Private.nb_cfg` vs `SB_Global.nb_cfg`, which
+is accurate on OVN ≥ 20.06.
 
 ## OVS visibility (per-chassis Open_vSwitch)
 
@@ -117,7 +120,7 @@ under [OVS](/reference/api#ovs-per-chassis-open_vswitch).
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--ovs-mgmt-addr-file` | `NORTHWATCH_OVS_MGMT_ADDR_FILE` | *(none)* | Path to a JSON file mapping chassis system-id to OVSDB management address. Enables OVS visibility for the default cluster. |
+| `--ovs-mgmt-addr-file` | `NORTHWATCH_OVS_MGMT_ADDR_FILE` | *(none)* | Path to a JSON file mapping chassis system-id to OVSDB management address. Enables OVS visibility for the default cluster. The file must be a non-empty JSON object; empty system-ids or addresses fail startup. |
 | `--ovs-tls-cert` | `NORTHWATCH_OVS_TLS_CERT` | *(none)* | Client certificate (PEM) for `ssl:` OVS connections. |
 | `--ovs-tls-key` | `NORTHWATCH_OVS_TLS_KEY` | *(none)* | Client private key (PEM) for `ssl:` OVS connections. |
 | `--ovs-tls-ca` | `NORTHWATCH_OVS_TLS_CA` | *(none)* | CA bundle (PEM) verifying `ssl:` OVS servers. |
@@ -155,7 +158,7 @@ See [Enable write operations](/how-to/enable-write-operations).
 | `--snapshot-interval` | `NORTHWATCH_SNAPSHOT_INTERVAL` | `5m` | Automatic snapshot interval (Go duration). |
 | `--event-retention` | `NORTHWATCH_EVENT_RETENTION` | `24h` | Event-log retention duration. |
 | `--event-max-count` | `NORTHWATCH_EVENT_MAX_COUNT` | `0` | Maximum number of events to retain (0 = unlimited). |
-| `--snapshot-max-count` | `NORTHWATCH_SNAPSHOT_MAX_COUNT` | `500` | Maximum number of **automatic** snapshots to retain (0 = unlimited). Manual, labeled and imported snapshots are never pruned. |
+| `--snapshot-max-count` | `NORTHWATCH_SNAPSHOT_MAX_COUNT` | `500` | Maximum number of **automatic** snapshots to retain (0 = unlimited, negative values fail startup). Labeled, manual and imported snapshots are never pruned. |
 
 ## Alerting & WebSocket
 
@@ -195,6 +198,10 @@ It accepts a subset of the server flags:
 | `--output`, `-o` | — | `northwatch-snapshot.json` | Output file path. |
 | `--monitor-batch-delay` | `NORTHWATCH_MONITOR_BATCH_DELAY` | `200ms` | Same staged-monitor tuning as the server. |
 | `--monitor-skip-tables` | `NORTHWATCH_MONITOR_SKIP_TABLES` | *(none)* | Tables to skip during capture. |
+
+It also accepts the six `--ovn-nb-tls-*` / `--ovn-sb-tls-*` flags from
+[TLS](#tls) — same names, env vars and all-or-none rule — so a snapshot can be
+captured from `ssl:` databases.
 
 ```bash
 ./bin/northwatch snapshot --ovn-nb-addr tcp:10.0.0.1:6641 \

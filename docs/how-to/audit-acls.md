@@ -13,7 +13,19 @@ curl -s http://localhost:8080/api/v1/debug/acl-audit
 ```
 
 The result enumerates ACLs with their priority, direction, match and action, and
-flags rules that can never match because a higher-priority rule shadows them.
+reports three finding types:
+
+- **`shadow`** (error) — a rule can never match because a higher-priority rule
+  with the same or a broader match takes a different action.
+- **`conflict`** (warning) — two rules have overlapping but contradictory
+  matches.
+- **`redundant`** (warning) — two rules have an identical match *and* action.
+
+Rules are compared only within the same attachment scope — the owning logical
+switch or port group — and the same direction; an ACL attached to nothing is
+never compared. Findings are capped at **500**: past the cap the audit stops and
+sets `truncated: true`, so the reported findings are a prefix, not the complete
+set.
 
 ## Browse the raw ACL state
 

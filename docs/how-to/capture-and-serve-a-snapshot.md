@@ -46,15 +46,18 @@ database. Control the cadence and retention with flags:
 | `--snapshot-interval` | `5m` | Automatic snapshot interval |
 | `--event-retention` | `24h` | How long change events are kept |
 | `--event-max-count` | `0` (unlimited) | Cap on retained events |
+| `--snapshot-max-count` | `500` | Cap on retained **automatic** snapshots — the oldest are pruned past it (0 = unlimited). Labeled, manual and imported snapshots are never pruned |
 
-Work with stored snapshots over the API:
+Work with stored snapshots over the API. Like every non-GET route, the mutating
+calls (take, load, unload, import, delete) require a bearer token from
+`--api-tokens` (`AUTH="Authorization: Bearer <token>"`); the reads do not:
 
 ```bash
-curl -s http://localhost:8080/api/v1/snapshots                 # list
-curl -s -X POST http://localhost:8080/api/v1/snapshots          # take one now
-curl -s http://localhost:8080/api/v1/snapshots/<id>            # details
-curl -s 'http://localhost:8080/api/v1/snapshots/diff?<params>' # diff two
-curl -s http://localhost:8080/api/v1/snapshots/<id>/export     # export to JSON
+curl -s http://localhost:8080/api/v1/snapshots                    # list
+curl -s -X POST http://localhost:8080/api/v1/snapshots -H "$AUTH" # take one now
+curl -s http://localhost:8080/api/v1/snapshots/<id>               # details
+curl -s 'http://localhost:8080/api/v1/snapshots/diff?from=<id>&to=<id>'
+curl -s http://localhost:8080/api/v1/snapshots/<id>/export        # export to JSON
 ```
 
 ## Load a stored snapshot at runtime
@@ -64,8 +67,8 @@ restarting the server — it becomes reachable as an additional cluster and the
 live OVN connection is suspended while it is loaded:
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/snapshots/<id>/load
-curl -s -X POST http://localhost:8080/api/v1/snapshots/<id>/unload
+curl -s -X POST http://localhost:8080/api/v1/snapshots/<id>/load -H "$AUTH"
+curl -s -X POST http://localhost:8080/api/v1/snapshots/<id>/unload -H "$AUTH"
 ```
 
 While a snapshot is loaded, `/readyz` returns `503` and the history, alert and
@@ -78,7 +81,7 @@ snapshots](/explanation/history-and-snapshots#loading-a-snapshot-at-runtime).
 You can also import a previously exported snapshot file:
 
 ```bash
-curl -s -X POST --data-binary @prod.snapshot.json \
+curl -s -X POST --data-binary @prod.snapshot.json -H "$AUTH" \
   http://localhost:8080/api/v1/snapshots/import
 ```
 

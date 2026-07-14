@@ -1,8 +1,8 @@
 # Search with Omnisearch
 
 Omnisearch is the primary entry point for debugging. A single query runs across
-the Northbound tables, the Southbound tables and any enrichment caches in
-parallel, and returns results grouped by entity type.
+the indexed Northbound and Southbound tables and returns results grouped by
+entity type.
 
 ## Run a search
 
@@ -20,9 +20,13 @@ Omnisearch detects the type of `q` automatically:
 | Input | Example |
 |---|---|
 | IPv4 / IPv6 address | `q=10.0.0.42` |
-| MAC address (full or partial) | `q=fa:16:3e:aa:bb` |
-| UUID (full or fragment) | `q=a1b2c3d4` |
+| MAC address | `q=fa:16:3e:aa:bb:cc` |
+| UUID | `q=a1b2c3d4-…` |
 | Free-text name | `q=web-server-01` |
+
+Partial MACs and UUID fragments still match — matching is substring-based — but
+they are classified (and reported in `query_type`) as free text rather than as a
+MAC or UUID.
 
 ## What it searches
 

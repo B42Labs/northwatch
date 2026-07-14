@@ -43,9 +43,9 @@ name, and `enrichment` is optional and per-cluster. For the full field list see
 ./bin/northwatch --config-file /etc/northwatch/clusters.json
 ```
 
-When the file defines more than one cluster, Northwatch prints
-`Multi-cluster mode enabled with N clusters` and advertises the `multi-cluster`
-capability.
+When the file defines more than one cluster, Northwatch logs
+`multi-cluster mode enabled` with the cluster count and advertises the
+`multi-cluster` capability.
 
 ::: warning Precedence
 `--snapshot` takes precedence over everything. Otherwise, when `--config-file` is

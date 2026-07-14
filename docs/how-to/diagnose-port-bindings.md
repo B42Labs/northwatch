@@ -7,16 +7,19 @@ has no chassis (no realization).
 
 These endpoints are part of the `debug` capability, which is on by default.
 
-## Find unbound ports
+## Find unhealthy ports
 
-The port-diagnostics endpoint reports ports that are not bound to any chassis,
-along with the likely reason:
+The port-diagnostics endpoint runs per-port checks across **all** logical ports
+— unbound VIFs, binding mismatches, down-but-bound interfaces — and reports each
+port with its check messages and an `overall` severity, plus summary counts:
 
 ```bash
 curl -s http://localhost:8080/api/v1/debug/port-diagnostics
 ```
 
-Diagnose a single port by UUID:
+The list accepts `?severity=healthy|warning|error` to filter and `?limit=<n>` to
+cap the returned `ports` (the summary counts stay totals); an invalid value
+returns `400`. Diagnose a single port by UUID:
 
 ```bash
 curl -s http://localhost:8080/api/v1/debug/port-diagnostics/<uuid>
@@ -34,14 +37,20 @@ flags blocking ACLs or missing routes:
 curl -s 'http://localhost:8080/api/v1/debug/connectivity?<parameters>'
 ```
 
-See the parameter names in the Swagger UI at <http://localhost:8080/api/v1/docs>.
+See the parameter names in the interactive API reference at
+<http://localhost:8080/api/v1/docs>.
 
-## Find the next-hop MAC
+## Check next-hop MAC resolution
 
-For routing problems, resolve the next-hop MAC for a destination:
+For routing problems, the nexthop-mac report correlates every static route's
+next hop with its cached `MAC_Binding` state and flags the conditions that can
+blackhole traffic: a learned MAC with no aging configured (never refreshed), an
+entry older than the configured aging threshold, a static binding that
+contradicts the learned MAC, and next hops with no binding at all. It takes no
+parameters — it is a fleet-wide health report, not a per-destination lookup:
 
 ```bash
-curl -s 'http://localhost:8080/api/v1/debug/nexthop-mac?<parameters>'
+curl -s http://localhost:8080/api/v1/debug/nexthop-mac
 ```
 
 ## Detect stale entries

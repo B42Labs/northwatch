@@ -6,8 +6,9 @@ at the root. The API is **read-only by default** — mutation requires
 
 ::: tip The OpenAPI spec is authoritative
 This page lists the route groups. For exact query parameters and response
-schemas, use the spec the server generates: Swagger UI at `/api/v1/docs`, raw
-spec at `/api/v1/openapi.json`. See [Explore the API](/how-to/explore-the-api).
+schemas, use the spec the server generates: an interactive reference (Scalar) at
+`/api/v1/docs`, raw spec at `/api/v1/openapi.json`. See
+[Explore the API](/how-to/explore-the-api).
 :::
 
 ## Authentication
@@ -24,15 +25,22 @@ Without a valid token the request is rejected with `401` and a
 The token is accepted from the header only — never a query parameter. With no
 tokens configured, every mutating endpoint answers `401`.
 
+Repeated failures are throttled: after **5** failed attempts from one source IP
+within a minute, further mutating requests from that IP answer `429` with a
+`Retry-After` header for the rest of the window.
+
 Read endpoints (`GET`) need no token; protect them with a reverse proxy. See
-[Deploy to production](/how-to/deploy-production).
+[Deploy to production](/how-to/deploy-production). Starting the server with
+`--insecure-no-auth` removes the token gate entirely — every mutating endpoint
+is then open, which is safe only behind a proxy that authenticates them (see
+[CLI flags](/reference/cli#authentication)).
 
 ## Response shape
 
 - List endpoints return a JSON **array** of objects. Each object's keys are the
   OVSDB column names of that table (from the model's `ovsdb` struct tags).
-- Detail endpoints (`.../{uuid}`) return a single object, or `404` with
-  `{"error": "not found"}`.
+- Detail endpoints (`.../{uuid}`) return a single object, or `404` with an
+  `{"error": "…"}` body naming what was not found.
 - Errors return the matching HTTP status with `{"error": "<message>"}`.
 - `5xx` responses always carry the generic body `{"error": "internal server
   error"}`. The cause is logged server-side with the request that triggered it —
@@ -49,15 +57,16 @@ process:
 
 | Limit | Value | Applies to |
 |---|---|---|
-| Page size | `limit` / `offset` query params, default and maximum **5000** rows | Every table-list endpoint, including `/api/v1/sb/logical-flows` |
+| Page size | `limit` query param, default and maximum **5000** rows (larger values are clamped) | Every table-list endpoint, including `/api/v1/sb/logical-flows` |
 | Request body | **1 MiB** | Every endpoint that accepts a body |
 | Request body (import) | **100 MiB** | `POST /api/v1/snapshots/import` |
 | Search matches | **100** per table, **500** total | `GET /api/v1/search` |
 
-List responses carry `X-Total-Count` (the unpaginated total) and, when rows were
-dropped, `X-Truncated: true`. Rows are ordered by UUID, so `offset` steps through
-a stable sequence. An oversized body is rejected with `413`; an invalid `limit`
-or `offset` with `400`.
+Table-list responses carry `X-Total-Count` (the unpaginated total) and, when
+rows were dropped, `X-Truncated: true`; other list endpoints (events, snapshots,
+silences, audit) do not set these headers. Rows are ordered by UUID, so `offset`
+(default 0, no upper bound) steps through a stable sequence. An oversized body
+is rejected with `413`; a malformed or negative `limit` or `offset` with `400`.
 
 `GET /api/v1/search` returns a `truncated` field reporting whether the match caps
 dropped results — refine the query when it is set.
@@ -74,7 +83,7 @@ with `?store=true`, and returns its `id` only then.
 | GET | `/metrics` | Prometheus metrics. |
 | GET | `/api/v1/capabilities` | Active capabilities and mode. |
 | GET | `/api/v1/clusters` | List configured clusters. |
-| GET | `/api/v1/docs` | Swagger UI. |
+| GET | `/api/v1/docs` | Interactive API reference (Scalar). |
 | GET | `/api/v1/openapi.json` | OpenAPI 3.1 spec. |
 
 ## Northbound tables
@@ -239,21 +248,20 @@ Northbound entities joined to their Southbound counterpart and enrichment contex
 | GET | `/api/v1/topology/gateway` |
 | GET | `/api/v1/topology/nat` |
 | GET | `/api/v1/topology/load-balancers` |
-| GET | `/api/v1/flows` |
+| GET | `/api/v1/flows` (requires `?datapath=<uuid>`) |
 
 ## Debug (the `debug` capability)
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/v1/debug/trace` | Packet path trace. |
+| GET | `/api/v1/debug/trace` | Packet path trace. Requires `?port=<uuid>`. |
 | GET | `/api/v1/debug/traces` | Recent traces. |
-| GET | `/api/v1/debug/connectivity` | Path analysis between two ports. |
+| GET | `/api/v1/debug/connectivity` | Path analysis between two ports. Requires `?src=<uuid>&dst=<uuid>`. |
 | GET | `/api/v1/debug/port-diagnostics` · `/{uuid}` | Unbound / mismatched ports. The list form accepts `?severity=healthy\|warning\|error` and `?limit=<n>` to filter and cap the returned `ports` (the summary counts stay totals); an invalid value returns `400`. |
 | GET | `/api/v1/debug/nexthop-mac` | Next-hop MAC resolution. |
 | GET | `/api/v1/debug/acl-audit` | Shadowed / conflicting ACLs, compared only within the same attachment scope (owning switch or port group). The response sets `truncated: true` when the finding cap is reached. |
 | GET | `/api/v1/debug/stale-entries` | Stale MAC/FDB and orphaned bindings. |
 | GET | `/api/v1/debug/flow-diff` | Recent logical-flow changes. |
-| GET | `/api/v1/impact/{db}/{table}/{uuid}` | Impact analysis for an entity. |
 
 ## Telemetry
 
@@ -282,7 +290,7 @@ Northbound entities joined to their Southbound counterpart and enrichment contex
 | GET | `/api/v1/events` |
 | GET / POST | `/api/v1/snapshots` |
 | GET | `/api/v1/snapshots/{id}` · `/rows` · `/export` |
-| GET | `/api/v1/snapshots/diff` |
+| GET | `/api/v1/snapshots/diff` (requires `?from=<id>&to=<id>`) |
 | DELETE | `/api/v1/snapshots/{id}` |
 | POST | `/api/v1/snapshots/import` |
 | POST | `/api/v1/snapshots/{id}/load` · `/unload` |
@@ -302,11 +310,12 @@ Northbound entities joined to their Southbound counterpart and enrichment contex
 
 The `--ws-allowed-origins` flag controls the `Origin` allowlist.
 
-## Write (only with `--write-enabled`)
+## Write & impact (only with `--write-enabled`)
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/write/schema` | What can be changed. |
+| GET | `/api/v1/impact/{db}/{table}/{uuid}` | Impact analysis for an entity — what a change to it would affect. Read-only, but registered only alongside the write engine. |
 | POST | `/api/v1/write/preview` · `/dry-run` | Predict an effect without applying. |
 | GET | `/api/v1/write/plans/{id}` | Inspect a prepared plan. |
 | POST | `/api/v1/write/plans/{id}/apply` | Apply a plan. |

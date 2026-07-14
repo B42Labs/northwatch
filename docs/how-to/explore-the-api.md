@@ -4,9 +4,9 @@ The Northwatch HTTP API is documented by an OpenAPI 3.1 specification that the
 server generates and serves itself. That spec — not this site — is the exhaustive,
 always-current description of every route, parameter and response.
 
-## Swagger UI
+## Interactive API reference
 
-Open the interactive documentation in a browser:
+Open the interactive documentation (rendered with Scalar) in a browser:
 
 ```
 http://localhost:8080/api/v1/docs

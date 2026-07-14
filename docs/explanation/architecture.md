@@ -64,6 +64,25 @@ makes the UI real-time.
 The result is a static binary with no runtime dependencies beyond reachability to
 the OVN databases.
 
+## The HTTP surface
+
+Every request passes a small middleware chain before it reaches the routing
+mux: bearer-token authentication for mutating requests (unless
+`--insecure-no-auth`), a response deadline, HTTP metrics, panic recovery and the
+stale-cache marker. The server can terminate TLS itself
+(`--tls-cert` / `--tls-key`), and the OVSDB connections — OVN NB/SB and
+per-chassis OVS — carry their own client TLS material for `ssl:` endpoints. What
+the token gate covers is explained in
+[The capability model](/explanation/capability-model).
+
+## Per-chassis OVS visibility
+
+Optionally (`--ovs-mgmt-addr-file`), a connection pool also monitors each
+chassis's local Open_vSwitch database. That is what feeds the `/api/v1/ovs/*`
+routes, the fleet-wide OVS health view and the OVS↔OVN interface correlation —
+live interface reality joined to the Southbound's intent. One unreachable
+chassis never affects the others or the NB/SB views.
+
 ## Clusters and sub-muxes
 
 Each configured OVN deployment is a `cluster.Cluster` bundling its own database

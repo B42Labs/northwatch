@@ -18,10 +18,15 @@ The read, correlate and debug surface is the mature core:
   notifications, and a SQLite history store with periodic snapshots.
 - Multi-cluster monitoring, Raft endpoint failover, and OpenStack / Kubernetes
   enrichment.
+- Opt-in per-chassis OVS visibility: live Open_vSwitch state per chassis,
+  correlated with OVN intent, plus fleet-wide OVS health.
 - Offline mode: capture a deployment to a file and serve it read-only.
 - Opt-in write operations behind a plan/preview/apply workflow with an audit log
   and rate limiting, plus operational actions (failover, evacuate, rollback,
   restore).
+- Bearer-token authentication on every mutating route, optional HTTPS for the
+  API, TLS for the OVN and OVS connections, and a Debian package with a systemd
+  unit.
 
 ## Direction
 
@@ -45,10 +50,12 @@ are fully evaluated versus approximated.
 
 ### Hardening
 
-Transport security for the OVSDB connections and for the HTTP surface, and
-first-class packaging (a container image and a service unit), are the obvious
-production-readiness items. Until then, run Northwatch behind a reverse proxy that
-terminates TLS and handles authentication — see [The capability
+The transport and authentication layer has landed: mutating routes require
+bearer tokens, the HTTP surface can serve TLS, the OVSDB connections (OVN NB/SB
+and per-chassis OVS) support `ssl:`, and the Debian package ships a systemd
+unit. The remaining packaging item is a first-class container image. The read
+surface stays unauthenticated by design — when readers are not all trusted, run
+Northwatch behind an authenticating reverse proxy; see [The capability
 model](/explanation/capability-model).
 
 ## How to read this

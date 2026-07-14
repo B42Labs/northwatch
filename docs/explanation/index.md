@@ -10,7 +10,8 @@ a task.
   links Northbound intent to Southbound realization, and how Omnisearch uses
   those links.
 - [The capability model](/explanation/capability-model) — why access is modelled
-  as additive capabilities rather than modes, and where authentication belongs.
+  as additive capabilities rather than modes, and what the authentication
+  boundary covers.
 - [Enrichment](/explanation/enrichment) — pluggable providers, name resolution,
   and the caching strategy.
 - [History & snapshots](/explanation/history-and-snapshots) — the SQLite event

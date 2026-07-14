@@ -14,11 +14,13 @@ browsing, correlating, debugging and monitoring an OVN deployment.
 - **Correlate** Northbound intent with Southbound realization (`Logical_Switch_Port` → `Port_Binding` → `Chassis`)
 - **Visualize** logical, physical, gateway, NAT and load-balancer topology
 - **Debug** — packet trace, connectivity checks, port-binding diagnostics, ACL audit, stale-entry detection, flow diff
+- **OVS reality check** (opt-in) — live per-chassis Open_vSwitch state correlated with OVN intent, plus fleet-wide OVS health
 - **Enrich** OVN UUIDs into human-readable names via OpenStack or Kubernetes
 - **Monitor** — telemetry with a Prometheus endpoint, an alert engine with webhook notifications
 - **History** — a SQLite event log and periodic snapshots, with diffing and offline replay
 - **Multi-cluster** — watch several OVN deployments from a single process
 - **Write** (opt-in) — mutate OVN behind a plan/preview/apply workflow with an audit log
+- **Hardened** — bearer-token auth on every mutating route, optional TLS for the API and all OVSDB connections, Debian packaging with a systemd unit
 
 ## Quick start
 
