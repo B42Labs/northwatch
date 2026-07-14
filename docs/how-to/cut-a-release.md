@@ -6,8 +6,9 @@ everything with cosign, generates SBOMs, and creates the GitHub release. Your jo
 is to prepare the changelog and push a clean, signed tag; the workflow does the
 rest.
 
-The repository is tagged through `v0.5.0`, so the next release is `v0.6.0`.
-Substitute your target version for `X.Y.Z` throughout.
+Pick the next version from the existing tags (`git tag -l --sort=version:refname`)
+and the released sections in `CHANGELOG.md`. Substitute your target version for
+`X.Y.Z` throughout.
 
 ## Prepare the changelog
 

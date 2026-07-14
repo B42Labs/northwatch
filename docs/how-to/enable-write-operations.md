@@ -15,7 +15,7 @@ behind that workflow, see [Write safety](/explanation/write-safety).
   --api-tokens "ops=$(openssl rand -hex 32)"
 ```
 
-The server prints `Write operations enabled` and advertises the `write`
+The server logs `write operations enabled` and advertises the `write`
 capability. Two flags tune the workflow:
 
 | Flag | Default | Purpose |
@@ -26,9 +26,12 @@ capability. Two flags tune the workflow:
 
 ## Authenticate the calls
 
-Every `/api/v1/write/*` call needs a bearer token from `--api-tokens`. Without
-one, the request is rejected with `401` before the engine sees it — so with
-`--write-enabled` but no tokens, the write API is enabled and unusable.
+Every **mutating** write call — preview, dry-run, apply, cancel and the
+operational actions — needs a bearer token from `--api-tokens`. Without one, the
+request is rejected with `401` before the engine sees it — so with
+`--write-enabled` but no tokens, the write API is enabled and unusable. The
+`GET` write routes (schema, plan inspection, the audit log) are part of the open
+read surface and need no token.
 
 ```bash
 export NW_TOKEN=<token>
@@ -52,7 +55,8 @@ authenticates users and restrict network access. See
 Writes are a two-phase, plan-based flow rather than direct CRUD:
 
 1. **Preview / dry-run** — submit the intended change and get back the predicted
-   effect (a `terraform plan`-style preview) without applying it.
+   effect (a `terraform plan`-style preview) without applying it. The body is
+   `{"operations": [...], "reason": "..."}` with at least one operation:
 
    ```bash
    AUTH="Authorization: Bearer $NW_TOKEN"
@@ -80,17 +84,30 @@ The request/response bodies are documented in the live OpenAPI spec — open
 
 ## Operational actions
 
-With writes enabled, Northwatch also exposes higher-level operations:
+With writes enabled, Northwatch also exposes higher-level operations. Each takes
+a small JSON body naming its target:
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/write/failover -H "$AUTH"  # gateway failover
-curl -s -X POST http://localhost:8080/api/v1/write/evacuate -H "$AUTH"  # evacuate a chassis
-curl -s -X POST http://localhost:8080/api/v1/write/rollback -H "$AUTH"  # roll back a change
-curl -s -X POST http://localhost:8080/api/v1/write/restore  -H "$AUTH"  # restore prior state
+# Move a gateway HA group to a specific chassis
+curl -s -X POST http://localhost:8080/api/v1/write/failover -H "$AUTH" \
+  --data '{"group_name": "gw-group-1", "target_chassis": "chassis-2"}'
+
+# Drain all gateway priorities off a chassis (e.g. before maintenance)
+curl -s -X POST http://localhost:8080/api/v1/write/evacuate -H "$AUTH" \
+  --data '{"chassis_name": "chassis-1"}'
+
+# Return an evacuated chassis to service — the inverse of evacuate
+curl -s -X POST http://localhost:8080/api/v1/write/restore -H "$AUTH" \
+  --data '{"chassis_name": "chassis-1"}'
+
+# Roll changed fields back to a history snapshot
+curl -s -X POST http://localhost:8080/api/v1/write/rollback -H "$AUTH" \
+  --data '{"snapshot_id": 42, "reason": "revert bad ACL change"}'
 ```
 
-`rollback` restores changed fields on rows that still exist; rows deleted since
-the snapshot are reported in the plan's `warnings` (they are not recreated). See
+A missing required field returns `400` naming the field. `rollback` restores
+changed fields on rows that still exist; rows deleted since the snapshot are
+reported in the plan's `warnings` (they are not recreated). See
 [Write safety](/explanation/write-safety#rollback-restores-changed-fields-only).
 
 ## Status codes
@@ -100,12 +117,12 @@ The write endpoints use precise status codes so a client can react correctly:
 | Status | Meaning |
 | ------ | ------- |
 | `200`  | Success (preview/dry-run/apply/rollback returned a result) |
-| `400`  | Invalid request — malformed body, unknown field, missing/nonexistent reference |
+| `400`  | Invalid request — malformed body, unknown field, missing/nonexistent reference, or applying a plan that is unknown or expired |
 | `401`  | No valid API token presented (see [Authenticate the calls](#authenticate-the-calls)) |
-| `404`  | Plan or audit entry not found or expired |
+| `404`  | Plan (on inspect/cancel) or audit entry not found or expired |
 | `409`  | Plan preconditions no longer hold — a target row changed since preview |
 | `413`  | Request body over the 1 MiB limit |
-| `429`  | Rate limit exceeded (`--write-rate-limit`); applies to dry-run too |
+| `429`  | Rate limit exceeded (`--write-rate-limit`); applies to dry-run too. Also returned (with `Retry-After`) by the auth throttle after 5 failed token attempts from one IP within a minute |
 | `500`  | Server-side/infrastructure failure. The body is always the generic `{"error": "internal server error"}`; the cause is in the server log. |
 
 ## Audit log

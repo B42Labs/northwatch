@@ -82,7 +82,8 @@ Check that it came up and is serving the API/UI:
 ```bash
 systemctl status northwatch
 journalctl -u northwatch -f
-curl -s http://localhost:8080/api/v1
+curl -s http://localhost:8080/healthz
+curl -s http://localhost:8080/api/v1/capabilities
 ```
 
 ## Upgrade, remove and purge

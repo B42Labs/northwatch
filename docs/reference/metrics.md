@@ -12,7 +12,7 @@ configuration.
 | Metric | Type | Meaning |
 |---|---|---|
 | `northwatch_ovsdb_connected` | gauge | Whether an OVSDB endpoint is connected. |
-| `northwatch_ovsdb_connections` | gauge | OVSDB connection / cluster-member count. |
+| `northwatch_ovsdb_connections` | gauge | OVSDB `Connection` table entries, labeled by `database` and connected state. |
 | `northwatch_ovsdb_table_rows` | gauge | Row count per monitored table. |
 | `northwatch_logical_flows_total` | gauge | Total Southbound logical flows. |
 | `northwatch_port_bindings_total` | gauge | Total port bindings. |
@@ -26,7 +26,7 @@ These track how far each hypervisor's realized config lags the desired config
 | Metric | Type | Meaning |
 |---|---|---|
 | `northwatch_nb_cfg` | gauge | Global Northbound `nb_cfg` sequence. |
-| `northwatch_sb_cfg` | gauge | Southbound `sb_cfg` sequence. |
+| `northwatch_sb_cfg` | gauge | Configuration generation applied by northd (`NB_Global.sb_cfg`). |
 | `northwatch_sb_nb_cfg` | gauge | Southbound view of `nb_cfg`. |
 | `northwatch_hv_cfg` | gauge | Hypervisor `hv_cfg` sequence. |
 | `northwatch_chassis_nb_cfg` | gauge | Per-chassis realized `nb_cfg`. |

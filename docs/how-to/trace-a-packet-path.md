@@ -10,25 +10,31 @@ This needs the `Logical_Flow` table in the cache, so do **not** skip it with
 
 ## Run a trace
 
-The trace endpoint lives under the debug routes:
+The trace endpoint lives under the debug routes. `port` — the Southbound
+`Port_Binding` UUID to start from — is required; `dst_ip` and `protocol`
+describe the simulated packet:
 
 ```bash
-curl -s 'http://localhost:8080/api/v1/debug/trace?<parameters>'
+curl -s 'http://localhost:8080/api/v1/debug/trace?port=<uuid>&dst_ip=10.0.0.42&protocol=tcp'
 ```
 
-The exact query parameters (the datapath/port to start from and the simulated
-packet fields) are documented in the live OpenAPI spec — open the Swagger UI at
-<http://localhost:8080/api/v1/docs> to see the parameter names and try the
-endpoint interactively. In the web UI, the tracer is a form: pick the starting
-datapath/port, fill in the packet fields, and submit.
+An unknown `port` returns `404`. In the web UI, the tracer is a form: pick the
+starting datapath/port, fill in the packet fields, and submit. The full
+parameter list is in the interactive API reference at
+<http://localhost:8080/api/v1/docs>.
 
-## Review past traces
+## Store and review traces
 
-Northwatch keeps recent traces in an in-memory store (retained for one hour):
+A trace is retained **only** when you ask for it with `store=true` — the
+response then carries an `id`:
 
 ```bash
-curl -s http://localhost:8080/api/v1/debug/traces        # list recent traces
+curl -s 'http://localhost:8080/api/v1/debug/trace?port=<uuid>&store=true'
+curl -s http://localhost:8080/api/v1/debug/traces        # list stored traces
 ```
+
+Stored traces live in an in-memory store for one hour, capped at 200 entries;
+without `store=true` nothing is listed by `/debug/traces` or exportable.
 
 ## Export a trace
 

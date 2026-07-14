@@ -91,8 +91,9 @@ better place for certificate lifecycle and user authentication.
 ## Keep the write API off unless you need it
 
 Write operations are off until you pass `--write-enabled`. Leave them off unless
-you have a concrete need. When you do enable them, every `/api/v1/write/*` call
-needs a token, and the audit trail records which token made each change. See
+you have a concrete need. When you do enable them, every mutating write call
+needs a token (the `GET` write routes, including the audit log, stay on the open
+read surface), and the audit trail records which token made each change. See
 [Enable write operations](/how-to/enable-write-operations) for the workflow and
 [Write safety](/explanation/write-safety) for why it is built the way it is.
 

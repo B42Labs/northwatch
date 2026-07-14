@@ -12,7 +12,8 @@ visualizing it.
 
 Before you start, make sure you have:
 
-1. **Go 1.24+** installed (`go version`).
+1. **Go 1.26+** installed (`go version`) — the version the module declares in
+   `go.mod`.
 2. **Docker** running. On macOS, **Docker Desktop** is enough for the Compose
    lab used below.
 3. **Node.js 22+** if you want to build the embedded web UI (`make build-ui`).
@@ -80,20 +81,21 @@ Point it at the lab's Northbound and Southbound databases:
 ```
 
 On startup Northwatch connects to both databases, subscribes to every table,
-builds its in-memory cache, and prints the listen address:
+builds its in-memory cache, and logs the listen address:
 
 ```
-Connecting to OVN databases for cluster "default"...
-Connected to OVN databases for cluster "default"
-Northwatch listening on [::]:8080
+level=INFO msg="connecting to OVN databases" cluster=default
+level=INFO msg="connected to OVN databases" cluster=default
+level=INFO msg="northwatch listening" addr=127.0.0.1:8080 scheme=http
 ```
 
 ## Step 4: Open the UI
 
 Open <http://localhost:8080> in your browser. You are looking at the live state
 of the lab: the logical and physical topology, the chassis, the port bindings,
-and the real-time event stream. The API is served alongside it under
-<http://localhost:8080/api/v1>.
+and the real-time event stream. The API is served alongside it under the
+`/api/v1` prefix, with an interactive reference at
+<http://localhost:8080/api/v1/docs>.
 
 Confirm the API responds and reports its capabilities:
 

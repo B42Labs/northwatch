@@ -31,7 +31,7 @@ Logical_Switch      (NB)  →  Datapath_Binding (SB)  →  Logical_Flows
 
 The `correlated/*` endpoints return an entity together with its counterpart on
 the other side and any enrichment context, so a single request answers "where did
-this end up?" rather than forcing several lookups across 80+ tables. A broken
+this end up?" rather than forcing several lookups across the ~70 NB/SB tables. A broken
 chain is itself the diagnosis — which is what the [debug
 endpoints](/how-to/diagnose-port-bindings) surface explicitly.
 

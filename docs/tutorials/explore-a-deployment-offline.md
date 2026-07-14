@@ -45,9 +45,9 @@ that copy:
 ```
 
 ```
-Loading snapshot from lab.snapshot.json...
-Snapshot loaded (NB: 412 rows, SB: 1530 rows); serving offline copy
-Northwatch listening on [::]:8080
+level=INFO msg="loading snapshot" file=lab.snapshot.json
+level=INFO msg="snapshot loaded, serving offline copy" nb_rows=412 sb_rows=1530
+level=INFO msg="northwatch listening" addr=127.0.0.1:8080 scheme=http
 ```
 
 ## Step 3: Confirm you are offline

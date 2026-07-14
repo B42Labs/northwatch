@@ -34,6 +34,11 @@ OpenStack RC file mostly works as-is:
 | `--os-project-name` | `OS_PROJECT_NAME` |
 | `--os-domain-name` | `OS_USER_DOMAIN_NAME` |
 | `--os-region-name` | `OS_REGION_NAME` |
+| `--os-cacert` | `OS_CACERT` |
+
+`--os-cacert` points at a PEM CA bundle for OpenStack APIs fronted by a private
+CA (the clouds.yaml `cacert` equivalent); the bundle is trusted only by the
+OpenStack client, not the whole process.
 
 ## Configure per cluster
 

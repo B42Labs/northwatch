@@ -65,7 +65,7 @@ subsystems bound to those caches are paused for the duration:
 
 `/readyz` reflects the suspension by returning `503` while a snapshot is loaded,
 and live data responses carry an `X-Northwatch-Stale: true` header. Note that a
-**manual** `POST /api/v1/history/snapshots` and the write-engine preview still
+**manual** `POST /api/v1/snapshots` and the write-engine preview still
 run against the purged cache while suspended — writing or capturing while a
 snapshot session is loaded is an operator error.
 
