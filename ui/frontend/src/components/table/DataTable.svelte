@@ -152,7 +152,7 @@
   <div
     class="max-h-[calc(100vh-16rem)] overflow-auto rounded border border-base-300"
   >
-    <table class="table-pin-rows table table-xs font-mono">
+    <table class="table table-pin-rows table-xs font-mono">
       <thead>
         <tr>
           {#each displayColumns as col (col)}

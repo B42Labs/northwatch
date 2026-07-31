@@ -54,7 +54,7 @@
         bind:value={draft}
         onkeydown={(e) => e.key === 'Enter' && save()}
       />
-      <p class="mt-1 font-prose text-2xs text-base-content/40">
+      <p class="font-prose mt-1 text-2xs text-base-content/40">
         Required for write, HA, snapshot and silence actions. Stored in this
         browser.
       </p>

@@ -1,5 +1,8 @@
 <script lang="ts">
   import { select } from 'd3-selection';
+  // Registers .transition() on Selection. d3-zoom pulls this in as a side
+  // effect, but the hover animations below use it directly, so import it here.
+  import 'd3-transition';
   import { zoom as d3Zoom } from 'd3-zoom';
   import { drag } from 'd3-drag';
   import {
