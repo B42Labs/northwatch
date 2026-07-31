@@ -188,7 +188,7 @@
         {events.length} events
       </div>
       <div class="flex-1 overflow-auto rounded border border-base-300">
-        <table class="table-pin-rows table table-xs font-mono">
+        <table class="table table-pin-rows table-xs font-mono">
           <thead>
             <tr>
               <th

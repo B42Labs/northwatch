@@ -155,7 +155,7 @@
           <span class="text-base-content/30">//</span> waiting for changes…
         </div>
       {:else}
-        <table class="table-pin-rows table w-full table-xs font-mono">
+        <table class="table table-pin-rows w-full table-xs font-mono">
           <thead>
             <tr>
               <th
