@@ -3,7 +3,8 @@
 Install Northwatch from the release `.deb` so it runs as a managed systemd
 service — started on boot, restarted on failure, logging to journald, and
 running as a dedicated unprivileged `northwatch` user. The binary is fully
-static with the UI embedded, so the package has no runtime dependencies.
+static with the UI embedded, so the package depends on nothing but `adduser`
+(which it needs to create that user).
 
 Every tagged release attaches `northwatch_<version>_amd64.deb` and
 `northwatch_<version>_arm64.deb`, each with a cosign `.sig` and `.pem`, plus a
