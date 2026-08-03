@@ -98,6 +98,12 @@ client could exhaust memory or fill the disk.
   limit are now clamped.
 - Snapshot-row decompression is bounded at 10 MiB, so an imported snapshot cannot
   expand into an unbounded allocation.
+- **The `.deb` left `/etc/default/northwatch` as `root:root`.** dpkg resolves the
+  archive's group name while unpacking, which happens before `postinst` creates
+  the `northwatch` group, so the intended `root:northwatch` ownership silently
+  fell back to the numeric gid on every fresh install. `postinst` now applies it.
+- The `.deb` declares `Depends: adduser`. Its `postinst` calls `addgroup`/
+  `adduser`, which minimal images do not necessarily ship.
 
 ## [0.6.0] - 2026-07-13
 

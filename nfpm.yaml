@@ -10,7 +10,11 @@ vendor: B42Labs
 homepage: https://github.com/B42Labs/northwatch
 license: Apache-2.0
 
-# No depends: static binary (CGO_ENABLED=0, pure-Go modernc.org/sqlite), embedded UI.
+# The binary itself needs nothing: static (CGO_ENABLED=0, pure-Go
+# modernc.org/sqlite) with the UI embedded. adduser is the one dependency —
+# postinstall.sh calls addgroup/adduser, which minimal images may not ship.
+depends:
+  - adduser
 
 contents:
   - src: ./bin/northwatch-linux-${GOARCH}
@@ -29,7 +33,8 @@ contents:
       # Documented home for credentials (OS_PASSWORD, webhook tokens, KUBECONFIG):
       # keep it off the default world-readable 0644. systemd reads EnvironmentFile=
       # as root before dropping to the northwatch user, so 0640 root:northwatch is
-      # enough. The northwatch group is created by postinstall.sh.
+      # enough. postinstall.sh creates the group and re-applies this ownership —
+      # the group does not exist yet when dpkg unpacks a fresh install.
       mode: 0640
       owner: root
       group: northwatch
