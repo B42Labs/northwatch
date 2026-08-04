@@ -19,7 +19,7 @@ NORTHWATCH_LISTEN=127.0.0.1:8080
 # Or keep them out of the process table (JSON: {"ops": "<token>"}):
 #NORTHWATCH_API_TOKENS_FILE=/etc/northwatch/tokens.json
 
-# Persisted under the systemd StateDirectory (/var/lib/northwatch)
+# Persisted in the state directory the package creates (/var/lib/northwatch)
 NORTHWATCH_HISTORY_DB_PATH=/var/lib/northwatch/history.db
 
 # Multi-cluster JSON config (overrides the flat NB/SB addrs above)

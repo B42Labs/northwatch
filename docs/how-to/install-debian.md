@@ -47,7 +47,7 @@ it first.
 | `/usr/bin/northwatch` | static binary (embedded UI) |
 | `/lib/systemd/system/northwatch.service` | hardened unit, runs as `northwatch` |
 | `/etc/default/northwatch` | env config (preserved on upgrade) |
-| `/var/lib/northwatch/` | SQLite history DB (systemd `StateDirectory`) |
+| `/var/lib/northwatch/` | state directory, `0750 northwatch:northwatch` — SQLite history DB |
 
 ## Configure
 

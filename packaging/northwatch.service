@@ -16,7 +16,9 @@ ExecStart=/usr/bin/northwatch
 Restart=on-failure
 RestartSec=5
 
-# State (SQLite history DB) — systemd creates/owns /var/lib/northwatch
+# State (SQLite history DB). The package ships and owns /var/lib/northwatch;
+# StateDirectory= keeps it writable under ProtectSystem=strict and recreates it
+# should it ever go missing.
 StateDirectory=northwatch
 StateDirectoryMode=0750
 

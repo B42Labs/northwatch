@@ -39,6 +39,18 @@ contents:
       owner: root
       group: northwatch
 
+  # State directory (SQLite history DB). Owned by the package, not left to the
+  # unit's StateDirectory=: dpkg then tracks it, and it already exists when
+  # postinstall.sh runs adduser --home, which would otherwise report the home
+  # directory as inaccessible. Same unpack-time caveat as the conffile above —
+  # postinstall.sh re-applies the ownership.
+  - dst: /var/lib/northwatch
+    type: dir
+    file_info:
+      mode: 0750
+      owner: northwatch
+      group: northwatch
+
 scripts:
   postinstall: ./packaging/postinstall.sh
   preremove:   ./packaging/preremove.sh
