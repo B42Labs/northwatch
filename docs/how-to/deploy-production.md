@@ -160,8 +160,9 @@ differently:
   or lengthen the interval on a large deployment, where each snapshot is a full
   copy of the database.
 
-Put the history database on persistent storage. The `.deb` preconfigures it under
-the systemd `StateDirectory` at `/var/lib/northwatch/history.db`.
+Put the history database on persistent storage. The `.deb` creates
+`/var/lib/northwatch` and preconfigures the database at
+`/var/lib/northwatch/history.db`.
 
 ## Wire up health checks
 

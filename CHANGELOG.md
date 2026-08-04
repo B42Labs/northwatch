@@ -104,6 +104,13 @@ client could exhaust memory or fill the disk.
   fell back to the numeric gid on every fresh install. `postinst` now applies it.
 - The `.deb` declares `Depends: adduser`. Its `postinst` calls `addgroup`/
   `adduser`, which minimal images do not necessarily ship.
+- **The `.deb` ships `/var/lib/northwatch`** (`0750 northwatch:northwatch`)
+  instead of leaving its creation to the unit's `StateDirectory=`. dpkg now
+  tracks the directory, and because it exists before `postinst` runs, `adduser`
+  no longer reports the home directory as inaccessible on a fresh install.
+  `postinst` applies the ownership (dpkg cannot resolve the user while
+  unpacking) and repairs it on upgrade. `addgroup`/`adduser` run `--quiet`, so
+  installing the package is silent unless something actually goes wrong.
 
 ## [0.6.0] - 2026-07-13
 
