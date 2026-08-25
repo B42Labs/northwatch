@@ -7,7 +7,7 @@
 # Build (driven by `make lab-images`):
 #   docker build -f lab/Dockerfile.central -t northwatch/lab-central:latest lab
 
-ARG UBUNTU_VERSION=24.04
+ARG UBUNTU_VERSION=26.04
 FROM ubuntu:${UBUNTU_VERSION}
 
 ENV DEBIAN_FRONTEND=noninteractive
