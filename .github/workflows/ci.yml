@@ -42,7 +42,7 @@ jobs:
         run: make ensure-ui-dist
       - uses: golangci/golangci-lint-action@v9
         with:
-          # Pinned for reproducible CI; bump deliberately (Dependabot does not
+          # Pinned for reproducible CI; bump deliberately (Renovate does not
           # update this input). Keep in sync with the developer toolchain.
           version: v2.11.3
 
@@ -145,7 +145,7 @@ jobs:
           go-version-file: go.mod
       - name: Ensure UI dist exists
         run: make ensure-ui-dist
-      # Pinned for reproducible CI; bump deliberately (Dependabot does not
+      # Pinned for reproducible CI; bump deliberately (Renovate does not
       # update `go install` @version pins). Keep in sync with vuln-schedule.yml.
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
       - name: Run govulncheck
