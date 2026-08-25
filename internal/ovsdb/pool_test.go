@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ovn-kubernetes/libovsdb/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +14,34 @@ import (
 	"github.com/b42labs/northwatch/internal/ovsdb/vs"
 	"github.com/b42labs/northwatch/internal/testutil"
 )
+
+// waitMonitored blocks until the member's initial MonitorAll has landed, which
+// the seeded interface appearing in its cache proves.
+//
+// Waiting on Connected() alone is not enough, and not only because it asserts
+// less: OVSPool.connectAndMonitor runs Connect and MonitorAll under one
+// cancellable context, so a test that returns as soon as the client reports
+// Connected lets its deferred pool.Close cancel a monitor call that is still in
+// flight. libovsdb v0.8.1 then reads the RPC reply that rpc2 is concurrently
+// unmarshalling into (client.go:996 — the read is discarded, but it is a read),
+// and the race detector fails the package. See #109; the fix belongs upstream,
+// so until it lands do not narrow these waits back to Connected().
+func waitMonitored(t *testing.T, c client.Client) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		// Connected() must gate the List: libovsdb builds the per-database API
+		// during Connect, so List on a member that has not connected yet nil-derefs
+		// (client.go:1420).
+		if !c.Connected() {
+			return false
+		}
+		var ifaces []vs.Interface
+		if err := c.List(context.Background(), &ifaces); err != nil {
+			return false
+		}
+		return len(ifaces) == 1
+	}, 5*time.Second, 20*time.Millisecond)
+}
 
 func TestPoolReachable(t *testing.T) {
 	sock, seed := testutil.SetupOVSTestServer(t)
@@ -27,15 +56,7 @@ func TestPoolReachable(t *testing.T) {
 
 	c, ok := pool.Client("chassis-1")
 	require.True(t, ok)
-	require.Eventually(t, c.Connected, 5*time.Second, 20*time.Millisecond)
-
-	require.Eventually(t, func() bool {
-		var ifaces []vs.Interface
-		if err := c.List(context.Background(), &ifaces); err != nil {
-			return false
-		}
-		return len(ifaces) == 1
-	}, 5*time.Second, 20*time.Millisecond)
+	waitMonitored(t, c)
 
 	var ifaces []vs.Interface
 	require.NoError(t, c.List(context.Background(), &ifaces))
@@ -48,7 +69,8 @@ func TestPoolPartialOutage(t *testing.T) {
 	// One reachable chassis plus one with an unreachable address: the reachable
 	// member must serve data while the unreachable one stays Connected:false and
 	// keeps retrying in its own goroutine without affecting the good one.
-	sock, _ := testutil.SetupOVSTestServer(t)
+	sock, seed := testutil.SetupOVSTestServer(t)
+	testutil.InsertOVSBridgeWithInterface(t, seed, "br-int", "vnet0", nil, "up")
 
 	model, err := vs.FullDatabaseModel()
 	require.NoError(t, err)
@@ -60,7 +82,9 @@ func TestPoolPartialOutage(t *testing.T) {
 
 	good, ok := pool.Client("good")
 	require.True(t, ok)
-	require.Eventually(t, good.Connected, 5*time.Second, 20*time.Millisecond)
+	// The unreachable member is safe to cancel mid-flight — it never gets past
+	// Connect, so no monitor reply is in play. Only "good" needs waitMonitored.
+	waitMonitored(t, good)
 
 	bad, ok := pool.Client("bad")
 	require.True(t, ok)
@@ -140,7 +164,9 @@ func TestPoolCloseStops(t *testing.T) {
 }
 
 func TestConnectPool(t *testing.T) {
-	sock, _ := testutil.SetupOVSTestServer(t)
+	sock, seed := testutil.SetupOVSTestServer(t)
+	testutil.InsertOVSBridgeWithInterface(t, seed, "br-int", "vnet0", nil, "up")
+
 	model, err := vs.FullDatabaseModel()
 	require.NoError(t, err)
 
@@ -152,5 +178,5 @@ func TestConnectPool(t *testing.T) {
 	require.Len(t, pool.Members(), 1)
 	c, ok := pool.Client("good")
 	require.True(t, ok)
-	require.Eventually(t, c.Connected, 5*time.Second, 20*time.Millisecond)
+	waitMonitored(t, c)
 }
