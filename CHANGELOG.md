@@ -77,6 +77,14 @@ client could exhaust memory or fill the disk.
   imported snapshots are never pruned.
 - The `actor` field in the write apply/rollback request body is ignored, and the
   UI no longer sends one.
+- **Renovate replaces Dependabot** for dependency updates. `renovate.json`
+  groups non-major updates per ecosystem (Go modules, npm, GitHub Actions, lab
+  container images) into one weekly pull request each, instead of one pull
+  request per dependency. Renovate also covers `docs/package.json` and the
+  `lab/` Dockerfiles and compose files, which Dependabot did not.
+- The Go toolchain moves to 1.26.7. Releases 1.26.6 and 1.26.7 fix six standard
+  library advisories that `govulncheck` reported as reachable from Northwatch
+  (`net/url`, `crypto/tls`, `net/http` x2, `encoding/xml`, `encoding/asn1`).
 
 ### Fixed
 
