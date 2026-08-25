@@ -44,7 +44,7 @@ jobs:
         with:
           # Pinned for reproducible CI; bump deliberately (Renovate does not
           # update this input). Keep in sync with the developer toolchain.
-          version: v2.11.3
+          version: v2.13.1
 
   test:
     name: Test
