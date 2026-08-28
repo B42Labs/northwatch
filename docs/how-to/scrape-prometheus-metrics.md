@@ -46,7 +46,7 @@ process collectors. Highlights:
 For the complete list, see [Prometheus metrics](/reference/metrics).
 
 ::: warning /metrics is unauthenticated
-`/metrics` is served on the main mux and needs **no** API token — the bearer
+`/metrics` is served on the main mux and needs no API token: the bearer
 tokens gate mutation, not reading. With the default loopback bind only a local
 scraper reaches it; when you expose Northwatch, restrict `/metrics` at the same
 reverse proxy that protects the rest of the read surface. See [Deploy to
@@ -62,6 +62,6 @@ bounded by the number of routes.
 :::
 
 ::: info Single-cluster scope
-Metrics are exported for the **default** cluster only. Per-cluster routes do not
+Metrics are exported for the default cluster only. Per-cluster routes do not
 register their own Prometheus collectors.
 :::

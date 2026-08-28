@@ -1,7 +1,7 @@
 # Enrich with Kubernetes
 
 For ovn-kubernetes deployments, the Kubernetes enrichment provider resolves OVN
-entities to Kubernetes resources — namespaces, pods and nodes — using a kubeconfig.
+entities to Kubernetes resources (namespaces, pods and nodes) using a kubeconfig.
 
 Like all enrichment, it is optional and additive.
 
@@ -66,7 +66,7 @@ As with any provider, an active Kubernetes enricher adds the `enrich` capability
 curl -s http://localhost:8080/api/v1/capabilities
 ```
 
-A cluster cannot use both OpenStack and Kubernetes enrichment at the same time —
-configure exactly one provider per cluster.
+A cluster cannot use both OpenStack and Kubernetes enrichment at the same time.
+Configure exactly one provider per cluster.
 
 For the provider model and caching, see [Enrichment](/explanation/enrichment).

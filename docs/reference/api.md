@@ -1,7 +1,7 @@
 # HTTP API
 
 All routes are under `/api/v1` and return JSON; health and metrics endpoints sit
-at the root. The API is **read-only by default** — mutation requires
+at the root. The API is read-only by default: mutation requires
 `--write-enabled` (see [Enable write operations](/how-to/enable-write-operations)).
 
 ::: tip The OpenAPI spec is authoritative
@@ -13,7 +13,7 @@ schemas, use the spec the server generates: an interactive reference (Scalar) at
 
 ## Authentication
 
-Every **mutating** request (`POST`, `PUT`, `DELETE` under `/api/`) must present a
+Every mutating request (`POST`, `PUT`, `DELETE` under `/api/`) must present a
 bearer token configured with `--api-tokens`:
 
 ```
@@ -22,32 +22,32 @@ Authorization: Bearer <token>
 
 Without a valid token the request is rejected with `401` and a
 `WWW-Authenticate: Bearer realm="northwatch"` header, before the handler runs.
-The token is accepted from the header only — never a query parameter. With no
+The token is accepted from the header only, never a query parameter. With no
 tokens configured, every mutating endpoint answers `401`.
 
-Repeated failures are throttled: after **5** failed attempts from one source IP
+Repeated failures are throttled: after 5 failed attempts from one source IP
 within a minute, further mutating requests from that IP answer `429` with a
 `Retry-After` header for the rest of the window.
 
 Read endpoints (`GET`) need no token; protect them with a reverse proxy. See
 [Deploy to production](/how-to/deploy-production). Starting the server with
-`--insecure-no-auth` removes the token gate entirely — every mutating endpoint
+`--insecure-no-auth` removes the token gate entirely, so every mutating endpoint
 is then open, which is safe only behind a proxy that authenticates them (see
 [CLI flags](/reference/cli#authentication)).
 
 ## Response shape
 
-- List endpoints return a JSON **array** of objects. Each object's keys are the
+- List endpoints return a JSON array of objects. Each object's keys are the
   OVSDB column names of that table (from the model's `ovsdb` struct tags).
 - Detail endpoints (`.../{uuid}`) return a single object, or `404` with an
   `{"error": "…"}` body naming what was not found.
 - Errors return the matching HTTP status with `{"error": "<message>"}`.
 - `5xx` responses always carry the generic body `{"error": "internal server
-  error"}`. The cause is logged server-side with the request that triggered it —
-  it is deliberately not sent to the client.
+  error"}`. The cause is logged server-side with the request that triggered it,
+  and is deliberately not sent to the client.
 - Responses served from a cluster whose OVSDB caches are not currently
-  authoritative — the client is reconnecting, or a snapshot session has suspended
-  the live monitors — carry an `X-Northwatch-Stale: true` header. `/readyz`
+  authoritative (the client is reconnecting, or a snapshot session has suspended
+  the live monitors) carry an `X-Northwatch-Stale: true` header. `/readyz`
   returns `503` in the suspended case.
 
 ## Limits
@@ -57,10 +57,10 @@ process:
 
 | Limit | Value | Applies to |
 |---|---|---|
-| Page size | `limit` query param, default and maximum **5000** rows (larger values are clamped) | Every table-list endpoint, including `/api/v1/sb/logical-flows` |
-| Request body | **1 MiB** | Every endpoint that accepts a body |
-| Request body (import) | **100 MiB** | `POST /api/v1/snapshots/import` |
-| Search matches | **100** per table, **500** total | `GET /api/v1/search` |
+| Page size | `limit` query param, default and maximum 5000 rows (larger values are clamped) | Every table-list endpoint, including `/api/v1/sb/logical-flows` |
+| Request body | 1 MiB | Every endpoint that accepts a body |
+| Request body (import) | 100 MiB | `POST /api/v1/snapshots/import` |
+| Search matches | 100 per table, 500 total | `GET /api/v1/search` |
 
 Table-list responses carry `X-Total-Count` (the unpaginated total) and, when
 rows were dropped, `X-Truncated: true`; other list endpoints (events, snapshots,
@@ -69,7 +69,7 @@ silences, audit) do not set these headers. Rows are ordered by UUID, so `offset`
 is rejected with `413`; a malformed or negative `limit` or `offset` with `400`.
 
 `GET /api/v1/search` returns a `truncated` field reporting whether the match caps
-dropped results — refine the query when it is set.
+dropped results; refine the query when it is set.
 
 `GET /api/v1/debug/trace` retains the trace for later export only when called
 with `?store=true`, and returns its `id` only then.
@@ -124,24 +124,24 @@ joins `Chassis` + `Encap` + `Chassis_Private` + `SB_Global` + `Port_Binding`:
 
 Liveness is computed, not stored: `in_sync` compares `Chassis_Private.nb_cfg`
 against `SB_Global.nb_cfg`, and `alive` is true when the chassis is present and
-in-sync. `alive` deliberately ignores `nb_cfg_timestamp` age — that timestamp
+in-sync. `alive` deliberately ignores `nb_cfg_timestamp` age: that timestamp
 only advances on a new `nb_cfg` generation, so on a steady-state cluster it
 freezes and an age check would report every healthy chassis down. Instead,
-`age_ms` is surfaced informationally and `stale` flags an *out-of-sync* chassis
+`age_ms` is surfaced informationally and `stale` flags an out-of-sync chassis
 that has lagged beyond `--chassis-stale-threshold` (lagging/stuck, distinct from
 down). A chassis with no `Chassis_Private` row is reported `in_sync=false,
 alive=false`. `name` (= the OVS `external_ids:system-id`) is the join key to the
 real Open_vSwitch instance.
 
-These are the *aggregated* views; the raw `chassis`, `encaps`, `port-bindings`
+These are the aggregated views; the raw `chassis`, `encaps`, `port-bindings`
 and `chassis-private` tables remain available under [Southbound tables](#southbound-tables).
 
 ## OVS (per-chassis Open_vSwitch)
 
-Live, read-only state from each chassis's local Open_vSwitch (vswitchd) OVSDB —
-the *reality* the Southbound DB only describes as *intent* (is the interface
+Live, read-only state from each chassis's local Open_vSwitch (vswitchd) OVSDB:
+the reality the Southbound DB only describes as intent (is the interface
 actually up? rx/tx stats? errors? is `ovn-controller` attached to `br-int`?).
-This surface is **opt-in**: it appears only when the server is started with
+This surface is opt-in: it appears only when the server is started with
 `--ovs-mgmt-addr-file` (see [CLI flags](/reference/cli)), and the `ovs`
 [capability](/reference/capabilities) advertises it.
 
@@ -153,8 +153,8 @@ This surface is **opt-in**: it appears only when the server is started with
 | GET | `/api/v1/ovs/{chassis}/{table}/{uuid}` | One row by UUID. |
 | GET | `/api/v1/ovs/{chassis}/interface/{uuid}/correlation` | Correlate a live interface with its Southbound `Port_Binding`. |
 
-`{chassis}` is the **system-id** — the same `name` as in the [chassis
-inventory](#chassis-inventory) (`external_ids:system-id` on the OVS instance) —
+`{chassis}` is the system-id, the same `name` as in the [chassis
+inventory](#chassis-inventory) (`external_ids:system-id` on the OVS instance),
 so it joins directly to the SB view. `{table}` is one of the whitelisted
 vswitchd tables (the OVSDB table name lowercased with `_` rendered as `-`):
 
@@ -164,58 +164,58 @@ vswitchd tables (the OVSDB table name lowercased with `_` rendered as `-`):
 | `bridge` | The real bridges (`br-int`, `br-ex`, provider bridges), `datapath_type`, `datapath_id`, physical ports. |
 | `port` | Bridge ports and their bonding/VLAN config. |
 | `open-vswitch` | `ovs_version`, DPDK state, available `iface_types`/`datapath_types`. |
-| `manager` | `is_connected` — whether the OVSDB manager connection is up. |
-| `controller` | `is_connected` — whether `ovn-controller` is attached to `br-int`. |
-| `ipfix` | IPFIX flow-export config — collector `targets`, sampling, cache timeouts. |
-| `sflow` | sFlow agent config — collector `targets`, sampling and polling. |
-| `netflow` | NetFlow collector config — `targets`, active timeout, engine IDs. |
-| `mirror` | Port-mirror (SPAN/RSPAN) config — selected source/output ports. |
-| `qos` | QoS policies attached to ports — `type`, queues, `other_config`. |
-| `queue` | Per-queue config referenced by QoS — DSCP, min/max rate. |
+| `manager` | `is_connected`, whether the OVSDB manager connection is up. |
+| `controller` | `is_connected`, whether `ovn-controller` is attached to `br-int`. |
+| `ipfix` | IPFIX flow-export config: collector `targets`, sampling, cache timeouts. |
+| `sflow` | sFlow agent config: collector `targets`, sampling and polling. |
+| `netflow` | NetFlow collector config: `targets`, active timeout, engine IDs. |
+| `mirror` | Port-mirror (SPAN/RSPAN) config: selected source/output ports. |
+| `qos` | QoS policies attached to ports: `type`, queues, `other_config`. |
+| `queue` | Per-queue config referenced by QoS: DSCP, min/max rate. |
 | `ct-zone` | Conntrack zone → timeout-policy bindings. |
 | `ct-timeout-policy` | Conntrack timeout policies by protocol state. |
-| `datapath` | Datapath instances — `datapath_version`, capabilities, conntrack zones. |
-| `flow-table` | OpenFlow table config — name, flow limits, eviction policy. |
+| `datapath` | Datapath instances: `datapath_version`, capabilities, conntrack zones. |
+| `flow-table` | OpenFlow table config: name, flow limits, eviction policy. |
 | `flow-sample-collector-set` | IPFIX flow-sample collector sets bound to a bridge. |
-| `ssl` | SSL config — `certificate`, `ca_cert`, `bootstrap_ca_cert`. `private_key` is **omitted** so key material is never served. |
+| `ssl` | SSL config: `certificate`, `ca_cert`, `bootstrap_ca_cert`. `private_key` is omitted so key material is never served. |
 | `autoattach` | IEEE 802.1AB Auto-Attach mappings. |
 
 Reachability semantics:
 
-- An unknown chassis (not in the mapping) or an unknown table returns **404**.
-- A registered chassis that is currently **unreachable** returns **503**
-  (`chassis unreachable`) — distinct from 404, so an outage is observable. One
+- An unknown chassis (not in the mapping) or an unknown table returns 404.
+- A registered chassis that is currently unreachable returns 503
+  (`chassis unreachable`), distinct from 404, so an outage is observable. One
   dead chassis never affects the others or the NB/SB views.
 
-**Fleet health.** `GET /api/v1/ovs/health` turns the per-chassis connection
+Fleet health. `GET /api/v1/ovs/health` turns the per-chassis connection
 counts into a real health summary. It sums `bridges`, `ports` and `interfaces`
-across all connected chassis and counts interfaces that are **down**
-(`link_state=down`), **erroring** (`rx_errors`/`tx_errors` that increased since
-the previous read) or **dropping** (`rx_dropped`/`tx_dropped` that increased) as
+across all connected chassis and counts interfaces that are down
+(`link_state=down`), erroring (`rx_errors`/`tx_errors` that increased since
+the previous read) or dropping (`rx_dropped`/`tx_dropped` that increased) as
 `down_interfaces`, `error_interfaces` and `drop_interfaces`, alongside `chassis`,
-`connected` and `unreachable` counts. Erroring and dropping are **delta-based**:
+`connected` and `unreachable` counts. Erroring and dropping are delta-based:
 the cumulative counters are compared between reads, so a single historical error
 does not flag an interface forever (the counters reset on process restart).
 `members` is the per-chassis breakdown (`system_id`, `connected`, and the same
-counts per chassis). Aggregation runs off the monitored caches — no new
-connections — and handles partial outages: an **unreachable** chassis is
-**excluded from every total** (never counted as healthy) but still listed in
+counts per chassis). Aggregation runs off the monitored caches, opening no new
+connections, and handles partial outages: an unreachable chassis is
+excluded from every total (never counted as healthy) but still listed in
 `members` with `connected=false` and zero counts, so a green aggregate can
 never hide a problem chassis.
 
-**OVN correlation.** `GET /api/v1/ovs/{chassis}/interface/{uuid}/correlation`
-ties live OVS state to OVN intent — the Northwatch *correlate* differentiator.
-It resolves the interface's `external_ids:iface-id` to the Southbound
-`Port_Binding` whose `logical_port` matches, surfacing the bound logical port,
-its `up` state, `datapath` and bound `chassis` (with `bound_here` set when the
-port is bound on this same chassis). `drift` flags where the Southbound reports
-the port up but the live interface is down or erroring. Correlation degrades
-gracefully: `bound` is `false` with no `binding` when the interface carries no
-`iface-id` or no matching `Port_Binding` exists. It reads only the Southbound
-cache (no NB dependency) and, like the table routes, returns **404** for an
-unknown chassis or interface UUID and **503** when the chassis is unreachable.
+OVN correlation. `GET /api/v1/ovs/{chassis}/interface/{uuid}/correlation`
+ties live OVS state to OVN intent. It resolves the interface's
+`external_ids:iface-id` to the Southbound `Port_Binding` whose `logical_port`
+matches. The response carries the bound logical port, its `up` state, `datapath`
+and bound `chassis` (with `bound_here` set when the port is bound on this same
+chassis). `drift` flags where the Southbound reports the port up but the live
+interface is down or erroring. Correlation degrades gracefully: `bound` is
+`false` with no `binding` when the interface carries no `iface-id` or no matching
+`Port_Binding` exists. It reads only the Southbound cache (no NB dependency) and,
+like the table routes, returns 404 for an unknown chassis or interface UUID and
+503 when the chassis is unreachable.
 
-**Operator setup.** `ovsdb-server` listens only on a local Unix socket by
+Operator setup. `ovsdb-server` listens only on a local Unix socket by
 default; remote access must be enabled per chassis, e.g.
 `ovs-vsctl set-manager ptcp:6640` (or `pssl:6640` for TLS). The
 `--ovs-mgmt-addr-file` mapping then points Northwatch at each chassis's
@@ -315,7 +315,7 @@ The `--ws-allowed-origins` flag controls the `Origin` allowlist.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/write/schema` | What can be changed. |
-| GET | `/api/v1/impact/{db}/{table}/{uuid}` | Impact analysis for an entity — what a change to it would affect. Read-only, but registered only alongside the write engine. |
+| GET | `/api/v1/impact/{db}/{table}/{uuid}` | Impact analysis for an entity: what a change to it would affect. Read-only, but registered only alongside the write engine. |
 | POST | `/api/v1/write/preview` · `/dry-run` | Predict an effect without applying. |
 | GET | `/api/v1/write/plans/{id}` | Inspect a prepared plan. |
 | POST | `/api/v1/write/plans/{id}/apply` | Apply a plan. |

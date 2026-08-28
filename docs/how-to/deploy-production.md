@@ -36,22 +36,22 @@ curl -X POST http://127.0.0.1:8080/api/v1/snapshots \
   -d '{"label": "pre-upgrade"}'
 ```
 
-The name is not a secret — it is the identity recorded as the `actor` on every
+The name is not a secret. It is the identity recorded as the `actor` on every
 write-audit entry, so give each caller its own token. Tokens must be at least 16
 characters; the server refuses to start otherwise.
 
-Without tokens, **every mutating endpoint answers 401** — including on loopback.
+Without tokens, every mutating endpoint answers 401, including on loopback.
 Read endpoints stay open either way (see the next section).
 
 ## Front it with an authenticating, TLS-terminating proxy
 
-The built-in tokens gate mutations. They do **not** protect the read surface:
+The built-in tokens gate mutations. They do not protect the read surface:
 anyone who can reach the listen socket can still read your entire OVN
 deployment, the UI, the WebSocket stream and `/metrics`. A reverse proxy (nginx,
 Caddy, an ingress controller, an identity-aware proxy, …) that authenticates
-users remains **mandatory** for any exposure beyond loopback.
+users remains mandatory for any exposure beyond loopback.
 
-If the proxy already authenticates every request — including mutating ones —
+If the proxy already authenticates every request, mutating ones included,
 you can disable the token gate with `--insecure-no-auth`. That is the only way
 to run mutating endpoints unauthenticated, it is logged loudly at startup, and
 audit entries are then recorded as `anonymous` because there is no credential to
@@ -61,8 +61,8 @@ attribute them to.
 
 `--listen` (env `NORTHWATCH_LISTEN`) defaults to `127.0.0.1:8080`, so an
 unconfigured binary is not reachable from the network. Binding any other address
-requires a deliberate decision about authentication: Northwatch **refuses to
-start** on a non-loopback address unless you configure `--api-tokens` or pass
+requires a deliberate decision about authentication: Northwatch refuses to
+start on a non-loopback address unless you configure `--api-tokens` or pass
 `--insecure-no-auth`.
 
 ```bash
@@ -77,14 +77,14 @@ at all; set tokens (or `--insecure-no-auth`) alongside it, or the container will
 exit at startup.
 
 With the `.deb` package, set `NORTHWATCH_LISTEN=127.0.0.1:8080` in
-`/etc/default/northwatch` instead — see [Install on
+`/etc/default/northwatch` instead. See [Install on
 Debian/Ubuntu](/how-to/install-debian).
 
 ## Serve HTTPS directly (optional)
 
 Northwatch can terminate TLS itself with `--tls-cert` and `--tls-key` (env
 `NORTHWATCH_TLS_CERT` / `NORTHWATCH_TLS_KEY`), which is useful when there is no
-proxy to do it — for instance when only the token-gated API is exposed. Both must
+proxy to do it, for instance when only the token-gated API is exposed. Both must
 be set together, and the minimum protocol version is TLS 1.2. A proxy remains the
 better place for certificate lifecycle and user authentication.
 
@@ -134,8 +134,8 @@ spike memory and CPU on `ovsdb-server`. Two flags bound it:
 
 - `--monitor-batch-delay` (default `200ms`) stages the monitor as one request
   per table instead of one giant `monitor_all`.
-- `--monitor-skip-tables` never monitors the listed tables at all — the real
-  lever for the biggest tables (e.g. `--monitor-skip-tables Logical_Flow`).
+- `--monitor-skip-tables` never monitors the listed tables at all. This is the
+  real lever for the biggest tables (e.g. `--monitor-skip-tables Logical_Flow`).
 
 For the reasoning and recommended settings per deployment size, see [Large
 deployments](/explanation/large-deployments) and [Tune the initial
@@ -148,14 +148,14 @@ A running server records into an embedded SQLite history database
 (`--history-db-path`). Two kinds of data grow it, and they are bounded
 differently:
 
-- **Events** (the OVSDB change stream) are pruned by age with `--event-retention`
-  (default `24h`) and can additionally be capped by count with
+- Events (the OVSDB change stream) are pruned by age with `--event-retention`
+  (default `24h`) and can also be capped by count with
   `--event-max-count` (default `0`, meaning unlimited). Set a count cap on a busy
   deployment so a churn spike cannot grow the database without bound.
-- **Auto-snapshots** run every `--snapshot-interval` (default `5m`) whenever the
+- Auto-snapshots run every `--snapshot-interval` (default `5m`) whenever the
   data has changed. Northwatch keeps the newest `--snapshot-max-count` of them
   (default `500`, `0` disables pruning) and deletes the rest. Snapshots you took
-  deliberately — manual, labeled or imported ones — are **never** pruned; remove
+  deliberately, whether manual, labeled or imported, are never pruned; remove
   those through the history API (`DELETE /api/v1/snapshots/{id}`). Lower the cap
   or lengthen the interval on a large deployment, where each snapshot is a full
   copy of the database.
@@ -170,8 +170,8 @@ Northwatch exposes two endpoints for orchestrators and load balancers:
 
 | Endpoint | Meaning | Use it for |
 |---|---|---|
-| `GET /healthz` | Liveness. Always returns `200` while the process serves HTTP. | Restart policy — is the process alive? |
-| `GET /readyz` | Readiness. Returns `200` only when both the NB and SB clients are connected and the live monitors are not suspended; otherwise `503`. | Traffic gating — should this instance receive requests? |
+| `GET /healthz` | Liveness. Always returns `200` while the process serves HTTP. | Restart policy: is the process alive? |
+| `GET /readyz` | Readiness. Returns `200` only when both the NB and SB clients are connected and the live monitors are not suspended; otherwise `503`. | Traffic gating: should this instance receive requests? |
 
 Point your restart supervision at `/healthz` and your traffic/load-balancer
 readiness gate at `/readyz`. Note that loading a snapshot session suspends the

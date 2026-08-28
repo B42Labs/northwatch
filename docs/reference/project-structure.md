@@ -57,13 +57,13 @@ northwatch/
 
 These are summarized from `CLAUDE.md`:
 
-- **libovsdb is the cache.** `MonitorAll` populates an in-memory `TableCache`;
+- libovsdb is the cache. `MonitorAll` populates an in-memory `TableCache`;
   handlers query it via `client.List()` / `client.Get()` / `client.WhereCache()`.
   There is no custom cache layer.
-- **stdlib HTTP.** `net/http` with `http.ServeMux` pattern routing (Go 1.22+). No
+- stdlib HTTP. `net/http` with `http.ServeMux` pattern routing (Go 1.22+). No
   framework.
-- **Config is flags + env vars only.** No YAML for the process itself.
-- **Tests** use `testify`, table-driven subtests, and hand-written
+- Config is flags + env vars only. No YAML for the process itself.
+- Tests use `testify`, table-driven subtests, and hand-written
   function-field mocks (no mockgen). Run them with `go test -race ./...`.
 
 ## Generated code

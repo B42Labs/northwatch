@@ -61,7 +61,7 @@ so a freshly built binary runs without a Gatekeeper prompt.
 
 | Target | What it does |
 |---|---|
-| `make lab-compose-up` / `lab-compose-down` | Start / stop the Docker Compose lab. `lab-compose-up` reuses existing images (building only missing ones — no forced rebuild), so it works without registry access once the images exist; add `KERNEL=1` to layer in the kernel-datapath override. |
+| `make lab-compose-up` / `lab-compose-down` | Start / stop the Docker Compose lab. `lab-compose-up` reuses existing images (building only missing ones, with no forced rebuild), so it works without registry access once the images exist; add `KERNEL=1` to layer in the kernel-datapath override. |
 | `make lab-compose-build` | Force-rebuild the Compose lab images (needs registry access). Run after changing a `Dockerfile` or entrypoint. |
 | `make lab-compose` | Compose up, wait for OVN, then seed. |
 | `make lab-up` / `lab-down` | Start / stop the containerlab lab (Linux). |
@@ -85,8 +85,8 @@ against the private testbed CA (`contrib/testbed.pem`, the clouds.yaml
 enables write operations by default. The target fails fast if the CA bundle at
 `OS_CACERT` is missing.
 
-Every value is overridable on the command line — for example
-`make testbed TESTBED_CP1=10.0.0.1 OS_PASSWORD=secret` — or by sourcing an
+Every value is overridable on the command line, for example
+`make testbed TESTBED_CP1=10.0.0.1 OS_PASSWORD=secret`, or by sourcing an
 OpenStack RC file first (the `OS_*` defaults honour the environment):
 
 | Variable | Default | Purpose |
@@ -107,7 +107,7 @@ OpenStack RC file first (the `OS_*` defaults honour the environment):
 on its own. Each chassis must export its OVSDB first
 (`ovs-vsctl set-manager ptcp:6640`); unreachable nodes are retried in the
 background and the reachable ones are served. The mapping uses plaintext `tcp:`
-addresses — `ssl:` endpoints additionally need the `--ovs-tls-*` flags.
+addresses; `ssl:` endpoints also need the `--ovs-tls-*` flags.
 
 ## Useful variables
 

@@ -1,9 +1,9 @@
 # CLI flags & environment variables
 
 Northwatch is configured entirely by command-line flags and environment
-variables — there is no YAML config for the process itself (multi-cluster setups
+variables. There is no YAML config for the process itself (multi-cluster setups
 use a JSON [config file](/reference/configuration)). Every flag has an equivalent
-environment variable; **flags take precedence over environment variables**.
+environment variable, and flags take precedence over environment variables.
 
 Run `./bin/northwatch --help` to see the same list at runtime.
 
@@ -24,16 +24,16 @@ flat NB/SB addresses.
 ## Authentication
 
 Every mutating endpoint (`POST`/`PUT`/`DELETE` under `/api/`) requires a bearer
-token. Read endpoints are open — protect those with a reverse proxy, see [Deploy
+token. Read endpoints are open; protect those with a reverse proxy, see [Deploy
 to production](/how-to/deploy-production).
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
 | `--api-tokens` | `NORTHWATCH_API_TOKENS` | *(none)* | Comma-separated `name=token` pairs authorizing mutating requests. The name becomes the write-audit `actor`. Tokens must be at least 16 characters. |
 | `--api-tokens-file` | `NORTHWATCH_API_TOKENS_FILE` | *(none)* | Path to a JSON object mapping token name to token (`{"ops": "…"}`), merged with `--api-tokens`. Keeps secrets out of the process table. The file must be a non-empty JSON object; empty names or token values fail startup. |
-| `--insecure-no-auth` | `NORTHWATCH_INSECURE_NO_AUTH` | `false` | Disable the token gate entirely. Only safe behind a proxy that authenticates every mutating request; audit entries are then recorded as `anonymous`. Cannot be combined with tokens from `--api-tokens` **or** `--api-tokens-file`. |
+| `--insecure-no-auth` | `NORTHWATCH_INSECURE_NO_AUTH` | `false` | Disable the token gate entirely. Only safe behind a proxy that authenticates every mutating request; audit entries are then recorded as `anonymous`. Cannot be combined with tokens from `--api-tokens` or `--api-tokens-file`. |
 
-With no tokens configured, mutating endpoints answer `401` — including on
+With no tokens configured, mutating endpoints answer `401`, including on
 loopback. A token name that appears in both `--api-tokens` and
 `--api-tokens-file` is a startup error.
 
@@ -103,10 +103,10 @@ bundle is trusted only by the OpenStack client, not the whole process.
 |---|---|---|---|
 | `--chassis-stale-threshold` | `NORTHWATCH_CHASSIS_STALE_THRESHOLD` | `60s` | How long an out-of-sync chassis may lag the current `nb_cfg` generation before the [chassis inventory](/reference/api#chassis-inventory) flags it `stale` (Go duration, must be positive). |
 
-This threshold only affects the `stale` flag, **not** `alive`/down: a chassis is
+This threshold only affects the `stale` flag, not `alive`/down: a chassis is
 alive whenever it is present and in-sync. `nb_cfg_timestamp` only advances when a
 chassis acknowledges a new `nb_cfg` generation, so on a steady-state cluster it
-freezes — which is why staleness, not timestamp age, is what this bounds. Raise
+freezes, which is why staleness, not timestamp age, is what this bounds. Raise
 it to tolerate slower config propagation before a lagging chassis is flagged.
 Sync state is derived from `Chassis_Private.nb_cfg` vs `SB_Global.nb_cfg`, which
 is accurate on OVN ≥ 20.06.
@@ -114,7 +114,7 @@ is accurate on OVN ≥ 20.06.
 ## OVS visibility (per-chassis Open_vSwitch)
 
 Opt-in, read-only integration with each chassis's local Open_vSwitch (vswitchd)
-OVSDB. It is **disabled by default** and enabled only by pointing
+OVSDB. It is disabled by default and enabled only by pointing
 `--ovs-mgmt-addr-file` at a mapping file; the resulting routes are documented
 under [OVS](/reference/api#ovs-per-chassis-open_vswitch).
 
@@ -136,7 +136,7 @@ The mapping file is a JSON object, e.g.:
 
 Each chassis must enable remote OVSDB access (`ovs-vsctl set-manager
 ptcp:6640` or `pssl:6640`). The TLS flags are required only for `ssl:`
-endpoints and are all-or-none — supply all three together or none. They are
+endpoints and are all-or-none: supply all three together or none. They are
 global flags wired to the default cluster, not part of the multi-cluster JSON
 [config file](/reference/configuration).
 
@@ -158,7 +158,7 @@ See [Enable write operations](/how-to/enable-write-operations).
 | `--snapshot-interval` | `NORTHWATCH_SNAPSHOT_INTERVAL` | `5m` | Automatic snapshot interval (Go duration). |
 | `--event-retention` | `NORTHWATCH_EVENT_RETENTION` | `24h` | Event-log retention duration. |
 | `--event-max-count` | `NORTHWATCH_EVENT_MAX_COUNT` | `0` | Maximum number of events to retain (0 = unlimited). |
-| `--snapshot-max-count` | `NORTHWATCH_SNAPSHOT_MAX_COUNT` | `500` | Maximum number of **automatic** snapshots to retain (0 = unlimited, negative values fail startup). Labeled, manual and imported snapshots are never pruned. |
+| `--snapshot-max-count` | `NORTHWATCH_SNAPSHOT_MAX_COUNT` | `500` | Maximum number of automatic snapshots to retain (0 = unlimited, negative values fail startup). Labeled, manual and imported snapshots are never pruned. |
 
 ## Alerting & WebSocket
 
@@ -174,17 +174,17 @@ See [Enable write operations](/how-to/enable-write-operations).
 | `--log-level` | `NORTHWATCH_LOG_LEVEL` | `info` | Minimum log level: `debug`, `info`, `warn` or `error`. |
 | `--log-format` | `NORTHWATCH_LOG_FORMAT` | `text` | Structured log output format on stderr: `text` or `json`. |
 
-Logs are emitted as structured, leveled records on **stderr**. An unrecognized
+Logs are emitted as structured, leveled records on stderr. An unrecognized
 level or format value fails startup.
 
 ## Boolean and duration formats
 
-- **Booleans** read from environment variables accept `true`/`false`, `1`/`0`
+- Booleans read from environment variables accept `true`/`false`, `1`/`0`
   or `yes`/`no` (case-insensitive). A non-empty value that is none of these
-  **fails startup** rather than silently defaulting.
-- **Integers** read from environment variables must parse as integers; a
+  fails startup rather than silently defaulting.
+- Integers read from environment variables must parse as integers; a
   malformed value fails startup.
-- **Durations** use Go's format: `200ms`, `5m`, `1h`, `24h`.
+- Durations use Go's format: `200ms`, `5m`, `1h`, `24h`.
 
 ## The `snapshot` subcommand
 
@@ -200,8 +200,8 @@ It accepts a subset of the server flags:
 | `--monitor-skip-tables` | `NORTHWATCH_MONITOR_SKIP_TABLES` | *(none)* | Tables to skip during capture. |
 
 It also accepts the six `--ovn-nb-tls-*` / `--ovn-sb-tls-*` flags from
-[TLS](#tls) — same names, env vars and all-or-none rule — so a snapshot can be
-captured from `ssl:` databases.
+[TLS](#tls), with the same names, env vars and all-or-none rule, so a snapshot
+can be captured from `ssl:` databases.
 
 ```bash
 ./bin/northwatch snapshot --ovn-nb-addr tcp:10.0.0.1:6641 \

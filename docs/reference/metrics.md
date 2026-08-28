@@ -2,7 +2,7 @@
 
 Northwatch exposes Prometheus metrics at `/metrics` (always on). Alongside the
 standard Go runtime and process collectors, it exports OVN-specific gauges and
-its own HTTP server metrics. Metrics cover the **default** cluster only.
+its own HTTP server metrics. Metrics cover the default cluster only.
 
 See [Scrape Prometheus metrics](/how-to/scrape-prometheus-metrics) for scrape
 configuration.
@@ -37,7 +37,7 @@ These track how far each hypervisor's realized config lags the desired config
 
 | Metric | Type | Meaning |
 |---|---|---|
-| `northwatch_http_requests_total` | counter | HTTP requests served. Labeled by `method`, `status` and `path` — where `path` is the **matched route pattern** (e.g. `/api/v1/nb/logical-switches/{uuid}`), not the raw URL. Requests that match no route collapse onto a single `unmatched` label, so the label set stays bounded. |
+| `northwatch_http_requests_total` | counter | HTTP requests served. Labeled by `method`, `status` and `path`, where `path` is the matched route pattern (e.g. `/api/v1/nb/logical-switches/{uuid}`), not the raw URL. Requests that match no route collapse onto a single `unmatched` label, so the label set stays bounded. |
 | `northwatch_http_request_duration_seconds` | histogram | Request latency. |
 
 ## Standard collectors

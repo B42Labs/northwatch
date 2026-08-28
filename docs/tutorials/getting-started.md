@@ -12,19 +12,19 @@ visualizing it.
 
 Before you start, make sure you have:
 
-1. **Go 1.26+** installed (`go version`) — the version the module declares in
+1. Go 1.26+ installed (`go version`), the version the module declares in
    `go.mod`.
-2. **Docker** running. On macOS, **Docker Desktop** is enough for the Compose
+2. Docker running. On macOS, Docker Desktop is enough for the Compose
    lab used below.
-3. **Node.js 22+** if you want to build the embedded web UI (`make build-ui`).
-   The binary builds and runs without it — it just serves a placeholder page
+3. Node.js 22+ if you want to build the embedded web UI (`make build-ui`).
+   The binary builds and runs without it; it just serves a placeholder page
    until the UI is built.
 4. The repository checked out, with your shell in its root.
 
 The lab brings up a real `ovn-northd` plus Northbound/Southbound databases and
 three chassis running Open vSwitch and `ovn-controller`. It uses the OVS
-**userspace** datapath, so it needs no kernel modules and no real packet
-forwarding — it is a control-plane lab for observability.
+userspace datapath, so it needs no kernel modules and no real packet
+forwarding. It is a control-plane lab for observability.
 
 ## Step 1: Bring up the OVN lab
 
@@ -46,7 +46,7 @@ On a Linux Docker host you can use the containerlab variant instead:
 ## Step 2: Seed a baseline topology
 
 An empty OVN database is not interesting to look at. The bundled `ovnsim` load
-generator creates a realistic baseline across every major Northbound table —
+generator creates a realistic baseline across every major Northbound table:
 tenant switches with VIF ports and DHCP, routers with NAT and static routes,
 security port groups with ACLs and address sets, load balancers, and more:
 
@@ -56,8 +56,8 @@ make lab-bind          # bind the seeded ports onto chassis (clears "unbound VIF
 ```
 
 ::: info Why `lab-bind`?
-`seed` only creates the *logical* ports in the Northbound database. Until a
-backing OVS interface exists on a chassis, `ovn-controller` never binds them — so
+`seed` only creates the logical ports in the Northbound database. Until a
+backing OVS interface exists on a chassis, `ovn-controller` never binds them, so
 Northwatch correctly flags them as "VIF not bound to any chassis". `make lab-bind`
 creates those interfaces so the bindings appear. This is Northwatch already doing
 its job. See [Diagnose port bindings](/how-to/diagnose-port-bindings).
@@ -114,7 +114,7 @@ curl -s http://localhost:8080/api/v1/capabilities
 ## Step 5: Make something happen
 
 Northwatch is real-time. In a second terminal, start the simulator to
-continuously mutate the topology — creating and deleting switches, routers and
+continuously mutate the topology, creating and deleting switches, routers and
 ports, flipping NAT and ACL rules, and simulating gateway failover:
 
 ```bash

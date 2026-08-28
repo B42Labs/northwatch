@@ -1,8 +1,8 @@
 # Explore the API
 
 The Northwatch HTTP API is documented by an OpenAPI 3.1 specification that the
-server generates and serves itself. That spec — not this site — is the exhaustive,
-always-current description of every route, parameter and response.
+server generates and serves itself. That spec, not this site, is the exhaustive
+and always-current description of every route, parameter and response.
 
 ## Interactive API reference
 
@@ -25,7 +25,7 @@ curl -s http://localhost:8080/api/v1/openapi.json
 
 ## Export the spec without a running server
 
-The `openapi-export` helper writes the spec to stdout, which is handy in CI or for
+The `openapi-export` helper writes the spec to stdout, which is useful in CI or for
 generating clients at build time:
 
 ```bash

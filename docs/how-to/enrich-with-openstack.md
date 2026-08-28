@@ -1,8 +1,8 @@
 # Enrich with OpenStack
 
 OpenStack is the primary enrichment provider. With it configured, Northwatch
-resolves OVN UUIDs and `external_ids` to human-readable OpenStack names —
-networks, ports, instances, routers and floating IPs — so a port reads
+resolves OVN UUIDs and `external_ids` to human-readable OpenStack names
+(networks, ports, instances, routers and floating IPs), so a port reads
 as `web-server-01 on project production` instead of a bare UUID.
 
 Enrichment is always additive: the core works without it, and turning it on only

@@ -2,7 +2,7 @@
 
 Northwatch is a single Go binary that connects to the OVN Northbound and
 Southbound OVSDB databases, keeps a live in-memory copy of both, and serves a web
-UI and REST API over it. This page explains the moving parts and why they are
+UI and REST API over it. This page describes the moving parts and why they are
 arranged this way.
 
 ## The shape
@@ -34,22 +34,22 @@ updates as they arrive. API handlers query that cache directly with
 `client.List()`, `client.Get()` and `client.WhereCache()`. There is deliberately
 no second cache layer to keep in sync.
 
-The consequence: **all reads are local and fast**, and the data is always as
-fresh as the last OVSDB update. The cost is memory — the entire NB and SB state
-lives in RAM — which is acceptable for a dedicated observability service and is
-the reason the initial load is tunable (see [Large deployments](/explanation/large-deployments)).
+So all reads are local and fast, and the data is as fresh as the last OVSDB
+update. The cost is memory: the entire NB and SB state lives in RAM. That is
+acceptable for a dedicated observability service, and it is why the initial load
+is tunable (see [Large deployments](/explanation/large-deployments)).
 
 ## From change to UI
 
 1. OVN writes to a database; `ovsdb-server` sends a monitor update.
 2. libovsdb applies it to the `TableCache`.
-3. A small **event hub** bridges cache updates into an internal event stream.
+3. A small event hub bridges cache updates into an internal event stream.
 4. Subsystems consume that stream: the WebSocket fan-out pushes it to browsers,
    the alert engine evaluates rules, the flow-diff collector records changes, the
    propagation tracker times config realization, and the history collector logs
    events and takes periodic snapshots.
 
-Reads never wait on any of this — they hit the cache. The event stream is what
+Reads never wait on any of this; they hit the cache. The event stream is what
 makes the UI real-time.
 
 ## One binary, embedded everything
@@ -58,11 +58,11 @@ makes the UI real-time.
   serves its own frontend.
 - The history/snapshot store is embedded SQLite (`modernc.org/sqlite`, pure Go,
   no CGO), so there is no external database to run.
-- HTTP routing is stdlib `net/http` with `http.ServeMux` pattern routing — no web
-  framework.
+- HTTP routing is stdlib `net/http` with `http.ServeMux` pattern routing, with no
+  web framework.
 
-The result is a static binary with no runtime dependencies beyond reachability to
-the OVN databases.
+The binary is static and has no runtime dependencies beyond reachability to the
+OVN databases.
 
 ## The HTTP surface
 
@@ -70,8 +70,8 @@ Every request passes a small middleware chain before it reaches the routing
 mux: bearer-token authentication for mutating requests (unless
 `--insecure-no-auth`), a response deadline, HTTP metrics, panic recovery and the
 stale-cache marker. The server can terminate TLS itself
-(`--tls-cert` / `--tls-key`), and the OVSDB connections — OVN NB/SB and
-per-chassis OVS — carry their own client TLS material for `ssl:` endpoints. What
+(`--tls-cert` / `--tls-key`), and the OVSDB connections (OVN NB/SB and
+per-chassis OVS) carry their own client TLS material for `ssl:` endpoints. What
 the token gate covers is explained in
 [The capability model](/explanation/capability-model).
 
@@ -79,8 +79,8 @@ the token gate covers is explained in
 
 Optionally (`--ovs-mgmt-addr-file`), a connection pool also monitors each
 chassis's local Open_vSwitch database. That is what feeds the `/api/v1/ovs/*`
-routes, the fleet-wide OVS health view and the OVS↔OVN interface correlation —
-live interface reality joined to the Southbound's intent. One unreachable
+routes, the fleet-wide OVS health view and the OVS↔OVN interface correlation,
+which joins live interface state to the Southbound's intent. One unreachable
 chassis never affects the others or the NB/SB views.
 
 ## Clusters and sub-muxes
@@ -89,7 +89,7 @@ Each configured OVN deployment is a `cluster.Cluster` bundling its own database
 clients, correlator, search engine, enricher and live subsystems. The default
 cluster is served at the top-level routes; every cluster is also mounted under
 `/api/v1/clusters/{name}/...` by a cluster proxy. A loaded snapshot is attached
-the same way — as just another cluster — which is why it needs no restart. See
+the same way, as just another cluster, which is why it needs no restart. See
 [Monitor multiple clusters](/how-to/monitor-multiple-clusters).
 
 ## Offline mode

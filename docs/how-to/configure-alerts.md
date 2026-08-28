@@ -31,8 +31,8 @@ curl -s http://localhost:8080/api/v1/alerts/rules    # configured rules
 
 Rules can be toggled at runtime without a restart. Like every mutating request,
 this needs a bearer token (see
-[Enable write operations](/how-to/enable-write-operations#authenticate-the-calls) —
-the same `--api-tokens` mechanism, no `--write-enabled` required):
+[Enable write operations](/how-to/enable-write-operations#authenticate-the-calls),
+the same `--api-tokens` mechanism, with no `--write-enabled` required):
 
 ```bash
 AUTH="Authorization: Bearer $NW_TOKEN"

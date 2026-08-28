@@ -1,7 +1,7 @@
 # Roadmap
 
-This page sketches where Northwatch is heading. It is intentionally
-understanding-oriented: it explains the direction and the known gaps, not a dated
+This page describes where Northwatch is heading. It is intentionally
+understanding-oriented: it covers the direction and the known gaps, not a dated
 plan. For what works today, the rest of the documentation is the source of truth.
 
 ## What exists today
@@ -30,15 +30,15 @@ The read, correlate and debug surface is the mature core:
 
 ## Direction
 
-The themes below reflect where the rough edges are.
+The themes below are where the rough edges are.
 
 ### Scale
 
 Very large Southbound databases remain the hardest case. The current levers are
 the staged monitor and table skipping (see [Large
 deployments](/explanation/large-deployments)). The natural next step is
-**conditional monitoring** (`monitor_cond`) so a table can be partially loaded
-rather than skipped entirely — keeping a feature usable without paying for the
+conditional monitoring (`monitor_cond`) so a table can be partially loaded
+rather than skipped entirely. That keeps a feature usable without paying for the
 full table.
 
 ### Tracing fidelity
@@ -54,7 +54,7 @@ The transport and authentication layer has landed: mutating routes require
 bearer tokens, the HTTP surface can serve TLS, the OVSDB connections (OVN NB/SB
 and per-chassis OVS) support `ssl:`, and the Debian package ships a systemd
 unit. The remaining packaging item is a first-class container image. The read
-surface stays unauthenticated by design — when readers are not all trusted, run
+surface stays unauthenticated by design. When readers are not all trusted, run
 Northwatch behind an authenticating reverse proxy; see [The capability
 model](/explanation/capability-model).
 

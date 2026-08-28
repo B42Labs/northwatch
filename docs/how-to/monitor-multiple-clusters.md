@@ -54,8 +54,8 @@ set, the flat `--ovn-nb-addr` / `--ovn-sb-addr` flags are ignored.
 
 ## Reach each cluster
 
-The first cluster in the file is the **default** and is served at the top-level
-routes (`/api/v1/...`). Every cluster — including the default — is also reachable
+The first cluster in the file is the default and is served at the top-level
+routes (`/api/v1/...`). Every cluster, including the default, is also reachable
 under a per-cluster prefix:
 
 ```bash
@@ -78,5 +78,5 @@ Then list two clusters in your config file (`tcp:127.0.0.1:6641/6642` and
 
 ## Next steps
 
-- [Configuration file](/reference/configuration) — every field.
-- [Enrich with OpenStack](/how-to/enrich-with-openstack) — per-cluster enrichment.
+- [Configuration file](/reference/configuration): every field.
+- [Enrich with OpenStack](/how-to/enrich-with-openstack): per-cluster enrichment.
