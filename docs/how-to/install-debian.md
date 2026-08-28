@@ -1,7 +1,7 @@
 # Install on Debian/Ubuntu
 
 Install Northwatch from the release `.deb` so it runs as a managed systemd
-service — started on boot, restarted on failure, logging to journald, and
+service: started on boot, restarted on failure, logging to journald, and
 running as a dedicated unprivileged `northwatch` user. The binary is fully
 static with the UI embedded, so the package depends on nothing but `adduser`
 (which it needs to create that user).
@@ -39,7 +39,7 @@ sudo apt install ./northwatch_<version>_amd64.deb
 ```
 
 Installing the package lands the files listed below and creates the `northwatch`
-system user and group. The service is **not** started automatically — configure
+system user and group. The service is not started automatically. Configure
 it first.
 
 | Path | Content |
@@ -47,7 +47,7 @@ it first.
 | `/usr/bin/northwatch` | static binary (embedded UI) |
 | `/lib/systemd/system/northwatch.service` | hardened unit, runs as `northwatch` |
 | `/etc/default/northwatch` | env config (preserved on upgrade) |
-| `/var/lib/northwatch/` | state directory, `0750 northwatch:northwatch` — SQLite history DB |
+| `/var/lib/northwatch/` | state directory, `0750 northwatch:northwatch`, SQLite history DB |
 
 ## Configure
 
@@ -89,8 +89,8 @@ curl -s http://localhost:8080/api/v1/capabilities
 
 ## Upgrade, remove and purge
 
-Installing a newer `.deb` over an existing install **preserves your
-`/etc/default/northwatch` edits** — it is a conffile, so dpkg never clobbers it
+Installing a newer `.deb` over an existing install preserves your
+`/etc/default/northwatch` edits. It is a conffile, so dpkg never clobbers it
 (a new default ships as `northwatch.default.dpkg-dist` for you to diff).
 
 ```bash
@@ -100,7 +100,7 @@ sudo apt purge northwatch                                 # purge, drops state
 ```
 
 `remove` stops and disables the service but keeps `/var/lib/northwatch` (your
-history DB). `purge` additionally removes `/var/lib/northwatch`. The
-`northwatch` system user and group are intentionally retained on purge — an
+history DB). `purge` also removes `/var/lib/northwatch`. The
+`northwatch` system user and group are intentionally retained on purge: an
 orphaned system account is harmless and avoids touching files it may own
 elsewhere.

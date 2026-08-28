@@ -2,9 +2,9 @@
 
 Northwatch has two distinct snapshot mechanisms:
 
-1. A **file snapshot** taken with the `snapshot` subcommand and served offline
+1. A file snapshot taken with the `snapshot` subcommand and served offline
    with `--snapshot`. This is the portable, take-it-home copy.
-2. **Stored snapshots** captured automatically by a running server into its
+2. Stored snapshots captured automatically by a running server into its
    SQLite history database, which you can diff, export, and load at runtime.
 
 This guide covers both. For a guided walkthrough of the file workflow, see
@@ -21,7 +21,7 @@ Connect once to the live databases and write both to a file:
   --output prod.snapshot.json
 ```
 
-Capture is a live monitor, so the initial-load flags apply — see
+Capture is a live monitor, so the initial-load flags apply. See
 [Tune the initial load](/how-to/tune-the-initial-load). For `ssl:` databases,
 pass the same `--ovn-nb-tls-*` / `--ovn-sb-tls-*` flags the server takes.
 
@@ -46,7 +46,7 @@ database. Control the cadence and retention with flags:
 | `--snapshot-interval` | `5m` | Automatic snapshot interval |
 | `--event-retention` | `24h` | How long change events are kept |
 | `--event-max-count` | `0` (unlimited) | Cap on retained events |
-| `--snapshot-max-count` | `500` | Cap on retained **automatic** snapshots — the oldest are pruned past it (0 = unlimited). Labeled, manual and imported snapshots are never pruned |
+| `--snapshot-max-count` | `500` | Cap on retained automatic snapshots; the oldest are pruned past it (0 = unlimited). Labeled, manual and imported snapshots are never pruned |
 
 Work with stored snapshots over the API. Like every non-GET route, the mutating
 calls (take, load, unload, import, delete) require a bearer token from
@@ -63,7 +63,7 @@ curl -s http://localhost:8080/api/v1/snapshots/<id>/export        # export to JS
 ## Load a stored snapshot at runtime
 
 A stored snapshot can be loaded back as a read-only "snapshot" cluster without
-restarting the server — it becomes reachable as an additional cluster and the
+restarting the server. It becomes reachable as an additional cluster, and the
 live OVN connection is suspended while it is loaded:
 
 ```bash
@@ -87,6 +87,6 @@ curl -s -X POST --data-binary @prod.snapshot.json -H "$AUTH" \
 
 ## Related
 
-- [History & snapshots](/explanation/history-and-snapshots) — how the store and
+- [History & snapshots](/explanation/history-and-snapshots): how the store and
   offline replay are designed.
-- [CLI flags & env vars](/reference/cli) — every history/snapshot flag.
+- [CLI flags & env vars](/reference/cli): every history/snapshot flag.

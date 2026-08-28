@@ -24,18 +24,18 @@ Omnisearch detects the type of `q` automatically:
 | UUID | `q=a1b2c3d4-…` |
 | Free-text name | `q=web-server-01` |
 
-Partial MACs and UUID fragments still match — matching is substring-based — but
-they are classified (and reported in `query_type`) as free text rather than as a
-MAC or UUID.
+Partial MACs and UUID fragments still match, because matching is substring-based,
+but they are classified (and reported in `query_type`) as free text rather than as
+a MAC or UUID.
 
 ## What it searches
 
 The engine indexes the highest-value tables on both databases, including:
 
-- **Northbound:** `Logical_Switch`, `Logical_Switch_Port`, `Logical_Router`,
+- Northbound: `Logical_Switch`, `Logical_Switch_Port`, `Logical_Router`,
   `Logical_Router_Port`, `ACL`, `NAT`, `Address_Set`, `Port_Group`,
   `Load_Balancer`, `DHCP_Options`, static routes and policies, `DNS`.
-- **Southbound:** `Chassis`, `Port_Binding`, `Logical_Flow`, `Datapath_Binding`,
+- Southbound: `Chassis`, `Port_Binding`, `Logical_Flow`, `Datapath_Binding`,
   `Encap`, `MAC_Binding`, `FDB`, `Address_Set`, `DNS`, `Load_Balancer`.
 
 If you skipped a table at startup with `--monitor-skip-tables` (for example

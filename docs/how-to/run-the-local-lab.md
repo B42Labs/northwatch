@@ -1,13 +1,13 @@
 # Run the local lab
 
 The repository ships a throwaway OVN deployment under `lab/` for development and
-demos. It brings up a real control plane — `ovn-northd` plus Northbound/Southbound
+demos. It brings up a real control plane (`ovn-northd` plus Northbound/Southbound
 databases on a `central` node and three `chassis` nodes running Open vSwitch and
-`ovn-controller` — and a load generator (`ovnsim`) that fills it with realistic
+`ovn-controller`) and a load generator (`ovnsim`) that fills it with realistic
 objects and keeps mutating them, so the dashboard, history, events and alerts all
 have something to show.
 
-The lab uses the OVS **userspace** datapath: it only needs control-plane state,
+The lab uses the OVS userspace datapath: it only needs control-plane state,
 never real packet forwarding, so there is no kernel-module or BGP dependency.
 
 ## Option A: Docker Compose (recommended on macOS)
@@ -55,7 +55,7 @@ Then open <http://localhost:8080>.
 |---|---|
 | `make lab-seed` | Create an idempotent baseline across every major NB table. |
 | `make lab-bind` | Bind every seeded VIF onto a chassis (creates real OVS interfaces). |
-| `make lab-unbind` | Remove those bindings — useful to demo the "unbound VIF" alert. |
+| `make lab-unbind` | Remove those bindings. Useful to demo the "unbound VIF" alert. |
 | `make lab-sim` | Continuously mutate the topology (foreground; Ctrl-C to stop). |
 | `make lab-reseed` | Clean, re-seed and re-bind for a fresh baseline. |
 | `make lab-clean` | Remove everything `ovnsim` created (leaves containers running). |
@@ -73,11 +73,11 @@ make lab-sbctl ARGS="list Chassis"
 
 ## Expected alerts
 
-Two health alerts are **expected** in the userspace-datapath lab:
+Two health alerts are expected in the userspace-datapath lab:
 
-- **"VIF port not bound to any chassis"** after seeding — `seed` creates only the
+- "VIF port not bound to any chassis" after seeding. `seed` creates only the
   logical ports; run `make lab-bind` (or `make lab-sim`) to bind them.
-- **HA gateway "no active chassis" (no-owner)** for multi-member HA groups — BFD
+- HA gateway "no active chassis" (no-owner) for multi-member HA groups. BFD
   never converges over the userspace datapath, so the active chassis is never
   elected. To make multi-member HA gateways bind for real, run on the kernel
   datapath: `make lab-compose-up KERNEL=1` (requires a Linux host whose kernel

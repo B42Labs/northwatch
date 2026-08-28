@@ -28,7 +28,7 @@ export NORTHWATCH_OVN_SB_ADDR=tcp:10.0.0.1:6642,tcp:10.0.0.2:6642,tcp:10.0.0.3:6
 
 ## Use TLS-protected endpoints
 
-`ssl:` endpoints need client TLS material — an `ssl:` address without it is a
+`ssl:` endpoints need client TLS material. An `ssl:` address without it is a
 startup error rather than a connection that can never complete a handshake:
 
 ```bash
@@ -57,13 +57,13 @@ curl -s http://localhost:8080/api/v1/telemetry/raft-health
 ```
 
 The same data feeds the Prometheus metrics `northwatch_ovsdb_connected` and
-`northwatch_ovsdb_connections` — see [Prometheus metrics](/reference/metrics).
+`northwatch_ovsdb_connections`. See [Prometheus metrics](/reference/metrics).
 
 ## Reduce load on the primary
 
 The initial monitor is the heaviest moment for the database serving it. To keep
-that load off the Raft leader, point Northwatch at an **OVSDB relay** or a
-**standby/follower** endpoint, and tune the staged monitor for large
+that load off the Raft leader, point Northwatch at an OVSDB relay or a
+standby/follower endpoint, and tune the staged monitor for large
 deployments. See [Tune the initial load](/how-to/tune-the-initial-load).
 
 ## Next steps

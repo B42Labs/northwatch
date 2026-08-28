@@ -9,9 +9,10 @@ These endpoints are part of the `debug` capability, which is on by default.
 
 ## Find unhealthy ports
 
-The port-diagnostics endpoint runs per-port checks across **all** logical ports
-— unbound VIFs, binding mismatches, down-but-bound interfaces — and reports each
-port with its check messages and an `overall` severity, plus summary counts:
+The port-diagnostics endpoint runs per-port checks across all logical ports,
+covering unbound VIFs, binding mismatches and down-but-bound interfaces. It
+reports each port with its check messages and an `overall` severity, plus summary
+counts:
 
 ```bash
 curl -s http://localhost:8080/api/v1/debug/port-diagnostics
@@ -47,7 +48,7 @@ next hop with its cached `MAC_Binding` state and flags the conditions that can
 blackhole traffic: a learned MAC with no aging configured (never refreshed), an
 entry older than the configured aging threshold, a static binding that
 contradicts the learned MAC, and next hops with no binding at all. It takes no
-parameters — it is a fleet-wide health report, not a per-destination lookup:
+parameters; it is a fleet-wide health report, not a per-destination lookup:
 
 ```bash
 curl -s http://localhost:8080/api/v1/debug/nexthop-mac

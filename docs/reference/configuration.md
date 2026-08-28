@@ -68,10 +68,10 @@ A cluster has at most one enrichment provider.
 
 ## Behaviour
 
-- The **first** cluster in the list is the **default** — it is served at the
+- The first cluster in the list is the default. It is served at the
   top-level `/api/v1/...` routes, and its history, snapshots and Prometheus
   metrics are the ones exposed globally.
-- Every cluster, including the default, is additionally reachable under
+- Every cluster, including the default, is also reachable under
   `/api/v1/clusters/{name}/...`.
 - The enrichment cache TTL is global, set with `--enrichment-cache-ttl`, not in
   the file.
@@ -86,9 +86,9 @@ A cluster has at most one enrichment provider.
 
 ## Precedence
 
-1. `--snapshot` — if set, serve the file offline; ignore everything else.
-2. `--config-file` — if set, use the file; ignore the flat NB/SB flags.
-3. Flat `--ovn-nb-addr` / `--ovn-sb-addr` — used otherwise; both required.
+1. `--snapshot`: if set, serve the file offline; ignore everything else.
+2. `--config-file`: if set, use the file; ignore the flat NB/SB flags.
+3. Flat `--ovn-nb-addr` / `--ovn-sb-addr`: used otherwise; both required.
 
 ## Validation errors
 
