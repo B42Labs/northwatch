@@ -82,9 +82,10 @@ client could exhaust memory or fill the disk.
   container images) into one weekly pull request each, instead of one pull
   request per dependency. Renovate also covers `docs/package.json` and the
   `lab/` Dockerfiles and compose files, which Dependabot did not.
-- The Go toolchain moves to 1.26.7. Releases 1.26.6 and 1.26.7 fix six standard
-  library advisories that `govulncheck` reported as reachable from Northwatch
-  (`net/url`, `crypto/tls`, `net/http` x2, `encoding/xml`, `encoding/asn1`).
+- The Go toolchain moves to 1.27.1, so building from source now needs Go 1.27.
+  Go 1.26.5 carried six standard library advisories that `govulncheck` reported
+  as reachable from Northwatch (`net/url`, `crypto/tls`, `net/http` x2,
+  `encoding/xml`, `encoding/asn1`); `govulncheck` is clean on 1.27.1.
 
 ### Fixed
 

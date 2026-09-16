@@ -12,7 +12,7 @@ visualizing it.
 
 Before you start, make sure you have:
 
-1. Go 1.26+ installed (`go version`), the version the module declares in
+1. Go 1.27+ installed (`go version`), the version the module declares in
    `go.mod`.
 2. Docker running. On macOS, Docker Desktop is enough for the Compose
    lab used below.
