@@ -48,18 +48,27 @@ topology:
       image: northwatch/lab-chassis:latest
       env:
         CHASSIS_NAME: chassis-1
+      # Local OVSDB for per-chassis OVS visibility (see lab/ovs-mgmt.json).
+      ports:
+        - 127.0.0.1:6650:6640/tcp
 
     chassis-2:
       kind: linux
       image: northwatch/lab-chassis:latest
       env:
         CHASSIS_NAME: chassis-2
+      # Local OVSDB for per-chassis OVS visibility (see lab/ovs-mgmt.json).
+      ports:
+        - 127.0.0.1:6651:6640/tcp
 
     chassis-3:
       kind: linux
       image: northwatch/lab-chassis:latest
       env:
         CHASSIS_NAME: chassis-3
+      # Local OVSDB for per-chassis OVS visibility (see lab/ovs-mgmt.json).
+      ports:
+        - 127.0.0.1:6652:6640/tcp
 
   # No `links:` block: geneve tunnels between chassis ride the management
   # network and never have to carry real traffic, so point-to-point underlay
