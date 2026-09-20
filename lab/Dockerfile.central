@@ -12,19 +12,14 @@ FROM ubuntu:${UBUNTU_VERSION}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Pull OVN from the Ubuntu Cloud Archive flamingo pocket so the NB/SB schema
-# matches a recent OVN release.
+# OVN comes from the Ubuntu archive of the base image. The Cloud Archive is not
+# used: its pockets only exist for the previous LTS, so pinning one here breaks
+# the build on every base-image bump.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ca-certificates \
-        software-properties-common \
-        ubuntu-cloud-keyring \
- && add-apt-repository -y cloud-archive:flamingo \
- && apt-get update \
- && apt-get install -y --no-install-recommends \
         ovn-central \
         iproute2 \
- && apt-get purge -y software-properties-common \
  && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
            /usr/share/doc /usr/share/man /usr/share/locale

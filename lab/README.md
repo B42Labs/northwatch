@@ -55,8 +55,8 @@ seeds it. The containers are named `clab-nw-lab-*`, so `make lab-nbctl`,
 `make lab-sbctl` and `ovnsim --bind-ports` work the same as with containerlab.
 
 > On Apple Silicon the images build natively for arm64 (OVN/OVS come from the
-> Ubuntu Cloud Archive, which ships both arches). The chassis containers run
-> `privileged` so OVS can manage its bridges inside the Docker VM.
+> Ubuntu archive of the base image, which ships both arches). The chassis
+> containers run `privileged` so OVS can manage its bridges inside the Docker VM.
 
 ## Quick start (containerlab, Linux)
 
