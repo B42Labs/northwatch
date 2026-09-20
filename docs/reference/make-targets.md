@@ -71,6 +71,7 @@ so a freshly built binary runs without a Gatekeeper prompt.
 | `make lab-reseed` | `lab-clean` + `lab-seed` + `lab-bind`. |
 | `make lab-sim` | Continuously mutate the topology (foreground). |
 | `make lab-clean` | Remove everything `ovnsim` created. |
+| `make lab-api-token` | Generate a bearer token for the mutating routes into `lab/.api-tokens.json` (git-ignored) and print it with the matching `--api-tokens-file` start command. Idempotent; delete the file to rotate. |
 | `make lab-nbctl ARGS=...` / `lab-sbctl ARGS=...` | Run `ovn-nbctl` / `ovn-sbctl` in the central container. |
 | `make lab-multi-up` / `lab-multi-down` | Start / stop a second independent cluster. |
 | `make lab-images` | Build the central and chassis images. |

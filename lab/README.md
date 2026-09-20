@@ -76,6 +76,15 @@ make lab-down            # tear everything down
 `make lab` is a shortcut for `lab-up` + `lab-seed` that then prints the
 Northwatch command to run.
 
+### API token
+
+Read routes are open, but every mutating route (alert rules and silences,
+history, snapshots, the write API) needs a bearer token — without one the UI
+reports `authentication required — set an API token`. `make lab-api-token`
+generates one into `lab/.api-tokens.json` (git-ignored), prints it, and shows
+the matching `--api-tokens-file` start command. It is idempotent; delete the
+file to rotate the token.
+
 ## What `ovnsim` does
 
 `ovnsim` (in `cmd/ovnsim`, logic in `internal/ovnsim`) writes directly to OVN

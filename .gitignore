@@ -36,6 +36,9 @@ coverage.html
 northwatch-snapshot.json
 *-snapshot.json
 
+# Lab API token (make lab-api-token)
+lab/.api-tokens.json
+
 # Generated
 openapi-export/
 openapi.json
