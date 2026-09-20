@@ -46,6 +46,10 @@ export default defineConfig({
             link: '/tutorials/investigate-with-omnisearch',
           },
           {
+            text: 'Northwatch vs. the command line',
+            link: '/tutorials/northwatch-vs-the-cli',
+          },
+          {
             text: 'Explore a deployment offline',
             link: '/tutorials/explore-a-deployment-offline',
           },
