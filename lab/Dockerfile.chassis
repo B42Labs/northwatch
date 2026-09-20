@@ -12,19 +12,14 @@ FROM ubuntu:${UBUNTU_VERSION}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Same OVN source as the central image so the SB schema matches.
+# Same OVN source as the central image (the base image's own archive) so the
+# SB schema matches.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ca-certificates \
-        software-properties-common \
-        ubuntu-cloud-keyring \
- && add-apt-repository -y cloud-archive:flamingo \
- && apt-get update \
- && apt-get install -y --no-install-recommends \
         openvswitch-switch \
         ovn-host \
         iproute2 \
- && apt-get purge -y software-properties-common \
  && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
            /usr/share/doc /usr/share/man /usr/share/locale
