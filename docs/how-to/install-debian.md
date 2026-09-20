@@ -7,8 +7,8 @@ static with the UI embedded, so the package depends on nothing but `adduser`
 (which it needs to create that user).
 
 Every tagged release attaches `northwatch_<version>_amd64.deb` and
-`northwatch_<version>_arm64.deb`, each with a cosign `.sig` and `.pem`, plus a
-shared `checksums.txt`.
+`northwatch_<version>_arm64.deb`, each with a cosign `.sigstore.json` bundle,
+plus a shared `checksums.txt`.
 
 ## Download and verify
 
@@ -25,8 +25,7 @@ Actions workflow):
 
 ```bash
 cosign verify-blob \
-  --certificate northwatch_<version>_amd64.deb.pem \
-  --signature   northwatch_<version>_amd64.deb.sig \
+  --bundle northwatch_<version>_amd64.deb.sigstore.json \
   --certificate-identity-regexp '^https://github.com/B42Labs/northwatch/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   northwatch_<version>_amd64.deb

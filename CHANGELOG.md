@@ -120,6 +120,12 @@ client could exhaust memory or fill the disk.
   `postinst` applies the ownership (dpkg cannot resolve the user while
   unpacking) and repairs it on upgrade. `addgroup`/`adduser` run `--quiet`, so
   installing the package is silent unless something actually goes wrong.
+- **The release workflow could not sign its artifacts.** cosign v3 defaults to
+  the new bundle format, which ignores `--output-signature` /
+  `--output-certificate` and fails without `--bundle`, so the `v0.11.0` tag
+  produced no release. Every artifact is now signed into a single
+  `<file>.sigstore.json` bundle (replacing the `.sig` + `.pem` pair); verify with
+  `cosign verify-blob --bundle`.
 
 ## [0.6.0] - 2026-07-13
 
