@@ -10,6 +10,10 @@ no detours. Start here if you are new to Northwatch.
 - [Investigate with Omnisearch](/tutorials/investigate-with-omnisearch): start
   from a single IP address and follow the correlation chain across the
   Northbound and Southbound databases to the chassis hosting the port.
+- [Northwatch vs. the command line](/tutorials/northwatch-vs-the-cli): answer
+  eight everyday OVN and OVS questions twice, once with `ovn-nbctl`,
+  `ovn-sbctl`, `ovn-trace` and `ovs-vsctl` and once with Northwatch, and
+  compare the effort.
 - [Explore a deployment offline](/tutorials/explore-a-deployment-offline):
   capture a point-in-time snapshot of a live deployment and serve it back as a
   read-only copy you can browse anywhere.
