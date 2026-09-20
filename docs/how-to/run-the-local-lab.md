@@ -49,6 +49,24 @@ make build
 
 Then open <http://localhost:8080>.
 
+## Add per-chassis OVS visibility
+
+Each lab chassis exports its local `Open_vSwitch` database (plaintext
+`ptcp:6640`, published on the host as `127.0.0.1:6650`–`6652`). The matching
+system-id → address mapping ships as `lab/ovs-mgmt.json`, so enabling the opt-in
+OVS views is one more flag:
+
+```bash
+./bin/northwatch --ovn-nb-addr tcp:127.0.0.1:6641 --ovn-sb-addr tcp:127.0.0.1:6642 \
+  --ovs-mgmt-addr-file lab/ovs-mgmt.json
+```
+
+**Monitoring → OVS Visibility** then shows bridges, ports and interfaces per
+chassis, correlated with the OVN port bindings. The
+[Northwatch vs. the command line](/tutorials/northwatch-vs-the-cli) tutorial
+uses this. Plaintext OVSDB export is a lab convenience; do not copy it to a
+production chassis.
+
 ## Drive change with `ovnsim`
 
 | Command | What it does |

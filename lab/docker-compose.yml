@@ -45,6 +45,10 @@ services:
     environment:
       CHASSIS_NAME: chassis-1
       OVN_SB_REMOTE: tcp:central:6642
+    # Local OVSDB (ptcp:6640) for Northwatch's per-chassis OVS visibility;
+    # the host-side mapping lives in lab/ovs-mgmt.json.
+    ports:
+      - "127.0.0.1:6650:6640"
     depends_on:
       central:
         condition: service_healthy
@@ -61,6 +65,10 @@ services:
     environment:
       CHASSIS_NAME: chassis-2
       OVN_SB_REMOTE: tcp:central:6642
+    # Local OVSDB (ptcp:6640) for Northwatch's per-chassis OVS visibility;
+    # the host-side mapping lives in lab/ovs-mgmt.json.
+    ports:
+      - "127.0.0.1:6651:6640"
     depends_on:
       central:
         condition: service_healthy
@@ -77,6 +85,10 @@ services:
     environment:
       CHASSIS_NAME: chassis-3
       OVN_SB_REMOTE: tcp:central:6642
+    # Local OVSDB (ptcp:6640) for Northwatch's per-chassis OVS visibility;
+    # the host-side mapping lives in lab/ovs-mgmt.json.
+    ports:
+      - "127.0.0.1:6652:6640"
     depends_on:
       central:
         condition: service_healthy

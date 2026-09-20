@@ -24,6 +24,7 @@ OVN_SB_REMOTE="${OVN_SB_REMOTE:-tcp:central:6642}"
 ENCAP_IP="${ENCAP_IP:-$(ip -o -4 addr show eth0 | awk '{print $4}' | cut -d/ -f1)}"
 BRIDGE_MAPPING="${BRIDGE_MAPPING:-physnet1:br-ex}"
 DATAPATH_TYPE="${DATAPATH_TYPE:-netdev}"
+OVS_MGMT_REMOTE="${OVS_MGMT_REMOTE:-ptcp:6640}"
 
 start_ovs() {
     mkdir -p /var/run/openvswitch /var/log/openvswitch /etc/openvswitch
@@ -86,6 +87,12 @@ configure_ovs() {
     ovs-vsctl --may-exist add-br br-ex  -- set bridge br-ex  datapath_type="${DATAPATH_TYPE}"
     ip link set br-int up || true
     ip link set br-ex up || true
+
+    # Export the local OVSDB so Northwatch's opt-in per-chassis OVS visibility
+    # (--ovs-mgmt-addr-file, see lab/ovs-mgmt.json) can reach it. Plaintext is
+    # fine for a throwaway lab; never do this on a production chassis.
+    log "exporting the Open_vSwitch database on ${OVS_MGMT_REMOTE}"
+    ovs-vsctl set-manager "${OVS_MGMT_REMOTE}"
 }
 
 start_ovn_controller() {
