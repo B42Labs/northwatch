@@ -51,8 +51,9 @@ new GitHub release:
 - Debian packages: `northwatch_<version>_amd64.deb` and
   `northwatch_<version>_arm64.deb`, built with `nfpm` (Linux targets only).
 - cosign signatures: every binary, every `.deb`, and `checksums.txt` are
-  keyless-signed with cosign, producing a `.sig` and a `.pem` per file. The
-  identity is the release workflow itself (OIDC via GitHub Actions).
+  keyless-signed with cosign, producing a `.sigstore.json` bundle (signature
+  plus certificate) per file. The identity is the release workflow itself
+  (OIDC via GitHub Actions).
 - SBOMs: a Software Bill of Materials per binary in two formats, SPDX
   (`<name>.spdx.json`) and CycloneDX (`<name>.cdx.json`), generated with syft.
 - `checksums.txt`: SHA-256 sums covering the binaries and `.deb`s.
@@ -66,8 +67,8 @@ page](https://github.com/B42Labs/northwatch/releases).
 
 ## Verify the artifacts
 
-The release is verifiable end to end. After downloading an artifact
-and its `.sig`/`.pem`, confirm the checksum and the cosign signature.
+The release is verifiable end to end. After downloading an artifact and its
+`.sigstore.json` bundle, confirm the checksum and the cosign signature.
 
 Check the checksum:
 
@@ -79,8 +80,7 @@ Verify a cosign signature (keyless; the certificate identity is the workflow):
 
 ```bash
 cosign verify-blob \
-  --certificate northwatch-linux-amd64.pem \
-  --signature   northwatch-linux-amd64.sig \
+  --bundle northwatch-linux-amd64.sigstore.json \
   --certificate-identity-regexp '^https://github.com/B42Labs/northwatch/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   northwatch-linux-amd64

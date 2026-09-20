@@ -121,16 +121,15 @@ jobs:
         run: |
           for file in northwatch-* *.deb checksums.txt; do
             cosign sign-blob --yes \
-              --output-signature "${file}.sig" \
-              --output-certificate "${file}.pem" \
+              --bundle "${file}.sigstore.json" \
               "$file"
           done
 
       - name: Generate SBOMs
         run: |
           for bin in dist/northwatch-*; do
-            # skip signature and certificate files
-            case "$bin" in *.sig|*.pem) continue ;; esac
+            # skip signature bundles
+            case "$bin" in *.sigstore.json) continue ;; esac
             name=$(basename "$bin")
             syft "$bin" --output spdx-json="dist/${name}.spdx.json"
             syft "$bin" --output cyclonedx-json="dist/${name}.cdx.json"
