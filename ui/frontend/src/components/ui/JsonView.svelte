@@ -1,4 +1,7 @@
 <script lang="ts">
+  import CopyButton from './CopyButton.svelte';
+  import { renderJSON } from '../../lib/copyView';
+
   let {
     data,
     label = 'json',
@@ -26,17 +29,29 @@
 </script>
 
 <div class="overflow-hidden rounded border border-base-300 bg-base-100">
-  <button
-    type="button"
-    class="flex w-full items-center gap-2 border-b border-base-300 bg-base-200/40 px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase transition-colors hover:text-primary"
-    onclick={() => (open = !open)}
-    aria-expanded={open}
+  <!-- A div, not a button: the copy action is a button of its own and may not
+       nest inside the toggle. -->
+  <div
+    class="flex items-center gap-2 border-b border-base-300 bg-base-200/40 pr-2"
   >
-    <span class="text-primary select-none" aria-hidden="true"
-      >{open ? '▾' : '▸'}</span
+    <button
+      type="button"
+      class="flex flex-1 items-center gap-2 px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider text-base-content/80 uppercase transition-colors hover:text-primary"
+      onclick={() => (open = !open)}
+      aria-expanded={open}
     >
-    {label}
-  </button>
+      <span class="text-primary select-none" aria-hidden="true"
+        >{open ? '▾' : '▸'}</span
+      >
+      {label}
+    </button>
+    <CopyButton
+      text={() => renderJSON(data)}
+      label="Copy"
+      ariaLabel="Copy JSON"
+      class="btn btn-ghost btn-xs"
+    />
+  </div>
   {#if open}
     <!-- eslint-disable svelte/no-at-html-tags -- highlighted is derived from JSON.stringify, not user input -->
     <pre
