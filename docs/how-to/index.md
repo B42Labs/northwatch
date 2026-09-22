@@ -25,6 +25,7 @@ one specific problem.
 - [Trace a packet path](/how-to/trace-a-packet-path)
 - [Diagnose port bindings](/how-to/diagnose-port-bindings)
 - [Audit ACLs](/how-to/audit-acls)
+- [Copy a view for analysis](/how-to/copy-a-view-for-analysis)
 - [Capture & serve a snapshot](/how-to/capture-and-serve-a-snapshot)
 
 ## Operate
