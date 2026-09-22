@@ -75,6 +75,7 @@
       ]}
       {enrichment}
       rawHref={`/nb/logical-switches/${uuid}`}
+      view={() => data}
     />
 
     <div class="flex flex-col gap-4">

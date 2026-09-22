@@ -50,6 +50,7 @@
         { label: String(pb.logical_port || 'port binding') },
       ]}
       rawHref={`/sb/port-bindings/${uuid}`}
+      view={() => data}
     />
 
     <div class="flex flex-col gap-4">

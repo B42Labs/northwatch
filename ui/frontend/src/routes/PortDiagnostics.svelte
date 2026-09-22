@@ -3,6 +3,7 @@
   import { getPortDiagnostics, type PortDiagnosticsSummary } from '../lib/api';
   import { link } from '../lib/router';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
   import FilterInput from '../components/ui/FilterInput.svelte';
@@ -70,7 +71,18 @@
   eyebrow="Debug"
   title="Port Diagnostics"
   description="Health analysis of all logical ports: binding status, chassis health, type verification"
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="Port Diagnostics"
+      view={() => ({
+        filters: { search: searchQuery, severity: severityFilter },
+        result: data,
+      })}
+      disabled={!data}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState {loading} {error} empty={!data} emptyMessage="no diagnostics">
   {#if data}

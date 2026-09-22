@@ -77,6 +77,7 @@
       ]}
       {enrichment}
       rawHref={`/nb/logical-routers/${uuid}`}
+      view={() => data}
     />
 
     <div class="flex flex-col gap-4">

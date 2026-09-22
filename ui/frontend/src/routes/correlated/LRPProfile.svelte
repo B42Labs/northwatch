@@ -48,6 +48,7 @@
         { label: String(lrp.name || 'port') },
       ]}
       rawHref={`/nb/logical-router-ports/${uuid}`}
+      view={() => data}
     />
 
     <div class="flex flex-col gap-4">

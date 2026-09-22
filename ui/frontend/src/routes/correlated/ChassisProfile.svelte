@@ -74,6 +74,7 @@
         { label: String(ch.name || ch.hostname || 'chassis') },
       ]}
       rawHref={`/sb/chassis/${uuid}`}
+      view={() => data}
     />
 
     <div class="flex flex-col gap-4">

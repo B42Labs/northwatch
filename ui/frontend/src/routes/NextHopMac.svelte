@@ -11,6 +11,7 @@
     type WriteOperation,
   } from '../lib/writeApi';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
   import SegmentedControl from '../components/ui/SegmentedControl.svelte';
@@ -241,7 +242,15 @@
   eyebrow="Debug"
   title="Next-Hop MAC"
   description="Static-route next hops correlated with their cached SB MAC_Binding. Flags learned next-hop MACs that can go stale because ARP-cache aging (mac_binding_age_threshold) is not configured — a changed next-hop MAC would not be refreshed."
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="Next-Hop MAC"
+      view={() => ({ filters: { status: statusFilter }, result: data })}
+      disabled={!data}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState {loading} {error} empty={!data} emptyMessage="no data">
   {#if data}

@@ -12,6 +12,7 @@
   import Card from '../components/ui/Card.svelte';
   import ErrorAlert from '../components/ui/ErrorAlert.svelte';
   import JsonView from '../components/ui/JsonView.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
 
   let { db, table, uuid }: { db: string; table: string; uuid: string } =
     $props();
@@ -90,6 +91,11 @@
   breadcrumbs={[{ label: tableDef?.label ?? table, href: `/${db}/${table}` }]}
 >
   {#snippet actions()}
+    <CopyViewButtons
+      title={`${tableDef?.label ?? table} ${uuid}`}
+      view={() => entity}
+      disabled={!entity}
+    />
     {#if correlatedHref}
       <a href={link(correlatedHref)} class="btn btn-outline btn-primary btn-sm">
         Correlated View

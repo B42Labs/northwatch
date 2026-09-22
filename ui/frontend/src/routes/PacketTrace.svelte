@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getTrace, listPortBindings, type TraceResponse } from '../lib/api';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import FormField from '../components/ui/FormField.svelte';
   import Badge from '../components/ui/Badge.svelte';
@@ -112,7 +113,18 @@
   eyebrow="Debug"
   title="Packet Trace"
   description="Simplified ovn-trace: see which logical flows a packet would traverse through the pipeline"
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="Packet Trace"
+      view={() => ({
+        inputs: { port: selectedPort, dst_ip: dstIp, protocol },
+        result: traceData,
+      })}
+      disabled={!traceData}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState loading={portsLoading} error={error && !traceData ? error : ''}>
   <!-- Trace parameters -->
