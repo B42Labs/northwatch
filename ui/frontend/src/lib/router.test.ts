@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchRoute, resolveRoute } from './router';
+import { matchRoute, parseQuery, resolveRoute } from './router';
 
 describe('matchRoute', () => {
   it('matches a simple path', () => {
@@ -70,6 +70,24 @@ describe('matchRoute', () => {
   it('does not throw on malformed percent-encoding in query values', () => {
     const result = matchRoute('/search', '/search?q=%zz');
     expect(result).toEqual({ params: {}, query: { q: '%zz' } });
+  });
+});
+
+describe('parseQuery', () => {
+  it('returns an empty map for an empty string', () => {
+    expect(parseQuery('')).toEqual({});
+  });
+
+  it('parses pairs and treats a bare key as empty', () => {
+    expect(parseQuery('a=1&b')).toEqual({ a: '1', b: '' });
+  });
+
+  it('decodes percent-encoded keys and values', () => {
+    expect(parseQuery('q=hello%20world')).toEqual({ q: 'hello world' });
+  });
+
+  it('keeps malformed percent-encoding verbatim', () => {
+    expect(parseQuery('a=%E0%A4%A')).toEqual({ a: '%E0%A4%A' });
   });
 });
 

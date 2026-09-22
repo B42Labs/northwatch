@@ -31,15 +31,24 @@ function safeDecode(s: string): string {
   }
 }
 
+/**
+ * parseQuery turns a `key=value&key=value` string into a map. Shared with the
+ * view-copy context, which needs the current route's query without matching a
+ * pattern.
+ */
+export function parseQuery(queryString: string): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (!queryString) return query;
+  for (const param of queryString.split('&')) {
+    const [key, value] = param.split('=');
+    query[safeDecode(key)] = safeDecode(value || '');
+  }
+  return query;
+}
+
 export function matchRoute(pattern: string, path: string): RouteMatch | null {
   const [pathname, queryString] = path.split('?');
-  const query: Record<string, string> = {};
-  if (queryString) {
-    for (const param of queryString.split('&')) {
-      const [key, value] = param.split('=');
-      query[safeDecode(key)] = safeDecode(value || '');
-    }
-  }
+  const query = parseQuery(queryString);
 
   const patternParts = pattern.split('/').filter(Boolean);
   const pathParts = pathname.split('/').filter(Boolean);
