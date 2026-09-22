@@ -123,6 +123,10 @@ export default defineConfig({
               },
               { text: 'Audit ACLs', link: '/how-to/audit-acls' },
               {
+                text: 'Copy a view for analysis',
+                link: '/how-to/copy-a-view-for-analysis',
+              },
+              {
                 text: 'Capture & serve a snapshot',
                 link: '/how-to/capture-and-serve-a-snapshot',
               },

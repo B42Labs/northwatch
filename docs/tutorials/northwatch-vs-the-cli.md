@@ -743,3 +743,6 @@ reach for them you already have every value they need.
 - [Diagnose port bindings](/how-to/diagnose-port-bindings),
   [Trace a packet path](/how-to/trace-a-packet-path) and
   [Audit ACLs](/how-to/audit-acls) cover the debug tools in depth.
+- [Copy a view for analysis](/how-to/copy-a-view-for-analysis) takes a whole
+  view to an AI assistant in one click, instead of the fragments this tutorial
+  keeps pasting by hand.
