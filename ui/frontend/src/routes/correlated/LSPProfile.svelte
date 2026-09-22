@@ -52,6 +52,7 @@
       ]}
       {enrichment}
       rawHref={`/nb/logical-switch-ports/${uuid}`}
+      view={() => data}
     />
 
     <div class="flex flex-col gap-4">

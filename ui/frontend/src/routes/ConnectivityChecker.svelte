@@ -6,6 +6,7 @@
     type ConnectivityResult,
   } from '../lib/api';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import FormField from '../components/ui/FormField.svelte';
   import Badge from '../components/ui/Badge.svelte';
@@ -116,7 +117,18 @@
   eyebrow="Debug"
   title="Connectivity Checker"
   description="Analyze L2/L3 connectivity, ACL rules, and physical realization between two logical ports"
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="Connectivity Check"
+      view={() => ({
+        inputs: { src_uuid: srcUuid, dst_uuid: dstUuid },
+        result,
+      })}
+      disabled={!result}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState loading={portsLoading} error={error && !result ? error : ''}>
   <!-- Port selectors -->

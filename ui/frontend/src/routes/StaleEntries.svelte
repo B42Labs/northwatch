@@ -11,6 +11,7 @@
     type WriteOperation,
   } from '../lib/writeApi';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
   import SegmentedControl from '../components/ui/SegmentedControl.svelte';
@@ -191,7 +192,15 @@
   eyebrow="Debug"
   title="Stale Entries"
   description="Aged MAC bindings, orphaned FDB entries, and port bindings without NB counterparts"
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="Stale Entries"
+      view={() => ({ filters: { type: typeFilter }, result: data })}
+      disabled={!data}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState {loading} {error} empty={!data} emptyMessage="no data">
   {#if data}

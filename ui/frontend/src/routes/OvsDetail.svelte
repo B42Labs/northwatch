@@ -23,6 +23,7 @@
   import KeyValueTable from '../components/ui/KeyValueTable.svelte';
   import PropertyCard from '../components/profile/PropertyCard.svelte';
   import JsonView from '../components/ui/JsonView.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
 
   let {
     chassis,
@@ -129,6 +130,13 @@
   {#snippet meta()}
     <Badge text={chassis} variant="primary" />
     <span class="font-mono text-2xs text-base-content/45">{uuid}</span>
+  {/snippet}
+  {#snippet actions()}
+    <CopyViewButtons
+      title={`OVS ${table} ${uuid}`}
+      view={() => ({ chassis, table, entity, correlation })}
+      disabled={!entity}
+    />
   {/snippet}
 </PageHeader>
 

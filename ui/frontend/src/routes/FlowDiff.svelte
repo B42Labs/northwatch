@@ -6,6 +6,7 @@
     type FlowDiffResponse,
   } from '../lib/api';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import LoadingSpinner from '../components/ui/LoadingSpinner.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
@@ -152,7 +153,18 @@
   eyebrow="Debug"
   title="Flow Diff"
   description="Track LogicalFlow changes over time — inserts, updates, and deletes"
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="Flow Diff"
+      view={() => ({
+        inputs: { datapath: selectedDatapath, time_range_minutes: timeRange },
+        result: diffData,
+      })}
+      disabled={!diffData}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState loading={datapathsLoading} {error}>
   <!-- Controls -->

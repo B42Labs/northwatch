@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { get } from '../lib/api';
   import PageHeader from '../components/ui/PageHeader.svelte';
+  import CopyViewButtons from '../components/ui/CopyViewButtons.svelte';
   import DataState from '../components/ui/DataState.svelte';
   import StatTiles from '../components/ui/StatTiles.svelte';
   import SegmentedControl from '../components/ui/SegmentedControl.svelte';
@@ -71,7 +72,15 @@
   eyebrow="Debug"
   title="ACL Security Audit"
   description="Detect shadowed, conflicting, and redundant ACL rules"
-/>
+>
+  {#snippet actions()}
+    <CopyViewButtons
+      title="ACL Audit"
+      view={() => ({ filters: { type: typeFilter }, result: data })}
+      disabled={!data}
+    />
+  {/snippet}
+</PageHeader>
 
 <DataState {loading} {error} empty={!data} emptyMessage="no audit data">
   {#if data}
