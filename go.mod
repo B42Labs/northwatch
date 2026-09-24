@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/coder/websocket v1.8.15
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/stdr v1.2.2
