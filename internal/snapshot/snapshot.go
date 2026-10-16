@@ -248,19 +248,31 @@ func serveDump(d Dump, clientModel model.ClientDBModel, schema ovsdb.DatabaseSch
 // deleted (or not yet created) between reads. Rather than hard-failing the whole
 // load on such a dangling reference, prune each reference that points outside the
 // set of UUIDs actually present in the dump.
+//
+// A snapshot captured by a build whose models were generated from a newer
+// schema can hold tables this build does not model; those tables are skipped
+// (with a warning) instead of failing the load, the way BuildFromRows skips
+// them. Columns this build does not model need no handling: json.Unmarshal
+// ignores them.
 func loadDump(db database.Database, dbModel model.DatabaseModel, schema ovsdb.DatabaseSchema, d Dump) error {
 	dbName := schema.Name
+	known := dbModel.Types()
 
 	tables := make([]string, 0, len(d.Tables))
-	for t := range d.Tables {
+	for t, recs := range d.Tables {
+		if _, ok := known[t]; !ok {
+			slog.Warn("snapshot: skipping table this build does not model", "database", dbName, "table", t, "rows", len(recs))
+			continue
+		}
 		tables = append(tables, t)
 	}
 	sort.Strings(tables) // deterministic operation order
 
-	// Collect every UUID present in this dump so dangling references can be pruned.
+	// Collect every UUID present in the loaded tables so dangling references,
+	// including ones into a skipped table, can be pruned.
 	present := make(map[string]struct{})
-	for _, recs := range d.Tables {
-		for _, rec := range recs {
+	for _, t := range tables {
+		for _, rec := range d.Tables[t] {
 			present[rec.UUID] = struct{}{}
 		}
 	}

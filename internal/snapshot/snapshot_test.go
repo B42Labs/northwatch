@@ -145,6 +145,64 @@ func TestServePrunesDanglingReferences(t *testing.T) {
 	assert.Empty(t, switches[0].Ports, "dangling port reference must be pruned")
 }
 
+// TestServeSkipsTablesFromNewerModels loads a file shaped like one captured by
+// a build generated from a newer OVN schema (v0.12.0 used OVN 24.09): a
+// DHCP_Relay table and a Logical_Router_Port.dhcp_relay column this build does
+// not model. The table is skipped and the field ignored instead of failing the
+// whole load.
+func TestServeSkipsTablesFromNewerModels(t *testing.T) {
+	nbModel, err := nb.FullDatabaseModel()
+	require.NoError(t, err)
+	sbModel, err := sb.FullDatabaseModel()
+	require.NoError(t, err)
+
+	const lrUUID = "33333333-3333-4333-8333-333333333333"
+	const lrpUUID = "44444444-4444-4444-8444-444444444444"
+	const relayUUID = "55555555-5555-4555-8555-555555555555"
+
+	lrModel, err := json.Marshal(map[string]any{"Name": "lr0", "Ports": []string{lrpUUID}})
+	require.NoError(t, err)
+	lrpModel, err := json.Marshal(map[string]any{
+		"Name":      "lrp0",
+		"MAC":       "00:00:00:00:00:01",
+		"Networks":  []string{"10.0.0.1/24"},
+		"DhcpRelay": relayUUID, // column this build does not model
+	})
+	require.NoError(t, err)
+	relayModel, err := json.Marshal(map[string]any{"Name": "relay0", "Servers": "10.0.0.2"})
+	require.NoError(t, err)
+
+	file := &snapshot.File{
+		Version: snapshot.Version,
+		NB: snapshot.Dump{Schema: nb.Schema().Name, Tables: map[string][]snapshot.Record{
+			"Logical_Router":      {{UUID: lrUUID, Model: lrModel}},
+			"Logical_Router_Port": {{UUID: lrpUUID, Model: lrpModel}},
+			"DHCP_Relay":          {{UUID: relayUUID, Model: relayModel}}, // table this build does not model
+		}},
+		SB: snapshot.Dump{Schema: sb.Schema().Name, Tables: map[string][]snapshot.Record{}},
+	}
+
+	servers, err := snapshot.Serve(file, nbModel, sbModel, nb.Schema(), sb.Schema())
+	require.NoError(t, err, "a table this build does not model must be skipped, not fail the load")
+	defer servers.Close()
+
+	ctx := context.Background()
+	dbs, err := ovndb.Connect(ctx, servers.NBAddr, servers.SBAddr, nbModel, sbModel, ovndb.MonitorOptions{SkipServerMonitors: true}, nil, nil)
+	require.NoError(t, err)
+	defer dbs.Close()
+
+	var routers []nb.LogicalRouter
+	require.NoError(t, dbs.NB.List(ctx, &routers))
+	require.Len(t, routers, 1)
+	assert.Equal(t, []string{lrpUUID}, routers[0].Ports)
+
+	var lrps []nb.LogicalRouterPort
+	require.NoError(t, dbs.NB.List(ctx, &lrps))
+	require.Len(t, lrps, 1)
+	assert.Equal(t, "lrp0", lrps[0].Name)
+	assert.Equal(t, lrpUUID, lrps[0].UUID)
+}
+
 // TestLoadRejectsWrongVersion ensures the loader guards the format version.
 func TestLoadRejectsWrongVersion(t *testing.T) {
 	_, err := snapshot.Load(bytes.NewBufferString(`{"version": 999}`))
