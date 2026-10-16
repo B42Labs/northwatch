@@ -1,7 +1,7 @@
 {
     "name": "OVN_Southbound",
-    "version": "20.37.0",
-    "cksum": "1950136776 31493",
+    "version": "20.33.0",
+    "cksum": "4076371179 31328",
     "tables": {
         "SB_Global": {
             "columns": {
@@ -116,9 +116,7 @@
                                      "min": 0, "max": 1}},
                 "external_ids": {
                     "type": {"key": "string", "value": "string",
-                             "min": 0, "max": "unlimited"}},
-                "flow_desc": {"type": {"key": {"type": "string"},
-                             "min": 0, "max": 1}}},
+                             "min": 0, "max": "unlimited"}}},
             "isRoot": true},
         "Logical_DP_Group": {
             "columns": {
@@ -482,7 +480,6 @@
         "IGMP_Group": {
             "columns": {
                 "address": {"type": "string"},
-                "protocol": {"type": "string"},
                 "datapath": {"type": {"key": {"type": "uuid",
                                               "refTable": "Datapath_Binding",
                                               "refType": "weak"},

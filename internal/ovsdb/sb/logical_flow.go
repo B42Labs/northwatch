@@ -20,7 +20,6 @@ type LogicalFlow struct {
 	Actions         string              `ovsdb:"actions" validate:"max=9223372036854775806"`
 	ControllerMeter *string             `ovsdb:"controller_meter" validate:"omitempty,max=9223372036854775806"`
 	ExternalIDs     map[string]string   `ovsdb:"external_ids" validate:"dive,keys,max=9223372036854775806,endkeys,max=9223372036854775806"`
-	FlowDesc        *string             `ovsdb:"flow_desc" validate:"omitempty,max=9223372036854775806"`
 	LogicalDatapath *string             `ovsdb:"logical_datapath"`
 	LogicalDpGroup  *string             `ovsdb:"logical_dp_group"`
 	Match           string              `ovsdb:"match" validate:"max=9223372036854775806"`
