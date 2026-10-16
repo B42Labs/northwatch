@@ -125,7 +125,7 @@ func (p *OVSPool) connectAndMonitor(m *ovsMember) error {
 	defer cancel()
 
 	if err := m.client.Connect(ctx); err != nil {
-		return fmt.Errorf("connecting: %w", err)
+		return fmt.Errorf("connecting: %w", withSchemaHint(err, "Open vSwitch", MinOVSVersion))
 	}
 	if _, err := m.client.MonitorAll(ctx); err != nil {
 		return fmt.Errorf("monitoring: %w", err)

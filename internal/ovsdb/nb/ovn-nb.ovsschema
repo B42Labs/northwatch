@@ -1,7 +1,7 @@
 {
     "name": "OVN_Northbound",
-    "version": "7.6.0",
-    "cksum": "2171465655 38284",
+    "version": "7.3.0",
+    "cksum": "3546526738 34483",
     "tables": {
         "NB_Global": {
             "columns": {
@@ -30,41 +30,6 @@
                 "ipsec": {"type": "boolean"}},
             "maxRows": 1,
             "isRoot": true},
-        "Sample_Collector": {
-            "columns": {
-                "id": {"type": {"key": {
-                    "type": "integer",
-                    "minInteger": 1,
-                    "maxInteger": 255}}},
-                "name": {"type": "string"},
-                "probability": {"type": {"key": {
-                    "type": "integer",
-                    "minInteger": 0,
-                    "maxInteger": 65535}}},
-                "set_id": {"type": {"key": {
-                    "type": "integer",
-                    "minInteger": 1,
-                    "maxInteger": 4294967295}}},
-                "external_ids": {"type": {"key": "string", "value": "string",
-                                          "min": 0, "max": "unlimited"}}
-            },
-            "indexes": [["id"]],
-            "isRoot": true
-        },
-        "Sample": {
-            "columns": {
-                "collectors": {"type": {"key": {"type": "uuid",
-                                                "refTable": "Sample_Collector",
-                                                "refType": "strong"},
-                                        "min": 0,
-                                        "max": "unlimited"}},
-                "metadata": {"type": {"key": {"type": "integer",
-                                              "minInteger": 1,
-                                              "maxInteger": 4294967295},
-                                      "min": 1, "max":1}}
-            },
-            "indexes": [["metadata"]]
-        },
         "Copp": {
             "columns": {
                 "name": {"type": "string"},
@@ -310,14 +275,6 @@
                 "tier": {"type": {"key": {"type": "integer",
                                           "minInteger": 0,
                                           "maxInteger": 3}}},
-                "sample_new": {"type": {"key": {"type": "uuid",
-                                                "refTable": "Sample",
-                                                "refType": "strong"},
-                                        "min": 0, "max": 1}},
-                "sample_est": {"type": {"key": {"type": "uuid",
-                                                "refTable": "Sample",
-                                                "refType": "strong"},
-                                        "min": 0, "max": 1}},
                 "options": {
                      "type": {"key": "string",
                               "value": "string",
@@ -479,11 +436,6 @@
                 "ipv6_prefix": {"type": {"key": "string",
                                       "min": 0,
                                       "max": "unlimited"}},
-                "dhcp_relay": {"type": {"key": {"type": "uuid",
-                                            "refTable": "DHCP_Relay",
-                                            "refType": "strong"},
-                                            "min": 0,
-                                            "max": 1}},
                 "external_ids": {
                     "type": {"key": "string", "value": "string",
                              "min": 0, "max": "unlimited"}},
@@ -567,10 +519,6 @@
                                      "refType": "weak"},
                              "min": 0,
                              "max": 1}},
-                "priority": {"type": {"key": {"type": "integer",
-                                              "minInteger": 0,
-                                              "maxInteger": 32767}}},
-                "match": {"type": "string"},
                 "options": {"type": {"key": "string", "value": "string",
                                      "min": 0, "max": "unlimited"}},
                 "external_ids": {
@@ -580,18 +528,6 @@
         "DHCP_Options": {
             "columns": {
                 "cidr": {"type": "string"},
-                "options": {"type": {"key": "string", "value": "string",
-                                     "min": 0, "max": "unlimited"}},
-                "external_ids": {
-                    "type": {"key": "string", "value": "string",
-                             "min": 0, "max": "unlimited"}}},
-            "isRoot": true},
-        "DHCP_Relay": {
-            "columns": {
-                "name": {"type": "string"},
-                "servers": {"type": {"key": "string",
-                                       "min": 0,
-                                       "max": 1}},
                 "options": {"type": {"key": "string", "value": "string",
                                      "min": 0, "max": "unlimited"}},
                 "external_ids": {
@@ -734,20 +670,6 @@
                     "type": {"key": "string", "value": "string",
                              "min": 0, "max": "unlimited"}}},
             "indexes": [["chassis"]],
-            "isRoot": true},
-        "Sampling_App": {
-            "columns": {
-                "type": {"type": {"key": {"type": "string",
-                    "enum": ["set", ["drop", "acl-new", "acl-est"]]}}},
-                "id": {"type": {"key": {"type": "integer",
-                                        "minInteger": 1,
-                                        "maxInteger": 255}}},
-                "external_ids": {
-                    "type": {"key": "string", "value": "string",
-                             "min": 0, "max": "unlimited"}}
-            },
-            "indexes": [["type"]],
-            "isRoot": true
-        }
+            "isRoot": true}
     }
 }

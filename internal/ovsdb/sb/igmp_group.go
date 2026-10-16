@@ -13,5 +13,4 @@ type IGMPGroup struct {
 	ChassisName string   `ovsdb:"chassis_name" validate:"max=9223372036854775806"`
 	Datapath    *string  `ovsdb:"datapath"`
 	Ports       []string `ovsdb:"ports"`
-	Protocol    string   `ovsdb:"protocol" validate:"max=9223372036854775806"`
 }

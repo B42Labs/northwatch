@@ -9,7 +9,6 @@ const MirrorTable = "Mirror"
 type Mirror struct {
 	UUID          string            `ovsdb:"_uuid"`
 	ExternalIDs   map[string]string `ovsdb:"external_ids" validate:"dive,keys,max=9223372036854775806,endkeys,max=9223372036854775806"`
-	Filter        *string           `ovsdb:"filter" validate:"omitempty,max=9223372036854775806"`
 	Name          string            `ovsdb:"name" validate:"max=9223372036854775806"`
 	OutputPort    *string           `ovsdb:"output_port"`
 	OutputVLAN    *int              `ovsdb:"output_vlan" validate:"omitempty,min=1,max=4095"`

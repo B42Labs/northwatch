@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -19,6 +20,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// shortSocketPath returns a unix socket path in a fresh, short temp dir.
+// t.TempDir() embeds the test name, which can push the path past macOS's
+// 104-byte sun_path limit; bind then fails and Ready() never turns true.
+func shortSocketPath(t *testing.T, name string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "nw")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, name)
+}
 
 func setupNBServer(t *testing.T) (string, func()) {
 	t.Helper()
@@ -38,7 +50,7 @@ func setupNBServer(t *testing.T) (string, func()) {
 	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
 	require.NoError(t, err)
 
-	sockPath := filepath.Join(t.TempDir(), "nb.sock")
+	sockPath := shortSocketPath(t, "nb.sock")
 	go func() {
 		_ = ovsdbServer.Serve("unix", sockPath)
 	}()
@@ -70,7 +82,7 @@ func setupSBServer(t *testing.T) (string, func()) {
 	ovsdbServer, err := server.NewOvsdbServer(db, &logger, dbModel)
 	require.NoError(t, err)
 
-	sockPath := filepath.Join(t.TempDir(), "sb.sock")
+	sockPath := shortSocketPath(t, "sb.sock")
 	go func() {
 		_ = ovsdbServer.Serve("unix", sockPath)
 	}()

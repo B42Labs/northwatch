@@ -279,7 +279,7 @@ func connectServerMonitors(ctx context.Context, addr string, tlsCfg *tls.Config)
 
 func connectAndMonitor(ctx context.Context, c client.Client, addr string, dbModel model.ClientDBModel, mon MonitorOptions) ([]client.MonitorCookie, error) {
 	if err := c.Connect(ctx); err != nil {
-		return nil, fmt.Errorf("connecting to %s: %w", addr, err)
+		return nil, fmt.Errorf("connecting to %s: %w", addr, withSchemaHint(err, "OVN", MinOVNVersion))
 	}
 
 	cookies, err := startMonitor(ctx, c, dbModel, mon)

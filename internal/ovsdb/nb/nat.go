@@ -27,8 +27,6 @@ type NAT struct {
 	GatewayPort       *string           `ovsdb:"gateway_port"`
 	LogicalIP         string            `ovsdb:"logical_ip" validate:"max=9223372036854775806"`
 	LogicalPort       *string           `ovsdb:"logical_port" validate:"omitempty,max=9223372036854775806"`
-	Match             string            `ovsdb:"match" validate:"max=9223372036854775806"`
 	Options           map[string]string `ovsdb:"options" validate:"dive,keys,max=9223372036854775806,endkeys,max=9223372036854775806"`
-	Priority          int               `ovsdb:"priority" validate:"min=0,max=32767"`
 	Type              NATType           `ovsdb:"type" validate:"max=9223372036854775806,oneof='dnat' 'snat' 'dnat_and_snat'"`
 }

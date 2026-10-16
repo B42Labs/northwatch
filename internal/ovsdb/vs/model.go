@@ -37,7 +37,7 @@ func FullDatabaseModel() (model.ClientDBModel, error) {
 
 var schema = `{
   "name": "Open_vSwitch",
-  "version": "8.7.0",
+  "version": "8.5.0",
   "tables": {
     "AutoAttach": {
       "columns": {
@@ -654,17 +654,6 @@ var schema = `{
             "key": {
               "type": "uuid",
               "refTable": "IPFIX"
-            },
-            "min": 0,
-            "max": 1
-          }
-        },
-        "local_group_id": {
-          "type": {
-            "key": {
-              "type": "integer",
-              "minInteger": 0,
-              "maxInteger": 4294967295
             },
             "min": 0,
             "max": 1
@@ -1347,15 +1336,6 @@ var schema = `{
             },
             "min": 0,
             "max": "unlimited"
-          }
-        },
-        "filter": {
-          "type": {
-            "key": {
-              "type": "string"
-            },
-            "min": 0,
-            "max": 1
           }
         },
         "name": {

@@ -40,8 +40,6 @@ type ACL struct {
 	Name        *string           `ovsdb:"name" validate:"omitempty,max=63"`
 	Options     map[string]string `ovsdb:"options" validate:"dive,keys,max=9223372036854775806,endkeys,max=9223372036854775806"`
 	Priority    int               `ovsdb:"priority" validate:"min=0,max=32767"`
-	SampleEst   *string           `ovsdb:"sample_est"`
-	SampleNew   *string           `ovsdb:"sample_new"`
 	Severity    *ACLSeverity      `ovsdb:"severity" validate:"omitempty,max=9223372036854775806,oneof='alert' 'warning' 'notice' 'info' 'debug'"`
 	Tier        int               `ovsdb:"tier" validate:"min=0,max=3"`
 }
