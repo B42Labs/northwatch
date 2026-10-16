@@ -164,6 +164,7 @@ export default defineConfig({
           { text: 'HTTP API', link: '/reference/api' },
           { text: 'Capabilities', link: '/reference/capabilities' },
           { text: 'Prometheus metrics', link: '/reference/metrics' },
+          { text: 'Supported versions', link: '/reference/compatibility' },
           { text: 'Make targets', link: '/reference/make-targets' },
           {
             text: 'Project structure',

@@ -51,6 +51,14 @@ client could exhaust memory or fill the disk.
 
 ### Changed
 
+- **Columns and tables added after OVN 24.03 / Open vSwitch 3.3 are no longer
+  shown.** The models are now generated from the oldest supported releases (see
+  Fixed below), so the API and UI drop the NB tables `DHCP_Relay`, `Sample`,
+  `Sample_Collector` and `Sampling_App`, the columns `ACL.sample_est`,
+  `ACL.sample_new`, `NAT.match`, `NAT.priority`,
+  `Logical_Router_Port.dhcp_relay`, `Logical_Flow.flow_desc`,
+  `IGMP_Group.protocol`, `Mirror.filter` and
+  `Flow_Sample_Collector_Set.local_group_id`. No analysis used them.
 - **`--listen` now defaults to `127.0.0.1:8080`** instead of `:8080` (all
   interfaces). Binding a non-loopback address requires `--api-tokens` or
   `--insecure-no-auth`; Northwatch refuses to start otherwise. Container
@@ -94,6 +102,14 @@ client could exhaust memory or fill the disk.
 
 ### Fixed
 
+- **Northwatch refused to connect to OVN older than 24.09** ([#137](https://github.com/B42Labs/northwatch/issues/137)). The models
+  were generated from the OVN 24.09 / Open vSwitch 3.4 schemas, and libovsdb
+  rejects a server that lacks any modeled table or column, so OVN 24.03 LTS
+  (Ubuntu 24.04, DevStack) failed with a schema validation error. The models now
+  come from OVN 24.03 and Open vSwitch 3.3, which is the documented minimum; a
+  test validates them against the newest releases as well. A schema mismatch now
+  names the supported range, and snapshot files captured by a build with a
+  higher minimum still load, skipping the tables this build does not model.
 - **SQLite pragmas were applied to only one pooled connection.** `foreign_keys`
   and `busy_timeout` were executed once against an unbounded pool, so every other
   connection ran with foreign keys off — which made `DeleteSnapshot`'s

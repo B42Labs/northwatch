@@ -130,6 +130,7 @@ and alerts all populate from this activity.
   [Investigate with Omnisearch](/tutorials/investigate-with-omnisearch).
 - Capture this deployment and browse it offline:
   [Explore a deployment offline](/tutorials/explore-a-deployment-offline).
-- Point Northwatch at your own deployment:
+- Point Northwatch at your own deployment (OVN 24.03 or newer, see
+  [Supported versions](/reference/compatibility)):
   [Connect to a Raft cluster](/how-to/connect-to-a-raft-cluster).
 - Tear the lab down when you are done: `make lab-compose-down`.

@@ -14,6 +14,8 @@ value, not for learning.
   advertises and what enables each one.
 - [Prometheus metrics](/reference/metrics): every metric exported at
   `/metrics`.
+- [Supported versions](/reference/compatibility): the OVN and Open vSwitch
+  releases Northwatch connects to, and what a newer or older server means.
 - [Make targets](/reference/make-targets): build, test, lint and lab targets.
 - [Project structure](/reference/project-structure): repository layout and what
   each package does.
