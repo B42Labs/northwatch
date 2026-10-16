@@ -86,6 +86,11 @@ client could exhaust memory or fill the disk.
   Go 1.26.5 carried six standard library advisories that `govulncheck` reported
   as reachable from Northwatch (`net/url`, `crypto/tls`, `net/http` x2,
   `encoding/xml`, `encoding/asn1`); `govulncheck` is clean on 1.27.1.
+- The Go toolchain moves to 1.27.2 and `golang.org/x/net` to v0.60.0. Go 1.27.1
+  carried ten standard library advisories that `govulncheck` reports as
+  reachable from Northwatch (`net/http` x8, `net/textproto`, `crypto/tls`),
+  several of them also through `golang.org/x/net` v0.57.0; `govulncheck` is
+  clean on 1.27.2.
 
 ### Fixed
 
