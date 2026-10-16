@@ -24,8 +24,8 @@ lab. This page lists the targets; the lab targets are covered in detail in
 
 | Target | What it does |
 |---|---|
-| `make generate` | Regenerate the OVSDB models (NB, SB and Open_vSwitch) from the schemas. |
-| `make schema-download` | Download the pinned OVN NB/SB and Open_vSwitch schemas (`OVN_VERSION` / `OVS_VERSION` in the Makefile). |
+| `make generate` | Regenerate the OVSDB models (NB, SB and Open_vSwitch) from the schemas, removing models of tables the schemas no longer have. Runs the `modelgen` version pinned in `go.mod`. |
+| `make schema-download` | Download the pinned OVN NB/SB and Open_vSwitch schemas (`OVN_VERSION` / `OVS_VERSION` in the Makefile). The pins are the oldest supported releases; see [Supported versions](/reference/compatibility). |
 | `make openapi-export` | Write the OpenAPI spec to `openapi.json`. |
 | `make ovnsim` | Build the `ovnsim` load generator to `bin/ovnsim`. |
 

@@ -46,6 +46,9 @@ addresses (comma-separated for Raft failover):
   --ovn-sb-addr tcp:10.0.0.1:6642,tcp:10.0.0.2:6642,tcp:10.0.0.3:6642
 ```
 
+Northwatch supports OVN 24.03 and newer, and Open vSwitch 3.3 and newer for the
+per-chassis view; see [Supported versions](https://b42labs.github.io/northwatch/reference/compatibility).
+
 See [Getting started](https://b42labs.github.io/northwatch/tutorials/getting-started)
 for the full walkthrough.
 

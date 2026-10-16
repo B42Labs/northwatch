@@ -19,6 +19,7 @@ make schema-download # Download pinned OVN schemas
 - **libovsdb is the cache**: `MonitorAll` populates an in-memory `TableCache`. API handlers query it directly via `client.List()` / `client.Get()` / `client.WhereCache()`. No custom cache layer.
 - **stdlib HTTP**: `net/http` with `http.ServeMux` (Go 1.22+ pattern routing). No framework.
 - **Config**: flags + env vars only. No YAML.
+- **Models come from the oldest supported schemas**: `internal/ovsdb/{nb,sb,vs}` are generated from OVN 24.03 / Open vSwitch 3.3 (`OVN_VERSION` / `OVS_VERSION` in the Makefile), because libovsdb rejects any server that lacks a modeled table or column. Bumping a pin drops support for older releases; see `docs/reference/compatibility.md` before touching it.
 
 ## Code Style
 
