@@ -32,7 +32,7 @@ jobs:
           go-version-file: go.mod
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
       - name: Build UI
         run: make build-ui
       - name: Build binary
